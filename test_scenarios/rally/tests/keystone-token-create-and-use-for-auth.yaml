@@ -1,0 +1,16 @@
+---
+  Authenticate.keystone:
+    -
+      runner:
+        type: "rps"
+        times: 1
+        rps: 1
+      sla:
+        max_failure_percent: 0
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 3
+      sla:
+        failure_rate:
+          max: 0
