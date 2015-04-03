@@ -8,10 +8,12 @@ import sys
 
 
 def prepare_tests(test_group):
-#    config.read(default_config)
     section  = "custom_test_group_" + test_group
-    return dict([(opt, config.get(section, opt)) for opt in
+    restmp = config.options(section)
+
+    out =  dict([(opt, config.get(section, opt)) for opt in
                 config.options(section)])
+    return out
 
 
 def do_custom(test_group='default'):
@@ -46,19 +48,20 @@ def do_short():
     return do_custom("short")
 
 
-def do_single(test_name):
+def do_single(test_group, test_name):
     """Run specific test.
 
     The test must be specified as this: testool/tests/tesname
     """
-    return dispatch_tests_to_runners(test_name)
+    the_one = dict(((test_group, test_name),))
+    return dispatch_tests_to_runners(the_one)
 
 def discover_test_suits():
     """Discovers tests in default location.
     """
     # TODO: generalize discovery
     config.get('basic', 'scenario_dir')
-    scenario_dir = "test_scenarios"
+    scenario_dir = os.path.join(os.path.dirname(__file__), "test_scenarios")
     possible_places = map(lambda x: os.path.join(scenario_dir, x),
                           os.listdir(scenario_dir))
     per_component = [(x.split('/')[-1],  os.listdir(os.path.join(x, "tests")))
@@ -71,20 +74,29 @@ def discover_test_suits():
 
 
 def dispatch_tests_to_runners(test_dict):
-    out, total = 0, 0
+    dispatch_result = {}
     for key in test_dict.keys():
+        dispatch_result[key] = {}
         try:
-            m = imp.load_source("runner"+key,
-                                "test_scenarios/"+key+ "/runner.py")
+            spawn_point = os.path.dirname(__file__)
+            path_to_runner = os.path.join(spawn_point, "test_scenarios",
+                                          key, "runner.py")
+            m = imp.load_source("runner"+key, path_to_runner)
         except Exception as e:
-            print "Something horribly wrong has happend to", key+"!"
+            major_crash = 1
+            dispatch_result[key]['major_crash'] = 1
             logger.exception("The following exception has been caught: %s" % e)
         else:
             runner = getattr(m, config.get(key, 'runner'))()
-            run_failures = runner.run_batch(test_dict[key].split(','))
-            out += len(run_failures)
-            total += len(test_dict[key].split(','))
-    return (out, total)
+            batch = test_dict[key].split(',')
+            try:
+                run_failures = runner.run_batch(batch)
+            except Exception as e:
+                run_failures = test_dict[key].split(',')
+                raise e
+            dispatch_result[key]['failures_number'] = len(run_failures)
+            dispatch_result[key]['test_number'] = len(batch)
+    return dispatch_result
 
 
 def do_full():
@@ -94,11 +106,31 @@ def do_full():
     test_dict = discover_test_suits()
     return dispatch_tests_to_runners(test_dict)
 
+def describe_results(results):
+    """Pretty printer for results.
+    """
+    issues = None
+    for key, result in results.iteritems():
+        if result.get('major_crash', None) is not None:
+            issues = 1
+            print key, '\t:\t', "something went horribly wrong"
+            continue
+        elif result['failures_number'] != 0:
+            issues = 1
+            print key, '\t:\t', result['failures_number'], "of",\
+                result["test_number"], "have failed."
+        else:
+            print key, '\t:\t', "all tests are fine."
+    captain_logs = os.path.join(config.get("basic", "logdir"),
+                                config.get("basic", "logfile"))
+    if issues:
+        print "Please refer to", captain_logs,\
+            "to find what exactly has gone awry."
+    else:
+        print "Run logs could be found in", captain_logs,\
+            "if you wish to see them."
 
-# setting up nice logging
-__ = '%(asctime)s %(levelname)s %(message)s'
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, filename="mcvconsoler.log", format=__)
+
 
 # hooking up a config
 config = ConfigParser.ConfigParser()
@@ -124,6 +156,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# setting up nice logging
+__ = '%(asctime)s %(levelname)s %(message)s'
+logger = logging.getLogger(__name__)
 
 def main():
     if args.config  is not None:
@@ -131,18 +166,20 @@ def main():
     else:
         default_config = default_config_file
     config.read(default_config)
+    logging.basicConfig(level=getattr(logging,
+                                      config.get('basic', 'loglevel').upper()),
+                        filename=os.path.join(config.get('basic', 'logdir'),
+                                              config.get('basic', 'logfile')),
+                        format=__)
     if args.run is not None:
         try:
-            failures, total = globals()["do_" + args.run[0]]()
-        except TypeError:
-            failures, total = globals()["do_" + args.run[0]](args.run[1])
-        finally:
-            if failures > 0:
-                print("%s out of %s tests have failed."
-                      " Please refer to logs for details."
-                      % (failures, total))
-            else:
-                print "Checks are finished, everything looks fine."
+            run_results = globals()["do_" + args.run[0]](*args.run[1:])
+        except Exception as e:
+            print "Something went wrong with the command, please"\
+                  " refer to logs to find out what"
+            LOG.log_exception(e)
+            return
+    describe_results(run_results)
 
 
 if __name__ == "__main__":

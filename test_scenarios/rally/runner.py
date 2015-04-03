@@ -24,11 +24,6 @@ class RallyRunner(runner.Runner):
         super(RallyRunner, self).__init__()
         self.identity = "rally"
         self.config_section = "rally"
-        if config_location is None:
-            self.config_location = default_config
-        else:
-            self.config_location = config_location
-        self.config_values = self.read_confug_values()
         self.test_failures = []  # this object is supposed to live for one run
                                  # so let's leave it as is for now.
 
@@ -136,14 +131,17 @@ class RallyOnDockerRunner(RallyRunner):
     def _create_task_in_docker(self, task):
         cmd  = "docker inspect -f '{{.Id}}' %s" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = r"cp test_scenarios/rally/tests/%s\
-              /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
-              (task, p.rstrip('\n'))
+        test_location = os.path.join(os.path.dirname(__file__), "tests", task)
+        LOG.log_arbitrary("Preparing to task %s" % task)
+        cmd = r"cp "+test_location+\
+              " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
+              p.rstrip('\n')
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        LOG.log_arbitrary("Successfully prepared to task %s" % task)
 
 
     def _run_rally_on_docker(self, task):
-        # madskillz go go!
+        LOG.log_arbitrary("Starting task %s" % task)
         self._create_task_in_docker(task)
         cmd = "docker exec -it %s rally task start /tmp/pending_rally_task" %\
              self.container
@@ -151,13 +149,21 @@ class RallyOnDockerRunner(RallyRunner):
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
+        if out.startswith("For"):
+            out = p.split('\n')[-3].lstrip('\t')
+        LOG.log_arbitrary("Received results for a task %s, IT is %s" % (task,
+                          out.rstrip('\r')))
         return out.rstrip('\r')
 
     def _get_task_result_from_docker(self, task_id):
+        LOG.log_arbitrary("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container, task_id)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        res = json.loads(p)[0]  # actual test result as a dictionary
-        return res
+        if task_id.find("detailed") ==-1:
+            res = json.loads(p)[0]  # actual test result as a dictionary
+            return res
+        else:
+            return p.split('\n')[-4:-1]
 
     def run_batch(self, tasks):
         self._setup_rally_on_docker()
@@ -168,7 +174,9 @@ class RallyOnDockerRunner(RallyRunner):
         # apparently we'll need something to set up rally inside docker.
         task_id = self._run_rally_on_docker(task)
         task_result = self._get_task_result_from_docker(task_id)
-        if self._evaluate_task_result(task, task_result):
+        if type(task_result) == dict and\
+                self._evaluate_task_result(task, task_result):
             return
         else:
+            LOG.log_warning("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)

@@ -1,6 +1,8 @@
 import logging
 
 """Here be thefunctions to run logging."""
+# TODO: this starts looking ugly, should  be fixed whenever there is a
+# a chance to do it.
 
 logger = logging.getLogger(__name__)
 
@@ -29,3 +31,12 @@ def log_hi():
 
 def log_starting_full_check():
     logger.info("Starting full test run")
+
+def log_exception(e):
+    logger.exception("Got the following exception: %s" % e)
+
+def log_arbitrary(message):
+    logger.debug(message)
+
+def log_warning(message):
+    logger.warning(message)

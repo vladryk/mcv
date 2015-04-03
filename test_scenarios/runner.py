@@ -17,7 +17,7 @@ class Runner(object):
     def scenario_is_fine(self, scenario):
         #I am totally usure if it is needed to check for file existence
         #as it is sort of a bad idea to expect that there is an issue in
-        #a pre-build tool. however as we provide an end-user iwth ability
+        #a pre-build tool. however as we provide an end-user with ability
         #to change settings we may run into a typo in a config.
         #probably each line retrieved from a config should be checked for
         #sanity as typos manage to creep in and ruin everything. however
@@ -55,15 +55,6 @@ class Runner(object):
 
     def _evaluate_task_results(self, task_results):
         raise NotImplementedError
-
-    def read_confug_values(self):
-        self.config = ConfigParser.ConfigParser()
-        self.config.read(self.config_location)
-        options = self.config.options(self.config_section)
-        self.config_options = dict([(option, self.config.get(
-                                             self.config_section,
-                                             option))
-                                    for option in options])
 
     def orient_self(self):
         self.directory = os.getcwd("");
