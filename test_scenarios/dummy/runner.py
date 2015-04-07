@@ -2,6 +2,7 @@ import ConfigParser
 import logger as LOG
 import os
 import subprocess
+import time
 import sys
 from test_scenarios import runner
 try:
@@ -36,4 +37,5 @@ class DummyRunner(runner.Runner):
         return super(DummyRunner, self).run_batch(tasks)
 
     def run_individual_task(self, task):
+        time.sleep(2)
         return

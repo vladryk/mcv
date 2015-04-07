@@ -35,9 +35,16 @@ def do_custom(test_group='default'):
     in a config file. In case several custom groups have identical names
     the last will be used.
     """
+    def pretty_print_tests(tests):
+        print "The following amount of tests is requested per available tools:"
+        for group, test_list in tests.iteritems():
+            print group, '\t:\t', len(test_list.split(','))
+        print
+
     tests_to_run = prepare_tests(test_group)
     # tests_to_run is a dictionary that looks like this:
     # {'rally':'test1,test2,test3', 'ostf':'test1,test2', 'wtf':'test8'}
+    pretty_print_tests(tests_to_run)
     return dispatch_tests_to_runners(tests_to_run)
 
 
@@ -139,9 +146,23 @@ default_config_file = "etc/mcv.conf"
 # processing command line arguments.
 parser = argparse.ArgumentParser(
     prog="mcvconsoler",
+    formatter_class=argparse.RawTextHelpFormatter,
     description="""Central point of control for cloud validation -- one tool
     to rule them all.""",
-    epilog="""...and in the darkness bind them, in the cloud where the
+    epilog=r"""The following command gives an example of how tests could be run:
+
+    # mcvconsoler --run custom short
+
+    Default config could be found in <path-to-mcv>/etc/mcv.conf so you can try
+    it out with the default config:
+
+    # mcvconsoler --run custom short --config <path-to-mcv>/etc/mcv.conf
+
+    Also it is recommended to run the tool as a superuser, running it as an
+    ordinary user might cause unexpected errors in strange places for odd
+    tools.
+
+    ...and in the darkness bind them, in the cloud where the
     instances lie.""",)
 
 parser.add_argument(
