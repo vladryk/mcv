@@ -182,11 +182,15 @@ __ = '%(asctime)s %(levelname)s %(message)s'
 logger = logging.getLogger(__name__)
 
 def main():
+    if len(sys.argv) < 2:
+        parser.print_help()
+        sys.exit(1)
+    run_results = None
     if args.config  is not None:
         default_config = args.config
     else:
         default_config = default_config_file
-    config.read(default_config)
+    config.read(os.path.join(os.path.dirname(__file__), default_config))
     logging.basicConfig(level=getattr(logging,
                                       config.get('basic', 'loglevel').upper()),
                         filename=os.path.join(config.get('basic', 'logdir'),
@@ -200,7 +204,8 @@ def main():
                   " refer to logs to find out what"
             LOG.log_exception(e)
             return
-    describe_results(run_results)
+    if run_results is not None:
+        describe_results(run_results)
 
 
 if __name__ == "__main__":
