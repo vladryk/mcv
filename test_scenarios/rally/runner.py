@@ -1,3 +1,4 @@
+import re
 import ConfigParser
 import logger as LOG
 import os
@@ -148,12 +149,15 @@ class RallyOnDockerRunner(RallyRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
-        out = p.split('\n')[-4].lstrip('\t')
+        out = p.split('\n')[-3].lstrip('\t')
+        m = re.search('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', p)
+        ret_val = m.group(0)
+
         if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.log_arbitrary("Received results for a task %s, IT is %s" % (task,
                           out.rstrip('\r')))
-        return out.rstrip('\r')
+        return ret_val
 
     def _get_task_result_from_docker(self, task_id):
         LOG.log_arbitrary("Retrieving task results for %s" % task_id)
