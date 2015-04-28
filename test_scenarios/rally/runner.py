@@ -101,9 +101,10 @@ class RallyRunner(runner.Runner):
         task_id = self._run_rally(task)
         task_result = self._get_task_result(task_id)
         if self._evaluate_task_result(task, task_result):
-            return
+            return True
         else:
             self.test_failures.append(task)
+            return False
 
 class RallyOnDockerRunner(RallyRunner):
 
@@ -137,27 +138,48 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = r"cp "+test_location+\
               " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
               p.rstrip('\n')
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        LOG.log_arbitrary("Successfully prepared to task %s" % task)
+        try:
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            if e.output.find('Permission denied') != -1:
+                print "  Got an access issue, you might want to run this as root  ",
+            return False
+        else:
+            LOG.log_arbitrary("Successfully prepared to task %s" % task)
+            return True
 
 
     def _run_rally_on_docker(self, task):
         LOG.log_arbitrary("Starting task %s" % task)
-        self._create_task_in_docker(task)
+        if not self._create_task_in_docker(task):
+            #import pdb; pdb.set_trace()
+            return {'failed': True}
         cmd = "docker exec -it %s rally task start /tmp/pending_rally_task" %\
              self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        original_output = p
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
         out = p.split('\n')[-3].lstrip('\t')
-        m = re.search('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', p)
-        ret_val = m.group(0)
+        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        ret_val = None
+        failed = False
+        # ok, this has to be recosidered to make it less ugly
+        for candidate in result_candidates:
+            m = re.search(candidate, p)
+            if m is not None:
+                ret_val = m.group(0)
+                if ret_val.find('detailed') != -1:
+                    failed = True
 
         if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.log_arbitrary("Received results for a task %s, IT is %s" % (task,
                           out.rstrip('\r')))
-        return ret_val
+        return {'next_command': ret_val,
+                'original output': original_output,
+                'failed': failed}
 
     def _get_task_result_from_docker(self, task_id):
         LOG.log_arbitrary("Retrieving task results for %s" % task_id)
@@ -177,10 +199,16 @@ class RallyOnDockerRunner(RallyRunner):
         # here be the fix for running rally in a docker container.
         # apparently we'll need something to set up rally inside docker.
         task_id = self._run_rally_on_docker(task)
-        task_result = self._get_task_result_from_docker(task_id)
+        if task_id['failed'] and len(task_id.keys()) == 1:
+            print "Apparently task", task, "has failed"
+            LOG.log_warning("Task %s has failed for some instrumental issues" % (task))
+            self.test_failures.append(task)
+            return False
+        task_result = self._get_task_result_from_docker(task_id['next_command'])
+
         if type(task_result) == dict and\
                 self._evaluate_task_result(task, task_result):
-            return
+            return True
         else:
             LOG.log_warning("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)

@@ -11,6 +11,8 @@ class Runner(object):
 
     def __init__(self):
         self.current_task = 1
+        self.test_success = []
+        self.test_not_found = []
         super(Runner, self).__init__()
 
     def _it_ends_well(self, scenario):
@@ -70,6 +72,7 @@ class Runner(object):
     def check_task_list(self, tasks):
         fine_to_run = filter(self.scenario_is_fine, tasks)
         rejected_tasks = [x for x in tasks if x not in fine_to_run]
+        self.test_not_found = rejected_tasks
         map(tasks.remove, rejected_tasks)
         LOG.log_fine(fine_to_run) if fine_to_run else \
              LOG.log_big_test_problem(self.identity)
@@ -79,12 +82,14 @@ class Runner(object):
         """Runs a bunch of tasks."""
         self.check_task_list(tasks)
         self.total_checks = len(tasks)
-        self._prepare_output()
         for task in tasks:
-            self.run_individual_task(task)
-            self._update_status()
-        self._finalize_output()
-        return self.test_failures
+            print "Running", task,  # this should go to a generalized printer
+            if self.run_individual_task(task):
+                self.test_success.append(task)
+            print
+        return {"test_failures": self.test_failures, 
+                "test_success": self.test_success, 
+                "test_not_found": self.test_not_found}
 
     def _evaluate_task_results(self, task_results):
         raise NotImplementedError

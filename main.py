@@ -1,15 +1,20 @@
 import argparse
+import inspect
 import ConfigParser
 import logging
 import logger as LOG
 import imp
+import subprocess
 import os
 import sys
 
 
 def prepare_tests(test_group):
     section  = "custom_test_group_" + test_group
-    restmp = config.options(section)
+    try:
+        restmp = config.options(section)
+    except ConfigParser.NoSectionError:
+        print "Come on, seriously, there is no such section in the config you\'ve provided!"
 
     out =  dict([(opt, config.get(section, opt)) for opt in
                 config.options(section)])
@@ -41,7 +46,11 @@ def do_custom(test_group='default'):
             print group, '\t:\t', len(test_list.split(','))
         print
 
+    if test_group == 'default':
+        print "Either no group has been explicitly requested or it was group \'default\'."
     tests_to_run = prepare_tests(test_group)
+    if tests_to_run is None:
+        return None
     # tests_to_run is a dictionary that looks like this:
     # {'rally':'test1,test2,test3', 'ostf':'test1,test2', 'wtf':'test8'}
     pretty_print_tests(tests_to_run)
@@ -89,6 +98,11 @@ def dispatch_tests_to_runners(test_dict):
             path_to_runner = os.path.join(spawn_point, "test_scenarios",
                                           key, "runner.py")
             m = imp.load_source("runner"+key, path_to_runner)
+        except IOError as e:
+            major_crash = 1
+            print "Looks like there is no such runner:", key, ". Have you let someone borrow it?"
+            dispatch_result[key]['major_crash'] = 1
+            logger.exception("The following exception has been caught: %s" % e)
         except Exception as e:
             major_crash = 1
             dispatch_result[key]['major_crash'] = 1
@@ -96,13 +110,18 @@ def dispatch_tests_to_runners(test_dict):
         else:
             runner = getattr(m, config.get(key, 'runner'))()
             batch = test_dict[key].split(',')
+            print "Running", len(batch), "test"+"s"*(len(batch)!=1), "for", key 
             try:
                 run_failures = runner.run_batch(batch)
+            except subprocess.CalledProcessError as e:
+                if e.returncode == 127:
+                    print "It looks like you are trying to use a wrong runner. No tests will be run in this group this time."
+                raise e
             except Exception as e:
                 run_failures = test_dict[key].split(',')
                 raise e
-            dispatch_result[key]['failures_number'] = len(run_failures)
-            dispatch_result[key]['test_number'] = len(batch)
+            dispatch_result[key]['results'] = run_failures
+            dispatch_result[key]['batch'] = batch
     return dispatch_result
 
 
@@ -116,32 +135,25 @@ def do_full():
 def describe_results(results):
     """Pretty printer for results.
     """
-    issues = None
-    for key, result in results.iteritems():
-        if result.get('major_crash', None) is not None:
-            issues = 1
-            print key, '\t:\t', "something went horribly wrong"
-            continue
-        elif result['failures_number'] != 0:
-            issues = 1
-            print key, '\t:\t', result['failures_number'], "of",\
-                result["test_number"], "have failed."
-        else:
-            print key, '\t:\t', "all tests are fine."
-    captain_logs = os.path.join(config.get("basic", "logdir"),
-                                config.get("basic", "logfile"))
-    if issues:
-        print "Please refer to", captain_logs,\
-            "to find what exactly has gone awry."
-    else:
-        print "Run logs could be found in", captain_logs,\
-            "if you wish to see them."
+    print
+    print "-"*40
+    print "The run resulted in:"
+    for key in results.iterkeys():
+        print "For", key, ":",
+        if results[key].get('major_crash', None) is not None:
+            print "A major tool failure has been detected"
+            return
+        print
+        print len(results[key]['results']['test_success']), "\t\t successful tests"
+        print len(results[key]['results']['test_failures']), "\t\t failed tests"
+        print len(results[key]['results']['test_not_found']), "\t\t not found tests"
 
+    return
 
 
 # hooking up a config
 config = ConfigParser.ConfigParser()
-default_config_file = "etc/mcv.conf"
+default_config_file = "/etc/mcv/mcv.conf"
 
 # processing command line arguments.
 parser = argparse.ArgumentParser(
@@ -182,6 +194,7 @@ __ = '%(asctime)s %(levelname)s %(message)s'
 logger = logging.getLogger(__name__)
 
 def main():
+    print
     if len(sys.argv) < 2:
         parser.print_help()
         sys.exit(1)
@@ -190,22 +203,35 @@ def main():
         default_config = args.config
     else:
         default_config = default_config_file
-    config.read(os.path.join(os.path.dirname(__file__), default_config))
+    path_to_config = os.path.join(os.path.dirname(__file__), default_config)
+    # TODO: add effin check for right since noone cares to make them o'kay in the first place
+    config.read(path_to_config)
+    path_to_main_log = os.path.join(config.get('basic', 'logdir'),
+                                              config.get('basic', 'logfile'))
+    # TODO: ditto
     logging.basicConfig(level=getattr(logging,
                                       config.get('basic', 'loglevel').upper()),
-                        filename=os.path.join(config.get('basic', 'logdir'),
-                                              config.get('basic', 'logfile')),
+                        filename=path_to_main_log,
                         format=__)
     if args.run is not None:
         try:
             run_results = globals()["do_" + args.run[0]](*args.run[1:])
+        except TypeError as e:
+            print  "Somehow \'" + ", ".join(args.run[1:]) + "\' is not enough for \'" + args.run[0] + "\'"
+            print "\'"+args.run[0]+"\'", "actually expects the folowing arguments: \'" + "\', \'".join(inspect.getargspec(globals()["do_" + args.run[0]]).args) + "\'"
+            LOG.log_exception(e)
         except Exception as e:
             print "Something went wrong with the command, please"\
                   " refer to logs to find out what"
             LOG.log_exception(e)
-            return
     if run_results is not None:
         describe_results(run_results)
+    captain_logs = os.path.join(config.get("basic", "logdir"),
+                                config.get("basic", "logfile"))
+    print
+    print "-"*40
+    print "For extra details and possible insights please refer to", captain_logs, "or to per-component logs in", config.get("basic", "logdir")+"/mcv"
+    print
 
 
 if __name__ == "__main__":
