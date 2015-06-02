@@ -1,3 +1,4 @@
+import accessor
 import argparse
 import inspect
 import ConfigParser
@@ -214,6 +215,8 @@ def main():
                         filename=path_to_main_log,
                         format=__)
     if args.run is not None:
+        access_helper = accessor.AccessSteward()
+        access_helper.check_and_fix_credentials()
         try:
             run_results = globals()["do_" + args.run[0]](*args.run[1:])
         except TypeError as e:

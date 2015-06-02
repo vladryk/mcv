@@ -108,7 +108,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.log_arbitrary("Starting task %s" % task)
-        cmd = cmd = "keystone endpoint-list | grep :5000"
+        cmd = "docker exec -it %s keystone endpoint-list | grep :5000" %\
+        self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         self.endpoint = p.split('|')[3].split(':')[1].lstrip('/')
         cmd = "docker exec -it %s shaker-image-builder \
