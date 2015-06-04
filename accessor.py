@@ -144,8 +144,13 @@ class AccessSteward(object):
         for line in images:
             if re.search('mcv-shaker', line) is not None:
                 res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-                    "-p", "5999:5999", "-it", "mcv-shaker"],
-                    stdout=subprocess.PIPE).stdout.read()
+                    "-p", "5999:5999", "-e", "OS_AUTH_URL=http://" +
+                    self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+                    "-e", "OS_TENANT_NAME=" +
+                    self.access_data["os_tenant_name"],
+                    "-e", "OS_USERNAME=" + self.access_data["os_username"],
+                    "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+                    "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
                 return
 
     def _start_rally_container(self):
