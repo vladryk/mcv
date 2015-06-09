@@ -215,8 +215,8 @@ class AccessSteward(object):
         erconref = re.compile('ERROR \(ConnectionRefused\)')
         erepnotf = re.compile('ERROR \(EndpointNotFound\)')
         erecreds = re.compile('ERROR \(Unauthorized\)')
-        if re.search(erconref, res) is not None or re.search(erepnotf, res)
-        is not None:
+        if re.search(erconref, res) is not None or re.search(erepnotf, res)\
+                is not None:
             print "Apparently authentication endpoint address is not valid."
             print "Curent value is", self.access_data["auth endpoint"]
             self._request_auth_endpoint_ip()
@@ -273,8 +273,8 @@ class AccessSteward(object):
         res = res.split('\n')
         valid_containers = 0
         for r in res:
-            if re.search('mcv-rally', r) is not None or
-            re.search('mcv-shaker', r) is not None:
+            if re.search('mcv-rally', r) is not None or\
+                    re.search('mcv-shaker', r) is not None:
                 valid_containers += 1
         if valid_containers == 2:
             print "All images seem to be in place"
@@ -298,13 +298,14 @@ class AccessSteward(object):
         return self._check_and_fix_flavor()
 
     def _rally_deployment_check(self):
-        res = subprocess.Popen(["docker", "exec", "-it", a.rally_container_id,
+        res = subprocess.Popen(["docker", "exec", "-it",
+                                self.rally_container_id,
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
             print "Trying to set up rally deployment"
             res = subprocess.Popen(["docker", "exec", "-it",
-                                    a.rally_container_id, "rally",
+                                    self.rally_container_id, "rally",
                                     "deployment", "create", "--fromenv",
                                     "--name=existing"],
                                    stdout=subprocess.PIPE).stdout.read()

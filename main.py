@@ -216,7 +216,7 @@ def main():
                         format=__)
     if args.run is not None:
         access_helper = accessor.AccessSteward()
-        access_helper.check_and_fix_credentials()
+        access_helper.check_and_fix_environment()
         try:
             run_results = globals()["do_" + args.run[0]](*args.run[1:])
         except TypeError as e:
