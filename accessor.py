@@ -327,7 +327,7 @@ class AccessSteward(object):
             "nova list").split('\r\n')[3:-2]
         for vm in res:
             vm = vm.replace(' ', '').split('|')
-            if vm[-2].find(self.access_data["inctance_ip"]) > -1:
+            if vm[-2].find(self.access_data["instance_ip"]) > -1:
                 instance_name = vm[2]
         self._run_nova_command_in_container(
             "nova add-secgroup " + instance_name + " mcv-special-group")
