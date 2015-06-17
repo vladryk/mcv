@@ -135,8 +135,10 @@ class AccessSteward(object):
                     self.access_data["os_tenant_name"],
                     "-e", "OS_USERNAME=" + self.access_data["os_username"],
                     "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+                    "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
                     "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
                 return
+        self._check_and_fix_iptables_rule()
 
     def _start_shaker_container(self):
         images = subprocess.Popen(["docker", "images"],
@@ -150,6 +152,7 @@ class AccessSteward(object):
                     self.access_data["os_tenant_name"],
                     "-e", "OS_USERNAME=" + self.access_data["os_username"],
                     "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+                    "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
                     "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
                 return
 
@@ -339,6 +342,7 @@ class AccessSteward(object):
     def _check_shaker_setup(self):
         res = subprocess.Popen(["docker", "exec", "-it",
                 self.shaker_container_id, "shaker-image-builder",
+		"--image-builder-template",
                 "/etc/shaker/shaker/resources/image_builder_template.yaml"],
                 stdout=subprocess.PIPE).stdout.read()
 
@@ -357,16 +361,19 @@ class AccessSteward(object):
 
     def _check_and_fix_iptables_rule(self):
         print "Make sure your controller is set up properly. Like this:"
-        raw_input("Press enter when you are sure")
+        print "ssh -f -N -L ${controller_ip}:7654:${keystone_private_endpoint_ip}:35357 localhost"
+        print "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
+        raw_input("(Press enter when you are sure)")
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
                                 "PREROUTING", "1", "-d", "192.168.0.2", "-p",
-                                "tcp", "--dport", "3557", "-j", "DNAT",
+                                "tcp", "--dport", "35357", "-j", "DNAT",
                                 "--to-destination", "172.16.57.37:7654"],
                                stdout=subprocess.PIPE).stdout.read()
 
     def check_and_fix_environment(self):
         self.check_docker_images()
         self.check_and_fix_access_data()
+        self._check_and_fix_iptables_rule()
         self._check_mcv_secgroup()
         self._stop_rally_container()
         self._start_rally_container_()
