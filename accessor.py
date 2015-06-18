@@ -307,10 +307,23 @@ class AccessSteward(object):
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
             print "Trying to set up rally deployment"
+            cmd  = "docker inspect -f '{{.Id}}' %s" % self.rally_container_id
+            p = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+            test_location = "existing.json"
+            cmd = r"cp "+test_location+\
+            " /var/lib/docker/aufs/mnt/%s/home/rally" %\
+            p.rstrip('\n')
+            try:
+                p = subprocess.check_output(cmd, shell=True,
+                                            stderr=subprocess.STDOUT)
+            except:
+                print "Failed to copy"
             res = subprocess.Popen(["docker", "exec", "-it",
-                                    self.rally_container_id, "rally",
-                                    "deployment", "create", "--fromenv",
-                                    "--name=existing"],
+                                   self.rally_container_id, "rally",
+                                   "deployment", "create",
+                                   "--file=existing.json",
+                                   "--name=existing"],
                                    stdout=subprocess.PIPE).stdout.read()
 
     def _check_mcv_secgroup(self):
@@ -342,7 +355,7 @@ class AccessSteward(object):
     def _check_shaker_setup(self):
         res = subprocess.Popen(["docker", "exec", "-it",
                 self.shaker_container_id, "shaker-image-builder",
-		"--image-builder-template",
+                "--image-builder-template",
                 "/etc/shaker/shaker/resources/image_builder_template.yaml"],
                 stdout=subprocess.PIPE).stdout.read()
 
@@ -370,10 +383,31 @@ class AccessSteward(object):
                                 "--to-destination", "172.16.57.37:7654"],
                                stdout=subprocess.PIPE).stdout.read()
 
+    def create_rally_json(self):
+        template = """ {
+            "type": "ExistingCloud",
+            "auth_url": "http://%s:5000/v2.0/",
+            "region_name": "RegionOne",
+            "endpoint_type": "public",
+            "admin": {
+                "username": "%s",
+                "password": "%s",
+                "tenant_name": "%s"
+                },
+            "https_insecure": False,
+            "https_cacert": "",
+            }""" % (self.access_data["auth_endpoint_ip"],
+                    self.access_data["os_username"],
+                    self.access_data["os_password"],
+                    self.access_data["os_tenant_name"])
+        f = open("existing.json", "w")
+        f.write(template)
+        f.close()
+
     def check_and_fix_environment(self):
         self.check_docker_images()
         self.check_and_fix_access_data()
-        self._check_and_fix_iptables_rule()
+        self.create_rally_json()
         self._check_mcv_secgroup()
         self._stop_rally_container()
         self._start_rally_container_()
