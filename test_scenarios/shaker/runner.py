@@ -33,7 +33,7 @@ class ShakerRunner(runner.Runner):
 
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
-        if resulting_dict['error'] == '':
+        if resulting_dict.get('error', '') == '':
             LOG.log_test_task_ok(task)
         else:
             LOG.log_test_task_failure(task, resulting_dict['error'])
@@ -123,9 +123,9 @@ class ShakerOnDockerRunner(ShakerRunner):
          --log-file /etc/shaker/shaker.log --output theoutput" %\
              (self.container, self.endpoint)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %s cat theoutput"
+        cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        result = json.loads(p)[0]
+        result = json.loads(p)
         return result
 
     def _get_task_result_from_docker(self, task_id):
