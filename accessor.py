@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 import time
@@ -16,6 +17,7 @@ class AccessSteward(object):
                             "os_tenant_name": None,
                             "os_password": None,
                             "auth_endpoint_ip": None,
+                            "nailgun_host": None,
     }
 
     def _validate_ip(self, ip):
@@ -46,6 +48,11 @@ class AccessSteward(object):
         msg = "Please enter the IP address of MCV instance: "
         instance_address = self._request_ip(msg)
         self.access_data["instance_ip"] = instance_address
+
+    def _request_nailgun_host(self):
+        msg = "Please enter the IP address of nailgun host: "
+        instance_address = self._request_ip(msg)
+        self.access_data["nailgun_host"] = instance_address
 
     def _request_controller_ip(self):
         msg = "Please enter the IP address of cloud controller: "
@@ -116,6 +123,13 @@ class AccessSteward(object):
                 self.shaker_container_id = line[0:12]
                 return
 
+    def _extract_ostf_container_id(self, output):
+        output = output.split('\n')
+        for line in output:
+            if re.search('mcv-ostf', line) is not None:
+                self.ostf_id = line[0:12]
+                return
+
     def _stop_rally_container(self):
         print "Bringing down container with rally"
         res = subprocess.Popen(["docker", "stop", self.rally_container_id],
@@ -156,6 +170,23 @@ class AccessSteward(object):
                     "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
                 return
 
+    def _start_ostf_container(self):
+        images = subprocess.Popen(["docker", "images"],
+            stdout=subprocess.PIPE).stdout.read().split('\n')
+        for line in images:
+            if re.search('mcv-ostf', line) is not None:
+                res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+                    "-p", "8080:8080", "-e", "OS_AUTH_URL=http://" +
+                    self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+                    "-e", "OS_TENANT_NAME=" +
+                    self.access_data["os_tenant_name"],
+                    "-e", "OS_USERNAME=" + self.access_data["os_username"],
+                    "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+                    "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+                    "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
+                return
+        pass
+
     def _start_rally_container(self):
         images = subprocess.Popen(["docker", "images"],
             stdout=subprocess.PIPE).stdout.read().split('\n')
@@ -167,30 +198,53 @@ class AccessSteward(object):
                 return
 
     def _verify_rally_container_is_up(self):
+        print "Checking rally container...",
         res = subprocess.Popen(["docker", "ps"],
             stdout=subprocess.PIPE).stdout.read()
         rally_detector = re.compile("mcv-rally")
         if re.search(rally_detector, res) is not None:
             self._extract_rally_container_id(res)
+            print "ok"
         else:
+            print "It has to be started"
             self._start_rally_container()
             time.sleep(10)  # we are in no hurry today
             return self._verify_rally_container_is_up()
 
     def _verify_shaker_container_is_up(self):
+        print "Checking shaker container..."
         res = subprocess.Popen(["docker", "ps"],
             stdout=subprocess.PIPE).stdout.read()
         shaker_detector = re.compile("mcv-shaker")
         if re.search(shaker_detector, res) is not None:
             self._extract_shaker_container_id(res)
+            print "ok"
         else:
+            print "It has to be started. Go grab some coffee, this will take "\
+                  "a while."
             self._start_shaker_container()
             time.sleep(10)  # no, we are not in a hurry today
             return self._verify_shaker_container_is_up()
 
+    def _verify_ostf_container_is_up(self):
+        #TODO: make this generic
+        print "Checking OSTF container",
+        res = subprocess.Popen(["docker", "ps"],
+            stdout=subprocess.PIPE).stdout.read()
+        detector = re.compile("mcv-ostf")
+        if re.search(detector, res) is not None:
+            self._extract_ostf_container_id(res)
+            print "ok"
+        else:
+            print "It has to be started."
+            self._start_ostf_container()
+            time.sleep(10)  # no, we are not in a hurry today
+            return self._verify_ostf_container_is_up()
+
     def check_containers_are_up(self):
         self._verify_rally_container_is_up()
         self._verify_shaker_container_is_up()
+        self._verify_ostf_container_is_up()
 
     def _run_nova_command_in_container(self, command):
         # TODO: this cludge should be replaced with something more appropriate
@@ -307,11 +361,11 @@ class AccessSteward(object):
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
             print "Trying to set up rally deployment"
-            cmd  = "docker inspect -f '{{.Id}}' %s" % self.rally_container_id
+            cmd = "docker inspect -f '{{.Id}}' %s" % self.rally_container_id
             p = subprocess.check_output(cmd, shell=True,
                                         stderr=subprocess.STDOUT)
             test_location = "existing.json"
-            cmd = r"cp "+test_location+\
+            cmd = r"cp " + test_location +\
             " /var/lib/docker/aufs/mnt/%s/home/rally" %\
             p.rstrip('\n')
             try:
@@ -359,6 +413,41 @@ class AccessSteward(object):
                 "/etc/shaker/shaker/resources/image_builder_template.yaml"],
                 stdout=subprocess.PIPE).stdout.read()
 
+    def _do_config_extraction(self):
+        new_environment = os.environ.copy()
+        new_environment["NAILGUN_HOST"] = self.access_data["nailgun_host"]
+        new_environment["NAILGUN_PORT"] = '8000'
+        new_environment["CLUSTER_ID"] = '1'
+        new_environment["OS_USERNAME"] = self.access_data["os_username"]
+        new_environment["OS_PASSWORD"] = self.access_data["os_password"]
+        new_environment["OS_TENANT_NAME"] = self.access_data["os_tenant_name"]
+        new_environment["OS_REGION_NAME"] = "RegionOne"
+        res = subprocess.Popen(["ostf-config-extractor", "-o", "ostfcfg.conf"],
+                               env=new_environment, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT).stdout.read()
+
+    def _move_config_to_container(self):
+        cmd = "docker inspect -f '{{.Id}}' %s" % self.ostf_id
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        to_move = "ostfcfg.conf"
+        cmd = r"cp " + to_move +\
+              " /var/lib/docker/aufs/mnt/%s/tmp/ostfcfg.conf" %\
+              p.rstrip('\n')
+        try:
+            p = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            if e.output.find('Permission denied') != -1:
+                print " Got an access issue, you might want to run this "\
+                      "as root ",
+            return False
+        else:
+            return True
+
+    def _check_ostf_setup(self):
+        self._do_config_extraction()
+        self._move_config_to_container()
+
     def check_containers_set_up_properly(self):
         self._check_rally_setup()
         self._check_shaker_setup()
@@ -370,11 +459,13 @@ class AccessSteward(object):
                             "os_tenant_name": 'admin',
                             "os_password": 'admin',
                             "auth_endpoint_ip": '172.16.57.35',
+                            "nailgun_host": '172.16.57.34',
     }
 
     def _check_and_fix_iptables_rule(self):
         print "Make sure your controller is set up properly. Like this:"
-        print "ssh -f -N -L ${controller_ip}:7654:${keystone_private_endpoint_ip}:35357 localhost"
+        print "ssh -f -N -L ${controller_ip}:7654:${keystone_private_endpoint"\
+              "_ip}:35357 localhost"
         print "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
         raw_input("(Press enter when you are sure)")
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
