@@ -118,10 +118,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
-         /etc/shaker/scenarios/networking/l2.yaml --report-template \
+         /etc/shaker/scenarios/networking/%s --report-template \
          /etc/shaker/shaker/resources/report_template.jinja2 --debug \
          --log-file /etc/shaker/shaker.log --output theoutput" %\
-             (self.container, self.endpoint)
+             (self.container, self.endpoint, task)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)

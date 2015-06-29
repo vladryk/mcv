@@ -15,7 +15,8 @@ def prepare_tests(test_group):
     try:
         restmp = config.options(section)
     except ConfigParser.NoSectionError:
-        print "Come on, seriously, there is no such section in the config you\'ve provided!"
+        print "Come on, seriously, there is no such section in the config "\
+              "you\'ve provided!"
 
     out =  dict([(opt, config.get(section, opt)) for opt in
                 config.options(section)])
@@ -48,7 +49,8 @@ def do_custom(test_group='default'):
         print
 
     if test_group == 'default':
-        print "Either no group has been explicitly requested or it was group \'default\'."
+        print "Either no group has been explicitly requested or it was group "\
+              "\'default\'."
     tests_to_run = prepare_tests(test_group)
     if tests_to_run is None:
         return None
@@ -101,7 +103,7 @@ def dispatch_tests_to_runners(test_dict):
             m = imp.load_source("runner"+key, path_to_runner)
         except IOError as e:
             major_crash = 1
-            print "Looks like there is no such runner:", key, ". Have you let someone borrow it?"
+            print "Looks like there is no such runner:", key, "."
             dispatch_result[key]['major_crash'] = 1
             logger.exception("The following exception has been caught: %s" % e)
         except Exception as e:
@@ -111,12 +113,14 @@ def dispatch_tests_to_runners(test_dict):
         else:
             runner = getattr(m, config.get(key, 'runner'))()
             batch = test_dict[key].split(',')
-            print "Running", len(batch), "test"+"s"*(len(batch)!=1), "for", key 
+            print "Running", len(batch), "test"+"s"*(len(batch)!=1), "for", key
             try:
                 run_failures = runner.run_batch(batch)
             except subprocess.CalledProcessError as e:
                 if e.returncode == 127:
-                    print "It looks like you are trying to use a wrong runner. No tests will be run in this group this time."
+                    print "It looks like you are trying to use a wrong "\
+                          "runner. No tests will be run in this group this "\
+                          "time."
                 raise e
             except Exception as e:
                 run_failures = test_dict[key].split(',')
@@ -205,11 +209,9 @@ def main():
     else:
         default_config = default_config_file
     path_to_config = os.path.join(os.path.dirname(__file__), default_config)
-    # TODO: add effin check for right since noone cares to make them o'kay in the first place
     config.read(path_to_config)
     path_to_main_log = os.path.join(config.get('basic', 'logdir'),
                                               config.get('basic', 'logfile'))
-    # TODO: ditto
     logging.basicConfig(level=getattr(logging,
                                       config.get('basic', 'loglevel').upper()),
                         filename=path_to_main_log,
@@ -220,8 +222,15 @@ def main():
         try:
             run_results = globals()["do_" + args.run[0]](*args.run[1:])
         except TypeError as e:
-            print  "Somehow \'" + ", ".join(args.run[1:]) + "\' is not enough for \'" + args.run[0] + "\'"
-            print "\'"+args.run[0]+"\'", "actually expects the folowing arguments: \'" + "\', \'".join(inspect.getargspec(globals()["do_" + args.run[0]]).args) + "\'"
+            run_name = "do_" + args.run[0]
+            expected_arglist = inspect.getargspec(globals()[run_name]).args
+            scolding_d = {"supplied_args": ", ".join(args.run[1:]),
+                          "function" : args.run[0],
+                          "expected_args": "\', \'".join(expected_arglist)}
+            temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
+                "\'%(function)s\'\n\'%(function)s\' actually expects the "\
+                "folowing arguments: \'%(expected_args)s\'"
+            print temessage % scolding_d
             LOG.log_exception(e)
         except Exception as e:
             print "Something went wrong with the command, please"\
@@ -233,7 +242,9 @@ def main():
                                 config.get("basic", "logfile"))
     print
     print "-"*40
-    print "For extra details and possible insights please refer to", captain_logs, "or to per-component logs in", config.get("basic", "logdir")+"/mcv"
+    print "For extra details and possible insights please refer to",
+    print captain_logs, "or to per-component logs in",
+    print config.get("basic", "logdir")+"/mcv"
     print
 
 
