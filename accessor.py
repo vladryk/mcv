@@ -158,13 +158,17 @@ class AccessSteward(object):
     def start_ostf_container(self):
         print "Bringing up OSTF container with credentials"
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "8080:8080", "-e", "OS_AUTH_URL=http://" +
-            self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
+            #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.access_data["os_tenant_name"],
             "-e", "OS_USERNAME=" + self.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-e", "NAILGUN_HOST=" + self.access_data["nailgun_host"],
+            "-e", "NAILGUN_PORT=8000",
+            "-e", "CLUSTER_ID=1",
+            "-e", "OS_REGION_NAME=RegionOne",
             "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
 
     def start_rally_container(self):
@@ -219,7 +223,6 @@ class AccessSteward(object):
                        + cmd_to_run[1:])
         res = subprocess.Popen(thing_to_do,
             stdout=subprocess.PIPE).stdout.read()
-#        res = res.split("\r\n")[3:-2]
         return res
 
     def check_and_fix_access_data(self):
@@ -350,17 +353,10 @@ class AccessSteward(object):
                 stdout=subprocess.PIPE).stdout.read()
 
     def _do_config_extraction(self):
-        new_environment = os.environ.copy()
-        new_environment["NAILGUN_HOST"] = self.access_data["nailgun_host"]
-        new_environment["NAILGUN_PORT"] = '8000'
-        new_environment["CLUSTER_ID"] = '1'
-        new_environment["OS_USERNAME"] = self.access_data["os_username"]
-        new_environment["OS_PASSWORD"] = self.access_data["os_password"]
-        new_environment["OS_TENANT_NAME"] = self.access_data["os_tenant_name"]
-        new_environment["OS_REGION_NAME"] = "RegionOne"
-        res = subprocess.Popen(["ostf-config-extractor", "-o", "ostfcfg.conf"],
-                               env=new_environment, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT).stdout.read()
+        print "Preparing OSTF"
+        res = subprocess.Popen(["docker", "exec", "-it",
+                self.ostf_container_id, "ostf-config-extractor", "-o", "ostfcfg.conf"],
+                stdout=subprocess.PIPE).stdout.read()
 
     def _move_config_to_container(self):
         cmd = "docker inspect -f '{{.Id}}' %s" % self.ostf_container_id
@@ -382,7 +378,6 @@ class AccessSteward(object):
 
     def _check_ostf_setup(self):
         self._do_config_extraction()
-        self._move_config_to_container()
 
     def check_containers_set_up_properly(self):
         self._check_rally_setup()
@@ -425,7 +420,7 @@ class AccessSteward(object):
         self.check_and_fix_access_data()
         self.create_rally_json()
         self.check_mcv_secgroup()
-        self._stop_rally_container()
+        self.stop_rally_container()
         self.start_rally_container_()
         self.check_containers_are_up()
         self.check_containers_set_up_properly()
