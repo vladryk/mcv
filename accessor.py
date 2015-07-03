@@ -331,7 +331,7 @@ class AccessSteward(object):
         self._run_os_command_in_container(
             "nova secgroup-add-rule mcv-special-group tcp 6000 6000 0.0.0.0/0")
 
-        res = self._run_os_command_in_container("nova list").split('\r\n')
+        res = self._run_os_command_in_container("nova list").split('\r\n')[3:-2]
         for vm in res:
             vm = vm.replace(' ', '').split('|')
             if vm[-2].find(self.access_data["instance_ip"]) > -1:
