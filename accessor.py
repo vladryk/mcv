@@ -33,8 +33,13 @@ class AccessSteward(object):
                       re.X)
 
     # This one is useful for checking if a string contains any IPs in it.
-    ips = re.compile(r"""(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}
-                         (?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)""",
+    ips = re.compile("(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}"\
+                     "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
+                     re.X)
+
+    # Unassigned floating ip hack
+    ips2 = re.compile("(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}"\
+                     "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\ \|\ -",
                      re.X)
 
     def __init__(self):
@@ -260,9 +265,10 @@ class AccessSteward(object):
 
     def check_and_fix_floating_ips(self):
         res = self._run_os_command_in_container("nova floating-ip-list")
-        if re.findall(self.ips, res) >= 2:
+        if len(re.findall(self.ips2, res)) >= 2:
             print "Apparently there is enough floating ips"
         else:
+            print "Need to create a floating ip"
             fresh_floating_ip = self._run_os_command_in_container(
                                     "nova floating-ip-create")
             if re.search(ernotfou, fresh_floating_ip) is not None:
