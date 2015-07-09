@@ -134,8 +134,16 @@ def do_full():
     """Run full test suit.
     """
     LOG.log_starting_full_check()
-    test_dict = discover_test_suits()
-    return dispatch_tests_to_runners(test_dict)
+    print "WARNING! Full test suit contains rally load tests. These tests may"
+    print "break your cloud. It is not recommended to run these tests on"
+    print "production clouds."
+    result  = raw_input("Are yout sure you want to procede? [yes/No]")
+    if result == "yes":
+        test_dict = discover_test_suits()
+        return dispatch_tests_to_runners(test_dict)
+    else:
+        print "It is a wise decision."
+    return {}
 
 def describe_results(results):
     """Pretty printer for results.
