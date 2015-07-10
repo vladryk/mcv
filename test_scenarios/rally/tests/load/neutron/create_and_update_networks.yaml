@@ -8,12 +8,15 @@
             name: "_updated"
       runner:
         type: "constant"
-        times: 10
-        concurrency: 5
+        times: {{ vlan_amount if (not gre_enabled and compute * 5 > vlan_amount) else compute * 5 }}
+        concurrency: {{ concurrency }}
       context:
         users:
-          tenants: 1
-          users_per_tenant: 1
+          tenants: 2
+          users_per_tenant: 2
         quotas:
           neutron:
             network: -1
+      sla:
+        failure_rate:
+          max: 0

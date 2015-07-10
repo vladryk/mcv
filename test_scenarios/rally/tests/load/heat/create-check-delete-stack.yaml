@@ -2,12 +2,15 @@
   HeatStacks.create_check_delete_stack:
     -
       args:
-        template_path: "templates/random_strings.yaml.template"
+        template_path: "{{ current_path }}/templates/random_strings.yml.template"
       runner:
         type: "constant"
-        times: 10
-        concurrency: 2
+        times: {{ compute }}
+        concurrency: {{ concurrency }}
       context:
         users:
           tenants: 2
           users_per_tenant: 3
+      sla:
+        failure_rate:
+          max: 0

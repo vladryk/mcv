@@ -4,31 +4,22 @@
       args:
           size: 10
           image:
-            name: "^cirros.*uec$"
+            name: "TestVM"
           flavor:
-            name: "m1.tiny"
+            name: "m1.nano"
       runner:
         type: "constant"
-        times: 5
-        concurrency: 1
+        times: {{ compute * 9 }}
+        concurrency: {{ concurrency }}
       context:
         users:
-          tenants: 2
-          users_per_tenant: 2
-    -
-      args:
-        size:
-          min: 1
-          max: 5
-        flavor:
-            name: "m1.tiny"
-        image:
-            name: "^cirros.*uec$"
-      runner:
-        type: "constant"
-        times: 5
-        concurrency: 1
-      context:
-        users:
-          tenants: 2
-          users_per_tenant: 2
+          tenants: {{ compute * 2 }}
+          users_per_tenant: 3
+        quotas:
+          cinder:
+            volumes: -1
+            gigabytes: -1
+            snapshots: -1
+      sla:
+        failure_rate:
+          max: 0

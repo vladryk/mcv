@@ -5,5 +5,8 @@
         name_length: 10
       runner:
         type: "constant"
-        times: 10
-        concurrency: 1
+        times: {{ compute * 2 }}
+        concurrency: {{ concurrency }}
+      sla:
+        failure_rate:
+          max: 0

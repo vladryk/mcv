@@ -12,8 +12,8 @@
             name: "_router_updated"
       runner:
         type: "constant"
-        times: 10
-        concurrency: 5
+        times: {{ vlan_amount if (not gre_enabled and compute * 2 > vlan_amount) else compute * 2 }}
+        concurrency: {{ concurrency }}
       context:
         users:
           tenants: 1
@@ -23,3 +23,8 @@
             network: -1
             subnet: -1
             router: -1
+            port: -1
+      sla:
+        failure_rate:
+          max: 0
+

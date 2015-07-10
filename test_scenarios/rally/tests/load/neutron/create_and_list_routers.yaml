@@ -5,18 +5,21 @@
         network_create_args: {}
         subnet_create_args: {}
         subnet_cidr_start: "1.1.0.0/30"
-        subnets_per_network: 2
+        subnets_per_network: 5
         router_create_args: {}
       runner:
         type: "constant"
-        times: 100
-        concurrency: 10
+        times: {{ vlan_amount if (not gre_enabled and compute * 8 > vlan_amount) else compute * 8 }}
+        concurrency: {{ concurrency }}
       context:
         users:
-          tenants: 1
-          users_per_tenant: 1
+          tenants: 2
+          users_per_tenant: 2
         quotas:
           neutron:
             network: -1
             subnet: -1
             router: -1
+      sla:
+        failure_rate:
+          max: 0

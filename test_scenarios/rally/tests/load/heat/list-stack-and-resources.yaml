@@ -3,12 +3,15 @@
     -
       runner:
         type: "constant"
-        times: 10
-        concurrency: 1
+        times: {{ compute }}
+        concurrency: {{ concurrency }}
       context:
         users:
-          tenants: 1
-          users_per_tenant: 1
+          tenants: 2
+          users_per_tenant: 3
         stacks:
           stacks_per_tenant: 2
           resources_per_stack: 10
+      sla:
+        failure_rate:
+          max: 0

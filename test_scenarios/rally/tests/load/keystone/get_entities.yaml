@@ -1,0 +1,12 @@
+
+---
+  KeystonePlugin.get_entities:
+   -
+      runner:
+        type: "constant"
+        times: {{ compute }}
+        concurrency: {{ concurrency * 2 }}
+      sla:
+        failure_rate:
+          max: 0
+

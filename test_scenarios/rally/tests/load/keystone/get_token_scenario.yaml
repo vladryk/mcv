@@ -1,0 +1,11 @@
+---
+  KeystonePlugin.get_token:
+   -
+      runner:
+        type: "constant"
+        times: {{ compute }}
+        concurrency: {{ concurrency * 2 }}
+      sla:
+        failure_rate:
+          max: 0
+

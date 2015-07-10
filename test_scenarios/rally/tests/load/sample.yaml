@@ -1,0 +1,11 @@
+---
+
+  SamplePlugin.test_plugin:
+    -
+      runner:
+        type: "constant"
+        times: 4
+        concurrency: 2
+      sla:
+        failure_rate:
+          max: 0
