@@ -66,6 +66,19 @@ def do_custom(test_group='default'):
     if test_group == 'default':
         print "Either no group has been explicitly requested or it was group "\
               "\'default\'."
+
+    # NOTE: this cludge is used to prevent accidental production cloud
+    # destruction and relies solely on group name. It is not bulletproof as
+    # anyone could create loading group with a wrong name and easily break
+    # everything up.
+    if test_group.find('load') != -1:
+        print "WARNING! Load test suit contains rally load tests. These tests may"
+        print "break your cloud. It is not recommended to run these tests on"
+        print "production clouds."
+        result  = raw_input("Are yout sure you want to procede? [yes/No]")
+        if result != "yes":
+            print "This is a wise decision"
+            return None
     tests_to_run = prepare_tests(test_group)
     if tests_to_run is None:
         return None
