@@ -161,7 +161,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         task_result = self._run_shaker_on_docker(task)
         if type(task_result) == dict and\
                 self._evaluate_task_result(task, task_result):
-            return
+            return True
         else:
             LOG.log_warning("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)
+            return False
