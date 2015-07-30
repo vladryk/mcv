@@ -44,6 +44,7 @@ class Runner(object):
         # very basic test for scenario correctness. It is assumed that
         # scenarios shipped with the tool are okay and are working. However
         # a typo might crawl in and cause a malfunction.
+        scenario = scenario.lstrip('\n')
         entry_point = os.path.dirname(__file__)  # should be modified
         where_is_wally = os.path.join(entry_point, self.identity,
                                       'tests', scenario)

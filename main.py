@@ -141,6 +141,7 @@ def dispatch_tests_to_runners(test_dict):
         else:
             runner = getattr(m, config.get(key, 'runner'))()
             batch = test_dict[key].split(',')
+            batch = map(lambda x: x.strip('\n'), batch)
             print "Running", len(batch), "test"+"s"*(len(batch)!=1), "for", key
             try:
                 run_failures = runner.run_batch(batch)
@@ -279,8 +280,7 @@ def main():
     print
     print "-"*40
     print "For extra details and possible insights please refer to",
-    print captain_logs, "or to per-component logs in",
-    print config.get("basic", "logdir")+"/mcv"
+    print captain_logs
     print
 
 
