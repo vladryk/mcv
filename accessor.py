@@ -144,14 +144,16 @@ class AccessSteward(object):
     def extract_ostf_container_id(self, output):
         self.ostf_container_id = self._extract_container_id("ostf", output)
 
-    def stop_rally_container(self):
-        print "Bringing down container with rally"
+    def stop_rally_container(self, mute=False):
+        if not mute:
+            print "Bringing down container with rally"
         res = subprocess.Popen(["docker", "stop", self.rally_container_id],
                                stdout=subprocess.PIPE).stdout.read()
         return res
 
-    def start_rally_container_(self):
-        print "Bringing up Rally container with credentials"
+    def start_rally_container_(self, mute=False):
+        if not mute:
+            print "Bringing up Rally container with credentials"
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             "-p", "6000:6000", "-e", "OS_AUTH_URL=http://" +
             self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
@@ -191,15 +193,17 @@ class AccessSteward(object):
             "-e", "OS_REGION_NAME=RegionOne",
             "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
 
-    def start_rally_container(self):
-        print "Bringing up Rally container"
+    def start_rally_container(self, mute=False):
+        if not mute:
+            print "Bringing up Rally container"
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             "-p", "6000:6000", "-it", "mcv-rally"],
             stdout=subprocess.PIPE).stdout.read()
 
-    def _verify_container_is_up(self, container_name, extra=""):
+    def _verify_container_is_up(self, container_name, mute=False, extra=""):
         # container_name == rally, shaker, ostf
-        print "Checking %s container..." % container_name,
+        if not mute:
+            print "Checking %s container..." % container_name,
         res = subprocess.Popen(["docker", "ps"],
             stdout=subprocess.PIPE).stdout.read()
         detector = re.compile("mcv-" + container_name)
@@ -208,13 +212,14 @@ class AccessSteward(object):
             getattr(self, "extract_" + container_name + "_container_id")(res)
             print "ok"
         else:
-            print "It has to be started.", extra
+            if not mute:
+                print "It has to be started.", extra
             getattr(self, "start_" + container_name + "_container")()
             time.sleep(10)  # we are in no hurry today
             return getattr(self, "_verify_" + container_name +
                            "_container_is_up")()
 
-    def _verify_rally_container_is_up(self):
+    def _verify_rally_container_is_up(self, mute=False):
         self._verify_container_is_up("rally")
 
     def _verify_shaker_container_is_up(self):
@@ -224,9 +229,8 @@ class AccessSteward(object):
         self._verify_container_is_up("ostf")
 
     def check_containers_are_up(self):
-        self._verify_rally_container_is_up()
-        self._verify_shaker_container_is_up()
-        self._verify_ostf_container_is_up()
+        for container in self.required_containers:
+            getattr(self, "_verify_" + container + "_container_is_up")()
 
     def _run_os_command_in_container(self, command):
         # TODO: this cludge should be replaced with something more appropriate
@@ -249,7 +253,7 @@ class AccessSteward(object):
         def trap():
             print "This doesn\'t look like a valid option."\
                   " Let\'s try once again."
-        self._verify_rally_container_is_up()
+        self._verify_rally_container_is_up(mute=True)
         self._verify_access_data_is_set()
         print "Trying to authenticate with OpenStack using provided"\
               " credentials..."
@@ -271,7 +275,7 @@ class AccessSteward(object):
             print "3) os-tenant."
             decision = raw_input()
             ddispatcher = {'1': self._request_os_username,
-                           '2': self.request_os_password,
+                           '2': self._request_os_password,
                            '3': self._request_os_tenant}
             ddispatcher.get(decision, trap)()
             return self.check_and_fix_access_data()
@@ -401,9 +405,8 @@ class AccessSteward(object):
         self._do_config_extraction()
 
     def check_containers_set_up_properly(self):
-        self._check_rally_setup()
-        self._check_shaker_setup()
-        self._check_ostf_setup()
+        for container in self.required_containers:
+            getattr(self, "_check_" + container + "_setup")()
 
     def _fake_creds(self):
         self.access_data = {"controller_ip": '172.16.57.37',
@@ -421,6 +424,8 @@ class AccessSteward(object):
               "_ip}:35357 localhost"
         print "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
         raw_input("(Press enter when you are sure)")
+# TODO: check if rule is already present OR simply supply the VM with proper
+        # interfaces (as per srogov advice).
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
                                 "PREROUTING", "1", "-d", "192.168.0.2", "-p",
                                 "tcp", "--dport", "35357", "-j", "DNAT",
@@ -436,13 +441,14 @@ class AccessSteward(object):
         f.write(rally_json_template % credentials)
         f.close()
 
-    def check_and_fix_environment(self):
+    def check_and_fix_environment(self, required_containers):
+        self.required_containers = required_containers
         self.check_docker_images()
         self.check_and_fix_access_data()
         self.create_rally_json()
         self.check_mcv_secgroup()
-        self.stop_rally_container()
-        self.start_rally_container_()
+        self.stop_rally_container(mute=True)
+        self.start_rally_container_(mute=True)
         self.check_containers_are_up()
         self.check_containers_set_up_properly()
         self.check_and_fix_floating_ips()
