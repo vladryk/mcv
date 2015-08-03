@@ -87,7 +87,7 @@ class Runner(object):
 
     def check_task_list(self, tasks):
         fine_to_run = filter(self.scenario_is_fine, tasks)
-        rejected_tasks = [x for x in tasks if x not in fine_to_run]
+        rejected_tasks = [x for x in tasks if x not in fine_to_run and x != '']
         self.test_not_found = rejected_tasks
         map(tasks.remove, rejected_tasks)
         LOG.log_fine(fine_to_run) if fine_to_run else \
