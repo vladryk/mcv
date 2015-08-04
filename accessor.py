@@ -196,7 +196,7 @@ class AccessSteward(object):
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "NAILGUN_HOST=" + self.access_data["nailgun_host"],
             "-e", "NAILGUN_PORT=8000",
-            "-e", "CLUSTER_ID=1",
+            "-e", "CLUSTER_ID=" + self.access_data["cluster_id"],
             "-e", "OS_REGION_NAME=RegionOne",
             "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
 
