@@ -16,6 +16,7 @@
 import accessor
 import argparse
 import inspect
+import consoler
 import ConfigParser
 import logging
 import logger as LOG
@@ -332,6 +333,9 @@ def main():
     print captain_logs
     print
 
+def main2():
+    consolerr = consoler.Consoler(parser=parser, args=args)
+    consolerr.console_user()
 
 if __name__ == "__main__":
-    main()
+    main2()

@@ -64,7 +64,8 @@ class AccessSteward(object):
                             "os_tenant_name": None,
                             "os_password": None,
                             "auth_endpoint_ip": None,
-                            "nailgun_host": None,}
+                            "nailgun_host": None,
+                            "cluster_id": None,}
 
     def _validate_ip(self, ip):
         match = re.match(self.ipv4, ip)
@@ -121,6 +122,12 @@ class AccessSteward(object):
     def _request_os_tenant_name(self):
         tenant = raw_input("Please provide tenant name: ")
         self.access_data["os_tenant_name"] = tenant
+
+    def _request_cluster_id(self):
+        cluster_id = raw_input("Please provide cluster ID [1]: ")
+        if cluster_id == "":
+            cluster_id = "1"
+        self.access_data["cluster_id"] = cluster_id
 
     def _verify_access_data_is_set(self):
         for key, value in self.access_data.iteritems():
