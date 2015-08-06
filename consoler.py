@@ -41,7 +41,10 @@ class Consoler(object):
 
     def prepare_tests(self, test_group):
         section  = "custom_test_group_" + test_group
-        restmp = self.config.options(section)
+        try:
+            restmp = self.config.options(section)
+        except ConfigParser.NoSectionError:
+            return {}
 
         out =  dict([(opt, self.config.get(section, opt)) for opt in
                     self.config.options(section)])
@@ -221,7 +224,9 @@ class Consoler(object):
                 print "Ignoring arguments:", ", ".join(to_check[2:])
             results = self.prepare_tests(to_check[1])
             if results == {}:
-                print "Please, provide exisitng config section!"
+                print "Can't find group '" + to_check[1] + "' in",
+                print self.path_to_config
+                print "Please, provide exisitng group name!"
                 sys.exit(1)
             for key in results:
                 if key in ['rally', 'ostf', 'shaker'] and key not in retval:
@@ -257,12 +262,14 @@ class Consoler(object):
             default_config = self.args.config
         else:
             default_config = self.default_config_file
-        path_to_config = os.path.join(os.path.dirname(__file__), default_config)
-        self.config.read(path_to_config)
+        self.path_to_config = os.path.join(os.path.dirname(__file__),
+                                           default_config)
+        self.config.read(self.path_to_config)
         path_to_main_log = os.path.join(self.config.get('basic', 'logdir'),
-                                                  self.config.get('basic', 'logfile'))
+                                        self.config.get('basic', 'logfile'))
         logging.basicConfig(level=getattr(logging,
-                                          self.config.get('basic', 'loglevel').upper()),
+                                          self.config.get('basic',
+                                                          'loglevel').upper()),
                             filename=path_to_main_log,
                             format=__)
         if self.args.run is not None:
