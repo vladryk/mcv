@@ -426,17 +426,42 @@ class AccessSteward(object):
                            }
 
     def _check_and_fix_iptables_rule(self):
-        print "Make sure your controller is set up properly. Like this:"
-        print "ssh -f -N -L ${controller_ip}:7654:${keystone_private_endpoint"\
-              "_ip}:35357 localhost"
-        print "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
-        raw_input("(Press enter when you are sure)")
-# TODO: check if rule is already present OR simply supply the VM with proper
-        # interfaces (as per srogov advice).
+        # Let's patch cloud controller first. Be prepared to provide root
+        # access to the controller. Mwa-ha-ha.
+        # TODO: this might change so it is much wiser to do actual check
+        keystone_private_endpoint_ip = "192.168.0.2"
+        port_substitution = {"cnt_ip": self.access_data["controller_ip"],
+                             "kpeip": keystone_private_endpoint_ip,
+        }
+        mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
+        mk_port = "ssh -f -N -L %(cnt_ip)s:7654:${kpeip}:35357 localhost" %\
+                  port_substitution
+        substitution = {"no_rule": mk_rule,
+                        "rule": "echo RULE THERE",
+                        "no_ssh": mk_port,
+                        "ssh": "echo PORT!!!",
+        }
+        check =" << EOF iptables -L | grep -q 7654 && %(rule)s ||"\
+               " %(no_rule)s; ps aux | grep -q [s]sh.*35357 && "\
+               "%(ssh)s || %(no_ssh)s; \nEOF" % substitution
+        ssh = subprocess.Popen(["ssh", "-oStrictHostKeyChecking=no",
+                               "root@172.16.57.37", check],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+        ssh.communicate()  # yes, this has to be done
+        # Ok, enough fun with other's controllers. Let's patch our VM:
+        res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
+                               shell=False, stdout=subprocess.PIPE,
+                               stdin=subprocess.PIPE,
+                               stderr=subprocess.PIPE).stdout.read()
+        if re.search("DNAT.*7654\n", res) is not None:
+            # leave slowly, don't wake it up
+            return
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
                                 "PREROUTING", "1", "-d", "192.168.0.2", "-p",
                                 "tcp", "--dport", "35357", "-j", "DNAT",
-                                "--to-destination", "%s:7654" % self.access_data["controller_ip"]],
+                                "--to-destination", "%s:7654" %\
+                                self.access_data["controller_ip"]],
                                stdout=subprocess.PIPE).stdout.read()
 
     def create_rally_json(self):
