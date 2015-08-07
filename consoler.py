@@ -295,10 +295,12 @@ class Consoler(object):
                 LOG.log_exception(e)
         if run_results is not None:
             self.describe_results(run_results)
+            reporter.brew_a_report(run_results)
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         print
         print "-"*40
+        print "One page report could be found in mcv_results.html"
         print "For extra details and possible insights please refer to",
         print captain_logs
         print

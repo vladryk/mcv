@@ -283,7 +283,7 @@ class AccessSteward(object):
             decision = raw_input()
             ddispatcher = {'1': self._request_os_username,
                            '2': self._request_os_password,
-                           '3': self._request_os_tenant}
+                           '3': self._request_os_tenant_name}
             ddispatcher.get(decision, trap)()
             return self.check_and_fix_access_data()
         print "Access data looks valid."

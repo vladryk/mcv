@@ -335,7 +335,11 @@ def main():
 
 def main2():
     consolerr = consoler.Consoler(parser=parser, args=args)
-    consolerr.console_user()
+    try:
+        consolerr.console_user()
+    except:
+        print "Something unforseen has just happened. The consoler is no more."
+        print "You can get an insight from /var/log/mcvconsoler.log"
 
 if __name__ == "__main__":
     main2()
