@@ -171,7 +171,8 @@ class AccessSteward(object):
             "-e", "OS_PASSWORD=" + self.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
-        self._check_and_fix_iptables_rule()
+        self._verify_rally_container_is_up(mute)
+#        self._check_and_fix_iptables_rule()
 
     def start_shaker_container(self):
         print "Bringing up Shaker container with credentials"
@@ -374,6 +375,7 @@ class AccessSteward(object):
             "nova add-secgroup " + instance_name + " mcv-special-group")
 
     def _check_rally_setup(self):
+        self._check_and_fix_iptables_rule()
         self._check_and_fix_flavor()
         self._rally_deployment_check()
 
@@ -389,7 +391,7 @@ class AccessSteward(object):
     def _do_config_extraction(self):
         print "Preparing OSTF"
         res = subprocess.Popen(["docker", "exec", "-it",
-                self.ostf_container_id, "ostf-config-extractor", "-o", "ostfcfg.conf"],
+                self.ostf_container_id, "ostf-config-extractor", "-o", "/tmp/ostfcfg.conf"],
                 stdout=subprocess.PIPE).stdout.read()
 
     def _move_config_to_container(self):
@@ -462,8 +464,8 @@ class AccessSteward(object):
                   "SHH. Please fix this issue and try again."
             sys.exit(1)
 
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "ssh-keygen -f """ + rkname + """ -N ''" > /dev/null 2>&1""" % self.access_data)
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "cat """ + rkname + """.pub >> .ssh/authorized_keys" """ % self.access_data)
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "ssh-keygen -f """ % self.access_data + rkname + """ -N ''" > /dev/null 2>&1""")
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "cat """  % self.access_data+ rkname + """.pub >> .ssh/authorized_keys" """)
         res = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
                                 "-i", key_name_place,
                                 "root@%(controller_ip)s" % self.access_data, "iptables", "-L"],
@@ -494,7 +496,7 @@ class AccessSteward(object):
             sup = subprocess.Popen(l, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "rm """ + rkname + """* " """ % self.access_data)
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "rm """  % self.access_data+ rkname + """* " """)
 
         # Ok, enough fun with other's controllers. Let's patch our VM:
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
