@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import time
+import uuid
 
 rally_json_template = """{
 "type": "ExistingCloud",
@@ -217,7 +218,8 @@ class AccessSteward(object):
         if re.search(detector, res) is not None:
             # This does not relly belongs here, better be moved someplace
             getattr(self, "extract_" + container_name + "_container_id")(res)
-            print "ok"
+            if not mute:
+                print "ok"
         else:
             if not mute:
                 print "It has to be started.", extra
@@ -227,7 +229,7 @@ class AccessSteward(object):
                            "_container_is_up")()
 
     def _verify_rally_container_is_up(self, mute=False):
-        self._verify_container_is_up("rally")
+        self._verify_container_is_up("rally", mute)
 
     def _verify_shaker_container_is_up(self):
         self._verify_container_is_up("shaker")
@@ -423,37 +425,82 @@ class AccessSteward(object):
                             "os_password": 'admin',
                             "auth_endpoint_ip": '172.16.57.35',
                             "nailgun_host": '172.16.57.34',
+                            "cluster_id": "1",
                            }
 
     def _check_and_fix_iptables_rule(self):
         # Let's patch cloud controller first. Be prepared to provide root
         # access to the controller. Mwa-ha-ha.
+        # TODO: divide this some day
         # TODO: this might change so it is much wiser to do actual check
         keystone_private_endpoint_ip = "192.168.0.2"
         port_substitution = {"cnt_ip": self.access_data["controller_ip"],
                              "kpeip": keystone_private_endpoint_ip,
-        }
+                             }
         mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
-        mk_port = "ssh -f -N -L %(cnt_ip)s:7654:${kpeip}:35357 localhost" %\
+        rkname = "remote_mcv_key"
+        mk_port = "ssh -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
                   port_substitution
-        substitution = {"no_rule": mk_rule,
-                        "rule": "echo RULE THERE",
-                        "no_ssh": mk_port,
-                        "ssh": "echo PORT!!!",
-        }
-        check =" << EOF iptables -L | grep -q 7654 && %(rule)s ||"\
-               " %(no_rule)s; ps aux | grep -q [s]sh.*35357 && "\
-               "%(ssh)s || %(no_ssh)s; \nEOF" % substitution
-        ssh = subprocess.Popen(["ssh", "-oStrictHostKeyChecking=no",
-                               "root@172.16.57.37", check],
-                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
-        ssh.communicate()  # yes, this has to be done
+
+        key_name = str(uuid.uuid4())
+        pub_key_name = key_name + ".pub"
+        key_name_place = os.path.join("/tmp", key_name)
+        pub_key_name_place = os.path.join("/tmp", pub_key_name)
+
+        # TODO: redo with Crypto, add to requirements whenever we have CI
+        os.system('ssh-keygen -f' + key_name_place + ' -N "" > /dev/null 2>&1')
+        os.system("chmod 0600 " + key_name_place)
+        os.system("chmod 0600 " + pub_key_name_place)
+
+        cmd = "sudo ssh-copy-id -i " +  pub_key_name_place + " root@%(controller_ip)s" % self.access_data
+        res = subprocess.Popen(cmd.split(" "),
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+        com = res.communicate()
+
+        if com[1] == 'Permission denied (publickey).\r\n':
+            print "Apparently it is impossible to reach cloud controller via"\
+                  "SHH. Please fix this issue and try again."
+            sys.exit(1)
+
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "ssh-keygen -f """ + rkname + """ -N ''" > /dev/null 2>&1""" % self.access_data)
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "cat """ + rkname + """.pub >> .ssh/authorized_keys" """ % self.access_data)
+        res = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
+                                "-i", key_name_place,
+                                "root@%(controller_ip)s" % self.access_data, "iptables", "-L"],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        if res.communicate()[0].find('7654') == -1:
+            # oops, there is no rule for 7654 port. let's make one:
+            sup = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
+                                    "-i", key_name_place,
+                                    "root@%(controller_ip)s" % self.access_data,] + mk_rule.split(" "),
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+
+        res = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
+                                "-i", key_name_place,
+                                "root@%(controller_ip)s" % self.access_data, "ps", "aux"],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+
+        com = res.communicate()
+        result = re.search("ssh.*35357", com[0])
+        if result is None:
+            l = ["sudo", "ssh",  "-oStrictHostKeyChecking=no",
+                 "-i", key_name_place,
+                 "root@%(controller_ip)s" %self.access_data,] +  mk_port.split(" ")
+            print " ".join(l)
+            sup = subprocess.Popen(l, stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "rm """ + rkname + """* " """ % self.access_data)
+
         # Ok, enough fun with other's controllers. Let's patch our VM:
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
-                               shell=False, stdout=subprocess.PIPE,
-                               stdin=subprocess.PIPE,
-                               stderr=subprocess.PIPE).stdout.read()
+                                shell=False, stdout=subprocess.PIPE,
+                                stdin=subprocess.PIPE,
+                                stderr=subprocess.PIPE).stdout.read()
         if re.search("DNAT.*7654\n", res) is not None:
             # leave slowly, don't wake it up
             return
@@ -462,7 +509,7 @@ class AccessSteward(object):
                                 "tcp", "--dport", "35357", "-j", "DNAT",
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
-                               stdout=subprocess.PIPE).stdout.read()
+                                stdout=subprocess.PIPE).stdout.read()
 
     def create_rally_json(self):
         credentials = {"ip_address": self.access_data["auth_endpoint_ip"],

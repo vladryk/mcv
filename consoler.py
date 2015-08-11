@@ -20,6 +20,7 @@ import ConfigParser
 import logging
 import logger as LOG
 import imp
+import reporter
 import subprocess
 import os
 import sys
