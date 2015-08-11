@@ -492,7 +492,6 @@ class AccessSteward(object):
             l = ["sudo", "ssh",  "-oStrictHostKeyChecking=no",
                  "-i", key_name_place,
                  "root@%(controller_ip)s" %self.access_data,] +  mk_port.split(" ")
-            print " ".join(l)
             sup = subprocess.Popen(l, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
