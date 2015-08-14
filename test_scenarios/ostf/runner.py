@@ -78,7 +78,11 @@ class OSTFOnDockerRunner(runner.Runner):
               "--config-file=/tmp/ostfcfg.conf cloud-health-check run_suite"\
               " --validation-plugin-name fuel_health --suite %s" %\
               (self.container, task)
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        try:
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError:
+            self.failures.append(name)
+            return
         original_output = p
         result = p.split("\n")
         failures = []

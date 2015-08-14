@@ -427,7 +427,7 @@ class AccessSteward(object):
                             "os_password": 'admin',
                             "auth_endpoint_ip": '172.16.57.35',
                             "nailgun_host": '172.16.57.34',
-                            "cluster_id": "1",
+                            "cluster_id": "2",
                            }
 
     def _check_and_fix_iptables_rule(self):
