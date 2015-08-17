@@ -181,7 +181,7 @@ class Consoler(object):
         result  = raw_input("Are yout sure you want to procede? [yes/No]")
         if result == "yes":
             test_dict = discover_test_suits()
-            return dispatch_tests_to_runners(test_dict)
+            return self.dispatch_tests_to_runners(test_dict)
         else:
             print "It is a wise decision."
         return {}
