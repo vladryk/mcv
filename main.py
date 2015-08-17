@@ -237,103 +237,8 @@ args = parser.parse_args()
 __ = '%(asctime)s %(levelname)s %(message)s'
 logger = logging.getLogger(__name__)
 
-path_prefix = "test_scenarios"
-
-def existing_plugin(plugin):
-    dirlist = filter(lambda x: os.path.isdir(os.path.join(path_prefix, x)),
-                     os.listdir(os.path.join(os.getcwd(), path_prefix)))
-    return plugin in dirlist
-
-def a_real_file(fname, group):
-    dir_to_walk = os.path.join(path_prefix, group, "tests")
-    return fname in os.listdir(dir_to_walk)
-
-def check_args_run(to_check):
-# TODO: make a proper dispatcher for this stuff
-    retval = []
-    if to_check[0] == 'full' or to_check[0] == 'short':
-        pass
-    elif to_check[0] == 'custom' and len(to_check) >= 2:
-        if len(to_check) > 2:
-            print "Ignoring arguments:", ", ".join(to_check[2:])
-        results = prepare_tests(to_check[1])
-        if results == {}:
-            print "Please, provide exisitng config section!"
-            sys.exit(1)
-        for key in results:
-            if key in ['rally', 'ostf', 'shaker'] and key not in retval:
-                retval.append(key)
-    elif to_check[0] == 'single':
-        if len(to_check) < 3:
-            print "Too few arguments for option single. You must specify"\
-                  " test group and test name"
-            sys.exit(1)
-        if len(to_check) > 3:
-            print "Ignoring arguments:", ", ".join(to_check[3:])
-        if not existing_plugin(to_check[1]):
-            print "Unrecognized test group:", to_check[1]
-            sys.exit(1)
-        if not a_real_file(to_check[2], to_check[1]):
-            print "Test not found:", to_check[2]
-            sys.exit(1)
-        retval = [to_check[1]]
-    else:
-        print "Wrong option:", to_check[0]
-        print
-        print "Please run mcvconsoler --help if unsure what has gone wrong"
-        sys.exit(1)
-    return retval
 
 def main():
-    print
-    if len(sys.argv) < 2:
-        parser.print_help()
-        sys.exit(1)
-    run_results = None
-    if args.config  is not None:
-        default_config = args.config
-    else:
-        default_config = default_config_file
-    path_to_config = os.path.join(os.path.dirname(__file__), default_config)
-    config.read(path_to_config)
-    path_to_main_log = os.path.join(config.get('basic', 'logdir'),
-                                              config.get('basic', 'logfile'))
-    logging.basicConfig(level=getattr(logging,
-                                      config.get('basic', 'loglevel').upper()),
-                        filename=path_to_main_log,
-                        format=__)
-    if args.run is not None:
-        required_containers = check_args_run(args.run)
-        access_helper = accessor.AccessSteward()
-        access_helper.check_and_fix_environment(required_containers)
-        try:
-            run_results = globals()["do_" + args.run[0]](*args.run[1:])
-        except TypeError as e:
-            run_name = "do_" + args.run[0]
-            expected_arglist = inspect.getargspec(globals()[run_name]).args
-            scolding_d = {"supplied_args": ", ".join(args.run[1:]),
-                          "function" : args.run[0],
-                          "expected_args": "\', \'".join(expected_arglist)}
-            temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
-                "\'%(function)s\'\n\'%(function)s\' actually expects the "\
-                "folowing arguments: \'%(expected_args)s\'"
-            print temessage % scolding_d
-            LOG.log_exception(e)
-        except Exception as e:
-            print "Something went wrong with the command, please"\
-                  " refer to logs to find out what"
-            LOG.log_exception(e)
-    if run_results is not None:
-        describe_results(run_results)
-    captain_logs = os.path.join(config.get("basic", "logdir"),
-                                config.get("basic", "logfile"))
-    print
-    print "-"*40
-    print "For extra details and possible insights please refer to",
-    print captain_logs
-    print
-
-def main2():
     consolerr = consoler.Consoler(parser=parser, args=args)
     try:
         consolerr.console_user()
@@ -341,5 +246,6 @@ def main2():
         print "Something unforseen has just happened. The consoler is no more."
         print "You can get an insight from /var/log/mcvconsoler.log"
 
+
 if __name__ == "__main__":
-    main2()
+    main()
