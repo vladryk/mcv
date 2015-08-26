@@ -15,14 +15,15 @@
 
 import operator
 import logging
-import os
 import re
 import subprocess
 import sys
 import time
-import uuid
 import paramiko
 from paramiko import client
+
+from novaclient import client as nova
+from novaclient import exceptions as nexc
 
 rally_json_template = """{
 "type": "ExistingCloud",
@@ -40,10 +41,9 @@ rally_json_template = """{
 
 image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
 
-erconref = re.compile('ERROR \(ConnectionRefused\)')
 erepnotf = re.compile('ERROR \(EndpointNotFound\)')
-erecreds = re.compile('ERROR \(Unauthorized\)')
 ernotfou = re.compile('ERROR \(NotFound\)')
+
 
 LOG = logging
 
@@ -74,10 +74,11 @@ class AccessSteward(object):
                             "auth_endpoint_ip": None,
                             "nailgun_host": None,
                             "cluster_id": None,}
+        self.novaclient = None
 
     def _validate_ip(self, ip):
         match = re.match(self.ipv4, ip)
-        return  match is not None
+        return match is not None
 
     def _address_is_reachable(self, address):
         responce = subprocess.Popen(["/bin/ping", "-c1", "-w30", address],
@@ -242,22 +243,18 @@ class AccessSteward(object):
         for container in self.required_containers:
             getattr(self, "_verify_" + container + "_container_is_up")()
 
-    def _run_os_command_in_container(self, command):
-        # TODO: this cludge should be replaced with something more appropriate
-        # in the future. Like actually packing some OS clients in our image.
-        prelude = ["docker", "exec", "-it", self.rally_container_id]
-        cmd_to_run = command.split(' ')
-        authentication_stuff = [
-               "--os-username=" + self.access_data["os_username"],
-               "--os-tenant-name=" + self.access_data["os_tenant_name"],
-               "--os-password=" + self.access_data["os_password"],
-               "--os-auth-url=http://" + self.access_data["auth_endpoint_ip"] +
-               ":5000/v2.0/", ]
-        thing_to_do = (prelude + [cmd_to_run[0]] + authentication_stuff
-                       + cmd_to_run[1:])
-        res = subprocess.Popen(thing_to_do,
-            stdout=subprocess.PIPE).stdout.read()
-        return res
+    def _get_novaclient(self):
+        # TODO: fix hardcoded nova API-version
+        if self.novaclient is None:
+            client = nova.Client(
+                '2', username=self.access_data["os_username"],
+                auth_url="http://" + self.access_data["auth_endpoint_ip"] +
+                         ":5000/v2.0/",
+                api_key=self.access_data["os_password"],
+                project_id=self.access_data["os_tenant_name"]
+            )
+            self.novaclient = client
+        return self.novaclient
 
     def check_and_fix_access_data(self):
         def trap():
@@ -265,15 +262,16 @@ class AccessSteward(object):
                   " Let\'s try once again."
         self._verify_rally_container_is_up(mute=True)
         self._verify_access_data_is_set()
+
         LOG.debug("Trying to authenticate with OpenStack using provided credentials...")
-        res = self._run_os_command_in_container("nova list")
-        if re.search(erconref, res) is not None or re.search(erepnotf, res)\
-                is not None:
+        try:
+            res = self._get_novaclient().servers.list()
+        except nexc.ConnectionRefused:
             print "Apparently authentication endpoint address is not valid."
             print "Curent value is", self.access_data["auth endpoint"]
             self._request_auth_endpoint_ip()
             return self.check_and_fix_access_data()
-        if re.search(erecreds, res) is not None:
+        except nexc.Unauthorized:
             print "Apparently user credentails are incorrect."
             print "Current os-username is:", self.access_data["os_username"]
             print "Current os-password is:", self.access_data["os_password"]
@@ -292,15 +290,17 @@ class AccessSteward(object):
         return True
 
     def check_and_fix_floating_ips(self):
-        res = self._run_os_command_in_container("nova floating-ip-list")
-        if len(re.findall(self.ips2, res)) >= 2:
+        res = self._get_novaclient().floating_ips.list()
+        if len(res) >= 2:
             LOG.debug( "Apparently there is enough floating ips")
         else:
             LOG.info( "Need to create a floating ip")
-            fresh_floating_ip = self._run_os_command_in_container(
-                                    "nova floating-ip-create")
-            if re.search(ernotfou, fresh_floating_ip) is not None:
-                LOG.warning( "Apparently the cloud is out of free floating ip. You might experience problems with running some tests")
+            try:
+                fresh_floating_ip = self._get_novaclient().floating_ips.create()
+            except Exception:
+                LOG.warning( "Apparently the cloud is out of free floating ip. "
+                             "You might experience problems with running some tests")
+
                 return
             return self.check_and_fix_floating_ips()
 
@@ -316,13 +316,14 @@ class AccessSteward(object):
             self.check_docker_images()
 
     def _check_and_fix_flavor(self):
-        res = self._run_os_command_in_container("nova flavor-list")
-        if len(re.findall("m1.nano", res)) != 0:
-            LOG.debug( "Proper flavor for rally has been found")
-            return
-        LOG.debug( "Apparently there is no flavor suitable for running rally. Creating one...")
-        self._run_os_command_in_container(
-            "nova flavor-create m1.nano 42 128 0 1")
+        # Novaclient can't search flavours by name so manually search in list.
+        res = self._get_novaclient().flavors.list()
+        for f in res:
+            if f.name == 'm1.nano':
+                LOG.debug("Proper flavor for rally has been found")
+                return
+        LOG.debug("Apparently there is no flavor suitable for running rally. Creating one...")
+        self._get_novaclient().flavors.create('m1.nano', 42, 128, 0)
         time.sleep(3)
         return self._check_and_fix_flavor()
 
@@ -353,23 +354,15 @@ class AccessSteward(object):
                                    stdout=subprocess.PIPE).stdout.read()
 
     def check_mcv_secgroup(self):
-        res = self._run_os_command_in_container("nova secgroup-list")
-        if re.search('mcv-special-group', res) is not None:
+        res = self._get_novaclient().security_groups.list(search_opts={'name': 'mcv-special-group'})
+        if len(res) == 1:
             return
-        self._run_os_command_in_container(
-            "nova secgroup-create mcv-special-group mcvgroup")
-        self._run_os_command_in_container(
-            "nova secgroup-add-rule mcv-special-group tcp 5999 5999 0.0.0.0/0")
-        self._run_os_command_in_container(
-            "nova secgroup-add-rule mcv-special-group tcp 6000 6000 0.0.0.0/0")
-
-        res = self._run_os_command_in_container("nova list").split('\r\n')[3:-2]
-        for vm in res:
-            vm = vm.replace(' ', '').split('|')
-            if vm[-2].find(self.access_data["instance_ip"]) > -1:
-                instance_name = vm[2]
-        self._run_os_command_in_container(
-            "nova add-secgroup " + instance_name + " mcv-special-group")
+        self._get_novaclient().security_groups.create('mcv-special-group', 'mcvgroup')
+        self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 5999, 5999, '0.0.0.0/0')
+        self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 6000, 6000, '0.0.0.0/0')
+        server = self._get_novaclient().servers.list(search_opts={'ip': self.access_data["instance_ip"]})[0]
+        if server:
+            self._get_novaclient().servers.add_security_group(server, 'mcv-special-group')
 
     def _check_rally_setup(self):
         self._check_and_fix_iptables_rule()

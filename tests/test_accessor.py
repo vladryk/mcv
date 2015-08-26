@@ -18,13 +18,13 @@ import copy
 import functools
 import operator
 import time
-import imp
 import mock
 import unittest
 import StringIO
 import sys
-import subprocess
-accessor = imp.load_source("accessor", "../mcv-consoler/accessor.py")
+
+import accessor
+
 
 def input_diverter(f, *args, **kwargs):
     @functools.wraps(f)
@@ -33,6 +33,7 @@ def input_diverter(f, *args, **kwargs):
         f(*args, **kwargs)
         __builtins__['raw_input'] = orig_raw_input
     return inner
+
 
 def bender_rodrigues(f, *args, **kwargs):
     @functools.wraps(f)
@@ -58,6 +59,7 @@ class test_AccessSteward(unittest.TestCase):
 
     def setUp(self):
         self.accessor = accessor.AccessSteward()
+        self.accessor.novaclient = mock.Mock()
 
     @input_diverter
     def test_request_ip_ok(self):
@@ -174,183 +176,70 @@ class test_AccessSteward(unittest.TestCase):
             self.assertEqual(mock_extractor.called, True)
 
     @bender_rodrigues
-    def _test_check_and_fix_floating_ips_enough(self, out):
-        command_run_result = """
-+--------------+--------------------------------------+---------------+-----------+
-| Ip           | Server Id                            | Fixed Ip      | Pool      |
-+--------------+--------------------------------------+---------------+-----------+
-| 172.16.57.43 | -                                    | -             | net04_ext |
-| 172.16.57.41 | 76dfd8ec-c64a-4941-8617-03171199ea14 | 192.168.111.5 | net04_ext |
-| 172.16.57.44 | -                                    | -             | net04_ext |
-+--------------+--------------------------------------+---------------+-----------+
-        """
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.return_value = command_run_result
-            self.accessor.check_and_fix_floating_ips()
-            self.assertEqual(out.getvalue().strip(),"Apparently there is "\
-                             "enough floating ips")
+    def test_check_and_fix_floating_ips_enough(self, out):
+        self.accessor.novaclient.floating_ips = mock.Mock()
+        self.accessor.novaclient.floating_ips.list.return_value =\
+            ['10.0.0.2', '10.0.0.3', '10.0.0.4']
+        self.accessor.check_and_fix_floating_ips()
+
+        self.assertEqual(out.getvalue().strip(), "Apparently there is "
+                                                 "enough floating ips")
 
     @bender_rodrigues
     def test_check_and_fix_floating_ips_not_enough(self, out):
-        command_run_result1 = r"""
-+--------------+--------------------------------------+---------------+-----------+
-| Ip           | Server Id                            | Fixed Ip      | Pool      |
-+--------------+--------------------------------------+---------------+-----------+
-| 172.16.57.41 | 76dfd8ec-c64a-4941-8617-03171199ea14 | 192.168.111.5 | net04_ext |
-| 172.16.57.44 | -                                    | -             | net04_ext |
-+--------------+--------------------------------------+---------------+-----------+
-        """
-        command_run_result2 = r"""
-+--------------+--------------------------------------+---------------+-----------+
-| Ip           | Server Id                            | Fixed Ip      | Pool      |
-+--------------+--------------------------------------+---------------+-----------+
-| 172.16.57.43 | -                                    | -             | net04_ext |
-| 172.16.57.41 | 76dfd8ec-c64a-4941-8617-03171199ea14 | 192.168.111.5 | net04_ext |
-| 172.16.57.44 | -                                    | -             | net04_ext |
-+--------------+--------------------------------------+---------------+-----------+
-        """
-        ip_create_result1 = """
-+--------------+-----------+----------+-----------+
-| Ip           | Server Id | Fixed Ip | Pool      |
-+--------------+-----------+----------+-----------+
-| 172.16.57.46 | -         | -        | net04_ext |
-+--------------+-----------+----------+-----------+
-        """
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result1, 2: ip_create_result1,
-                        3: command_run_result2}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.side_effect = foo
-            self.accessor.check_and_fix_floating_ips()
-            self.assertNotEqual(out.getvalue().strip().find("Need to create"),
-                                -1)
+        self.accessor.novaclient.floating_ips = mock.Mock()
+        self.accessor.novaclient.floating_ips.list.side_effect = \
+            [['10.0.0.7'],['10.0.0.7', '10.0.0.8']]
+
+        self.accessor.check_and_fix_floating_ips()
+        self.assertNotEqual(out.getvalue().strip().find("Need to create"),
+                                                -1)
 
     @bender_rodrigues
     def test_check_and_fix_floating_ips_never_enough(self, out):
-        command_run_result1 = r"""
-+--------------+--------------------------------------+---------------+-----------+
-| Ip           | Server Id                            | Fixed Ip      | Pool      |
-+--------------+--------------------------------------+---------------+-----------+
-| 172.16.57.41 | 76dfd8ec-c64a-4941-8617-03171199ea14 | 192.168.111.5 | net04_ext |
-+--------------+--------------------------------------+---------------+-----------+
-        """
-        ip_create_result1 = """
-ERROR (NotFound): No more floating ips available. (HTTP 404) (Request-ID: req-49154145-2d65-4126-ba6b-87a5c3c057a9)
-        """
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result1, 2: ip_create_result1,}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.side_effect = foo
-            self.accessor.check_and_fix_floating_ips()
-            self.assertNotEqual(out.getvalue().strip().find("Apparently"), -1)
+        self.accessor.novaclient.floating_ips = mock.Mock()
+        self.accessor.novaclient.floating_ips.list.return_value = ['10.0.0.5']
+        self.accessor.novaclient.floating_ips.create.side_effect = Exception('NO.')
+
+        self.accessor.check_and_fix_floating_ips()
+        self.assertNotEqual(out.getvalue().strip().find("Apparently"), -1)
 
     @bender_rodrigues
     def test_check_and_fix_flavor_not_found(self, out):
-        command_run_result1 = r"""
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-| ID                                   | Name          | Memory_MB | Disk | Ephemeral | Swap | VCPUs | RXTX_Factor | Is_Public |
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-        """
-        command_run_result2 = r"""
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-| ID                                   | Name          | Memory_MB | Disk | Ephemeral | Swap | VCPUs | RXTX_Factor | Is_Public |
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-| 42                                   | m1.nano       | 128       | 0    | 0         |      | 1     | 1.0         | True      |
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-        """
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result1, 2: True,
-                        3: command_run_result2}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner,\
-                mock.patch.object(time, "sleep") as mocked_sleep:
-            mocked_runner.side_effect = foo
-            mocked_sleep.return_value = True
-            self.accessor._check_and_fix_flavor()
-            self.assertNotEqual(out.getvalue().strip().find("Apparently"), -1)
-            self.assertNotEqual(out.getvalue().strip().find("Proper"), -1)
+        fake_flavor = mock.Mock()
+        fake_flavor.name = 'm1.nano'
+        self.accessor.novaclient.flavors = mock.Mock()
+        self.accessor.novaclient.flavors.list.side_effect = [[], [fake_flavor]]
+        self.accessor._check_and_fix_flavor()
+        self.assertNotEqual(out.getvalue().strip().find("Apparently"), -1)
+        self.assertNotEqual(out.getvalue().strip().find("Proper"), -1)
 
     @bender_rodrigues
     def test_check_and_fix_flavor_found(self, out):
-        command_run_result = r"""
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-| ID                                   | Name          | Memory_MB | Disk | Ephemeral | Swap | VCPUs | RXTX_Factor | Is_Public |
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-| 42                                   | m1.nano       | 128       | 0    | 0         |      | 1     | 1.0         | True      |
-+--------------------------------------+---------------+-----------+------+-----------+------+-------+-------------+-----------+
-        """
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result,}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.side_effect = foo
-            self.accessor._check_and_fix_flavor()
-            self.assertNotEqual(out.getvalue().strip().find("Proper"), -1)
+        fake_flavor = mock.Mock()
+        fake_flavor.name = 'm1.nano'
+        self.accessor.novaclient.flavors = mock.Mock()
+        self.accessor.novaclient.flavors.list.return_value = [fake_flavor]
+        self.accessor._check_and_fix_flavor()
+        self.assertNotEqual(out.getvalue().strip().find("Proper"), -1)
 
     @bender_rodrigues
     def test_check_mcvsecgroup_there(self, out):
-        command_run_result = r"""
-+--------------------------------------+-------------------+-------------+
-| Id                                   | Name              | Description |
-+--------------------------------------+-------------------+-------------+
-| 44135f83-91f4-431a-86d5-5ba88e8897a6 | default           | default     |
-| b2007c5d-090e-4344-9549-583ca5cad576 | mcv-special-group | mcvgroup    |
-+--------------------------------------+-------------------+-------------+
-        """
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result,}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.side_effect = foo
-            self.accessor.check_mcv_secgroup()
-            self.assertEqual(mocked_runner.called, True)
+        self.accessor.novaclient.security_groups = mock.Mock()
+        self.accessor.novaclient.security_groups.list.return_value = ['fake_group']
+        self.accessor.check_mcv_secgroup()
+        self.assertEqual(self.accessor.novaclient.security_groups.list.called, True)
 
     @bender_rodrigues
     def test_check_mcvsecgroup_not_there(self, out):
-        command_run_result1 = r"""
-+--------------------------------------+-------------------+-------------+
-| Id                                   | Name              | Description |
-+--------------------------------------+-------------------+-------------+
-| 44135f83-91f4-431a-86d5-5ba88e8897a6 | default           | default     |
-+--------------------------------------+-------------------+-------------+
-        """
-        self.accessor.access_data["instance_ip"] = "172.16.57.41"
-        command_run_result2 = \
-"""+--------------------------------------+------------+-------------------+------------+-------------+-----------------------------------+\r
-| ID                                   | Name       | Status            | Task State | Power State | Networks                          |\r
-+--------------------------------------+------------+-------------------+------------+-------------+-----------------------------------+\r
-| 76dfd8ec-c64a-4941-8617-03171199ea14 | baiegoed   | ACTIVE            | -          | Running     | net04=192.168.111.5, 172.16.57.41 |\r
-+--------------------------------------+------------+-------------------+------------+-------------+-----------------------------------+\r\n"""
-        f = open('/dev/pts/19', 'w')
-        def foo(*args, **kwargs):
-            foo.counter += 1
-            ret_vals = {1: command_run_result1, 2: True, 3: True, 4: True,
-                        5: command_run_result2, 6:True}
-            return ret_vals[foo.counter]
-        foo.counter = 0
-        with mock.patch.object(self.accessor,
-                "_run_os_command_in_container") as mocked_runner:
-            mocked_runner.side_effect = foo
-            self.accessor.check_mcv_secgroup()
-            f.write(out.getvalue().strip()+'\n')
-            self.assertEqual(mocked_runner.called, True)
-        pass
+        self.accessor.novaclient.security_groups = mock.Mock()
+        self.accessor.novaclient.security_group_rules = mock.Mock()
+        self.accessor.novaclient.servers = mock.Mock()
+        self.accessor.novaclient.security_groups.list.return_value = []
+        self.accessor.novaclient.servers.list.return_value = ['fake_server']
+
+        self.accessor.check_mcv_secgroup()
+        self.assertEqual(self.accessor.novaclient.security_groups.create.called, True)
+        self.assertEqual(self.accessor.novaclient.security_group_rules.create.called, True)
+        self.assertEqual(self.accessor.novaclient.servers.add_security_group.called, True)
+

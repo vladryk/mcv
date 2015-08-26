@@ -1,1 +1,2 @@
 paramiko>=1.0
+python-novaclient>=2.26.0
