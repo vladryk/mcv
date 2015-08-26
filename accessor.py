@@ -19,6 +19,8 @@ import re
 import subprocess
 import time
 import uuid
+import paramiko
+from paramiko import client
 
 rally_json_template = """{
 "type": "ExistingCloud",
@@ -441,63 +443,47 @@ class AccessSteward(object):
                              }
         mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
         rkname = "remote_mcv_key"
-        mk_port = "ssh -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
+        mk_port = "ssh -o PreferredAuthentications=publickey -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
                   port_substitution
 
-        key_name = str(uuid.uuid4())
-        pub_key_name = key_name + ".pub"
-        key_name_place = os.path.join("/tmp", key_name)
-        pub_key_name_place = os.path.join("/tmp", pub_key_name)
+        ssh = client.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(hostname="%(controller_ip)s" % self.access_data, username="root", password="r00tme")
+        except paramiko.ssh_exception.AuthenticationException:
+            pwd = raw_input("Please enter password for root@%(controller_ip)" % self.access_data["controller_ip"])
+            # TODO: do this in a smart way
+            try:
+                ssh.connect(hostname="%(controller_ip)s" % self.access_data, username="root", password=pwd)
+            except:
+                print "Oh noes! Contoller authentication failure! Out of this Universe!"
+                sys.exit(1)
 
-        # TODO: redo with Crypto, add to requirements whenever we have CI
-        os.system('ssh-keygen -f' + key_name_place + ' -N "" > /dev/null 2>&1')
-        os.system("chmod 0600 " + key_name_place)
-        os.system("chmod 0600 " + pub_key_name_place)
+        stdin, stdout, stdin = ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
+        # TODO: ok, this should not be done by sleeping
+        time.sleep(3)
+        stdin, stdout, stdin = ssh.exec_command("cat " + rkname + ".pub >> .ssh/authorized_keys")
+        time.sleep(3)
+        stdin, stdout, stdin = ssh.exec_command("iptables -L")
+        if stdout.read().find("7654") == -1:
+            print "There is no such rule in local iptables! Have to add one"
+            print "issuing", mk_rule
+            stdin, stdout, stdin = ssh.exec_command( mk_rule)
+        else:
+            print "The iptables rule seems to be in place"
 
-        cmd = "sudo ssh-copy-id -i " +  pub_key_name_place + " root@%(controller_ip)s" % self.access_data
-        res = subprocess.Popen(cmd.split(" "),
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-        com = res.communicate()
-
-        if com[1] == 'Permission denied (publickey).\r\n':
-            print "Apparently it is impossible to reach cloud controller via"\
-                  "SHH. Please fix this issue and try again."
-            sys.exit(1)
-
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "ssh-keygen -f """ % self.access_data + rkname + """ -N ''" > /dev/null 2>&1""")
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "cat """  % self.access_data+ rkname + """.pub >> .ssh/authorized_keys" """)
-        res = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
-                                "-i", key_name_place,
-                                "root@%(controller_ip)s" % self.access_data, "iptables", "-L"],
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-        if res.communicate()[0].find('7654') == -1:
-            # oops, there is no rule for 7654 port. let's make one:
-            sup = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
-                                    "-i", key_name_place,
-                                    "root@%(controller_ip)s" % self.access_data,] + mk_rule.split(" "),
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE)
-
-        res = subprocess.Popen(["sudo", "ssh",  "-oStrictHostKeyChecking=no",
-                                "-i", key_name_place,
-                                "root@%(controller_ip)s" % self.access_data, "ps", "aux"],
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-
-        com = res.communicate()
-        result = re.search("ssh.*35357", com[0])
+        stdin, stdout, stdin = ssh.exec_command("ps aux")
+        result = re.search("ssh.*35357", stdout.read())
         if result is None:
-            l = ["sudo", "ssh",  "-oStrictHostKeyChecking=no",
-                 "-i", key_name_place,
-                 "root@%(controller_ip)s" %self.access_data,] +  mk_port.split(" ")
-            sup = subprocess.Popen(l, stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-        os.system("""sudo ssh -i """ + key_name_place + """ root@%(controller_ip)s "rm """  % self.access_data+ rkname + """* " """)
+            print "Apparently port forwarding is not set up properly"
+            print "setting it with", mk_port
+            time.sleep(3)
+            stdin, stdout, stdin = ssh.exec_command(mk_port)
+            time.sleep(5)
+        else:
+            print "Apparently port forwarding is set"
+        stdin, stdout, stdin = ssh.exec_command("rm " + rkname + "*")
 
-        # Ok, enough fun with other's controllers. Let's patch our VM:
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
                                 shell=False, stdout=subprocess.PIPE,
                                 stdin=subprocess.PIPE,
@@ -511,6 +497,8 @@ class AccessSteward(object):
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
                                 stdout=subprocess.PIPE).stdout.read()
+
+        return
 
     def create_rally_json(self):
         credentials = {"ip_address": self.access_data["auth_endpoint_ip"],
