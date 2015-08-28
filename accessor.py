@@ -443,7 +443,7 @@ class AccessSteward(object):
                              }
         mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
         rkname = "remote_mcv_key"
-        mk_port = "ssh -o PreferredAuthentications=publickey -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
+        mk_port = "ssh -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
                   port_substitution
 
         ssh = client.SSHClient()
@@ -472,16 +472,18 @@ class AccessSteward(object):
         else:
             print "The iptables rule seems to be in place"
 
-        stdin, stdout, stdin = ssh.exec_command("ps aux")
-        result = re.search("ssh.*35357", stdout.read())
-        if result is None:
-            print "Apparently port forwarding is not set up properly"
-            print "setting it with", mk_port
-            time.sleep(3)
-            stdin, stdout, stdin = ssh.exec_command(mk_port)
-            time.sleep(5)
-        else:
-            print "Apparently port forwarding is set"
+        result = None
+        while result is None:
+            stdin, stdout, stdin = ssh.exec_command("ps aux")
+            result = re.search("ssh.*35357", stdout.read())
+            if result is None:
+                print "Apparently port forwarding is not set up properly"
+                print "setting it with", mk_port
+                time.sleep(3)
+                stdin, stdout, stdin = ssh.exec_command(mk_port)
+                time.sleep(5)
+            else:
+                print "Apparently port forwarding is set"
         stdin, stdout, stdin = ssh.exec_command("rm " + rkname + "*")
 
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
