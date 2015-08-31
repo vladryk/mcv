@@ -18,7 +18,6 @@ import argparse
 import inspect
 import ConfigParser
 import logging
-import logger as LOG
 import imp
 import reporter
 import subprocess
@@ -26,7 +25,7 @@ import os
 import sys
 
 
-__ = '%(asctime)s %(levelname)s %(message)s'
+LOG = logging
 
 
 class Consoler(object):
@@ -53,7 +52,7 @@ class Consoler(object):
 
     def do_custom(self, test_group):
         """Run custom test set.
-    
+
         Custom test list should be stored in /etc/cloud_validator/mcv.conf.
         Test should be placed in sections named [custom_test_group_<groupname>]
         Two sections exist by default: [custom_test_group_default] which gets
@@ -75,11 +74,10 @@ class Consoler(object):
             for group, test_list in tests.iteritems():
                 print group, '\t:\t', len(test_list.split(','))
             print
-    
+
         if test_group == 'default':
-            print "Either no group has been explicitly requested or it was group "\
-                  "\'default\'."
-    
+            LOG.info("Either no group has been explicitly requested or it was group 'default'.")
+
         # NOTE: this cludge is used to prevent accidental production cloud
         # destruction and relies solely on group name. It is not bulletproof as
         # anyone could create loading group with a wrong name and easily break
@@ -142,28 +140,25 @@ class Consoler(object):
                 m = imp.load_source("runner"+key, path_to_runner)
             except IOError as e:
                 major_crash = 1
-                print "Looks like there is no such runner:", key, "."
+                LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
-                logger.exception("The following exception has been caught: "\
-                                 "%s" % e)
+                LOG.error("The following exception has been caught: ", exc_info=True)
             except Exception as e:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
-                logger.exception("The following exception has been caught: "\
-                                 "%s" % e)
+                LOG.error("The following exception has been caught: ", exc_info=True)
             else:
                 runner = getattr(m, self.config.get(key, 'runner'))()
                 batch = test_dict[key].split(',')
                 batch = map(lambda x: x.strip('\n'), batch)
-                print "Running", len(batch), "test"+"s"*(len(batch)!=1),
-                print "for", key
+                LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch)
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
-                        print "It looks like you are trying to use a wrong "\
+                        LOG.debug("It looks like you are trying to use a wrong "\
                               "runner. No tests will be run in this group "\
-                              "this time."
+                              "this time.", exc_info=True)
                     raise e
                 except Exception as e:
                     run_failures = test_dict[key].split(',')
@@ -174,16 +169,15 @@ class Consoler(object):
 
     def do_full(self):
         """Run full test suit"""
-        LOG.log_starting_full_check()
-        print "WARNING! Full test suit contains rally load tests. These tests"
-        print "may break your cloud. It is not recommended to run these tests"
-        print "on production clouds."
-        result  = raw_input("Are yout sure you want to procede? [yes/No]")
+        LOG.info("Starting full check run.")
+        LOG.warning("WARNING! Full test suite contains Rally load tests. These tests may break your cloud. It is not recommended to run these tests on production clouds.")
+        result = raw_input("Are you sure you want to proceed? [yes/No]")
         if result == "yes":
+            LOG.warning("The user agreed to proceed")
             test_dict = discover_test_suits()
             return self.dispatch_tests_to_runners(test_dict)
         else:
-            print "It is a wise decision."
+            LOG.info("The user decided not to proceed with wrecking the cloud")
         return {}
 
     def describe_results(self, results):
@@ -222,39 +216,33 @@ class Consoler(object):
             if len(to_check) < 2:
                 to_check.append("default")
             if len(to_check) > 2:
-                print "Ignoring arguments:", ", ".join(to_check[2:])
+                LOG.warning("Ignoring arguments: " + ", ".join(to_check[2:]))
             results = self.prepare_tests(to_check[1])
             if results == {}:
-                print "Can't find group '" + to_check[1] + "' in",
-                print self.path_to_config
-                print "Please, provide exisitng group name!"
+                LOG.error("Can't find group '" + to_check[1] + "' in"+ self.path_to_config+ "Please, provide exisitng group name!")
                 sys.exit(1)
             for key in results:
                 if key in ['rally', 'ostf', 'shaker'] and key not in retval:
                     retval.append(key)
         elif to_check[0] == 'single':
             if len(to_check) < 3:
-                print "Too few arguments for option single. You must specify"\
-                      " test group and test name"
+                LOG.error( "Too few arguments for option single. You must specify test group and test name")
                 sys.exit(1)
             if len(to_check) > 3:
-                print "Ignoring arguments:", ", ".join(to_check[3:])
+                LOG.warning( "Ignoring arguments: "+ ", ".join(to_check[3:]))
             if not existing_plugin(to_check[1]):
-                print "Unrecognized test group:", to_check[1]
+                LOG.error("Unrecognized test group: "+ to_check[1])
                 sys.exit(1)
             if not a_real_file(to_check[2], to_check[1]):
-                print "Test not found:", to_check[2]
+                LOG.error("Test not found: " + to_check[2])
                 sys.exit(1)
             retval = [to_check[1]]
         else:
-            print "Wrong option:", to_check[0]
-            print
-            print "Please run mcvconsoler --help if unsure what has gone wrong"
+            LOG.error("Wrong option: " + to_check[0] + ". Please run mcvconsoler --help if unsure what has gone wrong")
             sys.exit(1)
         return retval
 
     def console_user(self):
-        print
         if len(sys.argv) < 2:
             self.parser.print_help()
             sys.exit(1)
@@ -266,13 +254,10 @@ class Consoler(object):
         self.path_to_config = os.path.join(os.path.dirname(__file__),
                                            default_config)
         self.config.read(self.path_to_config)
+        # TODO: leaving this leftover for now. In the nearest future this
+        # should be forwarded to the real logging.
         path_to_main_log = os.path.join(self.config.get('basic', 'logdir'),
                                         self.config.get('basic', 'logfile'))
-        logging.basicConfig(level=getattr(logging,
-                                          self.config.get('basic',
-                                                          'loglevel').upper()),
-                            filename=path_to_main_log,
-                            format=__)
         if self.args.run is not None:
             required_containers = self.check_args_run(self.args.run)
             access_helper = accessor.AccessSteward()
@@ -288,12 +273,11 @@ class Consoler(object):
                 temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
                     "\'%(function)s\'\n\'%(function)s\' actually expects the "\
                     "folowing arguments: \'%(expected_args)s\'"
-                print temessage % scolding_d
-                LOG.log_exception(e)
+                LOG.error(temessage % scolding, exc_info=True)
             except Exception as e:
                 print "Something went wrong with the command, please"\
                       " refer to logs to find out what"
-                LOG.log_exception(e)
+                LOG.error("The following error has terminated the consoler:", exc_info=True)
         if run_results is not None:
             self.describe_results(run_results)
             reporter.brew_a_report(run_results)

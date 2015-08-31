@@ -14,13 +14,15 @@
 
 
 import ConfigParser
+import logging
 import os
 import sys
-import logger as LOG
 
 # Base class for runners should be placed here.
 
 nevermind = None
+
+LOG = logging.getLogger(__name__)
 
 class Runner(object):
 
@@ -58,51 +60,23 @@ class Runner(object):
         This function has to be defined in a subclass!"""
         raise NotImplementedError
 
-    def _prepare_output(self):
-        print "Percent of %s tests run: " % self.identity,
-        sys.stdout.write("  0%")
-        sys.stdout.write("\033[?25l")
-        sys.stdout.flush()
-
-    def _finalize_output(self):
-        sys.stdout.write("\033[?25h\n\n")
-        sys.stdout.flush()
-
-
-    def _update_status(self):
-        if self.total_checks != 0:
-            current_percentage = str(self.current_task*100/self.total_checks)
-        else:
-            current_percentage = '--'
-        try:
-            sys.stdout.write('\b'*(len(current_percentage)+1))
-            sys.stdout.write("%s%%" % current_percentage)
-            sys.stdout.write("\033[?25l")
-            sys.stdout.flush()
-        except KeyboardInterrupt:
-            print "\nInterrupted. Exiting"
-        except Exception as e:
-            print "\nUndefined exception", e
-        self.current_task += 1
-
     def check_task_list(self, tasks):
         fine_to_run = filter(self.scenario_is_fine, tasks)
         rejected_tasks = [x for x in tasks if x not in fine_to_run and x != '']
         self.test_not_found = rejected_tasks
         map(tasks.remove, rejected_tasks)
-        LOG.log_fine(fine_to_run) if fine_to_run else \
-             LOG.log_big_test_problem(self.identity)
-        LOG.log_rejects(rejected_tasks) if rejected_tasks else nevermind
+        LOG.info("The following tests will be run: %s" % ", ".join(fine_to_run)) if fine_to_run else \
+             LOG.error("Looks like not a single test will be run for group %s" % self.identity)
+        LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
     def run_batch(self, tasks):
         """Runs a bunch of tasks."""
         self.check_task_list(tasks)
         self.total_checks = len(tasks)
         for task in tasks:
-            print "Running", task,  # this should go to a generalized printer
+            LOG.info("Running "+ task)
             if self.run_individual_task(task):
                 self.test_success.append(task)
-            print
         return {"test_failures": self.test_failures, 
                 "test_success": self.test_success, 
                 "test_not_found": self.test_not_found}

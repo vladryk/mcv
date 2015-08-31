@@ -14,7 +14,7 @@
 
 
 import ConfigParser
-import logger as LOG
+import logging
 import os
 import subprocess
 import sys
@@ -28,6 +28,7 @@ nevermind = None
 
 config = ConfigParser.ConfigParser()
 default_config = "/etc/mcv/mcv.conf"
+LOG = logging
 
 
 class ShakerRunner(runner.Runner):
@@ -49,9 +50,9 @@ class ShakerRunner(runner.Runner):
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
         if resulting_dict.get('error', '') == '':
-            LOG.log_test_task_ok(task)
+            LOG.info("Task %s has completed successfully." % task)
         else:
-            LOG.log_test_task_failure(task, resulting_dict['error'])
+            LOG.warning("Task %s has failed with the following error: %s" % (task,resulting_dict['error']))
             return False
         return True
 
@@ -60,7 +61,7 @@ class ShakerRunner(runner.Runner):
         return 'test_scenarios/shaker/tests/%s' % task
 
     def _run_shaker(self, task):
-        LOG.log_running_task(task)
+        LOG.debug("Running task %s" % task)
         # important: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
@@ -113,16 +114,16 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd  = "docker inspect -f '{{.Id}}' %s" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
-        LOG.log_arbitrary("Preparing to task %s" % task)
+        LOG.debug("Preparing to task %s" % task)
         cmd = r"cp "+test_location+\
               " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
               p.rstrip('\n')
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        LOG.log_arbitrary("Successfully prepared to task %s" % task)
+        LOG.debug("Successfully prepared to task %s" % task)
 
 
     def _run_shaker_on_docker(self, task):
-        LOG.log_arbitrary("Starting task %s" % task)
+        LOG.info("Starting task %s" % task)
         cmd = "docker exec -it %s keystone endpoint-list | grep :5000" %\
         self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -144,7 +145,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         return result
 
     def _get_task_result_from_docker(self, task_id):
-        LOG.log_arbitrary("Retrieving task results for %s" % task_id)
+        LOG.info("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container, task_id)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         if task_id.find("detailed") ==-1:
@@ -163,6 +164,6 @@ class ShakerOnDockerRunner(ShakerRunner):
                 self._evaluate_task_result(task, task_result):
             return True
         else:
-            LOG.log_warning("Task %s has failed with %s" % (task, task_result))
+            LOG.warning("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)
             return False

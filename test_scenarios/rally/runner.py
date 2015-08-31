@@ -15,7 +15,7 @@
 
 import re
 import ConfigParser
-import logger as LOG
+import logging
 import os
 import subprocess
 import sys
@@ -28,8 +28,8 @@ except:
 nevermind = None
 
 config = ConfigParser.ConfigParser()
-#default_config = "/etc/cloud_validator/mcv.conf"
 default_config = "etc/mcv.conf"
+LOG = logging
 
 
 class RallyRunner(runner.Runner):
@@ -76,9 +76,9 @@ class RallyRunner(runner.Runner):
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
         if resulting_dict['sla'][0]['success'] == True:
-            LOG.log_test_task_ok(task)
+            LOG.info("Task %s has completed successfully." % task)
         else:
-            LOG.log_test_task_failure(task, resulting_dict['result'])
+            LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
             return False
         return True
 
@@ -87,7 +87,7 @@ class RallyRunner(runner.Runner):
         return 'test_scenarios/rally/tests/%s' % task
 
     def _run_rally(self, task):
-        LOG.log_running_task(task)
+        LOG.debug("Running task %s" % task)
         # important: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
@@ -149,7 +149,7 @@ class RallyOnDockerRunner(RallyRunner):
         cmd  = "docker inspect -f '{{.Id}}' %s" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
-        LOG.log_arbitrary("Preparing to task %s" % task)
+        LOG.debug("Preparing to task %s" % task)
         cmd = r"cp "+test_location+\
               " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
               p.rstrip('\n')
@@ -157,17 +157,17 @@ class RallyOnDockerRunner(RallyRunner):
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             if e.output.find('Permission denied') != -1:
-                print "  Got an access issue, you might want to run this as root  ",
+                LOG.warning("  Got an access issue, you might want to run this as root  ")
+            LOG.error(exc_info=True)
             return False
         else:
-            LOG.log_arbitrary("Successfully prepared to task %s" % task)
+            LOG.debug("Successfully prepared to task %s" % task)
             return True
 
 
     def _run_rally_on_docker(self, task):
-        LOG.log_arbitrary("Starting task %s" % task)
+        LOG.info("Starting task %s" % task)
         if not self._create_task_in_docker(task):
-            #import pdb; pdb.set_trace()
             return {'failed': True}
         cmd = "docker exec -it %s rally task start /tmp/pending_rally_task" %\
              self.container
@@ -190,14 +190,14 @@ class RallyOnDockerRunner(RallyRunner):
 
         if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
-        LOG.log_arbitrary("Received results for a task %s, IT is %s" % (task,
+        LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
         return {'next_command': ret_val,
                 'original output': original_output,
                 'failed': failed}
 
     def _get_task_result_from_docker(self, task_id):
-        LOG.log_arbitrary("Retrieving task results for %s" % task_id)
+        LOG.debug("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container, task_id)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         if task_id.find("detailed") ==-1:
@@ -215,8 +215,7 @@ class RallyOnDockerRunner(RallyRunner):
         # apparently we'll need something to set up rally inside docker.
         task_id = self._run_rally_on_docker(task)
         if task_id['failed'] and len(task_id.keys()) == 1:
-            print "Apparently task", task, "has failed"
-            LOG.log_warning("Task %s has failed for some instrumental issues" % (task))
+            LOG.warning("Task %s has failed for some instrumental issues" % (task))
             self.test_failures.append(task)
             return False
         task_result = self._get_task_result_from_docker(task_id['next_command'])
@@ -225,5 +224,5 @@ class RallyOnDockerRunner(RallyRunner):
                 self._evaluate_task_result(task, task_result):
             return True
         else:
-            LOG.log_warning("Task %s has failed with %s" % (task, task_result))
+            LOG.warning("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)

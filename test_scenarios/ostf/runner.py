@@ -15,7 +15,7 @@
 
 import re
 import ConfigParser
-import logger as LOG
+import logging
 import os
 import subprocess
 import sys
@@ -29,6 +29,8 @@ nevermind = None
 
 config = ConfigParser.ConfigParser()
 default_config = "etc/mcv.conf"
+
+LOG = logging
 
 
 class OSTFOnDockerRunner(runner.Runner):
@@ -69,7 +71,7 @@ class OSTFOnDockerRunner(runner.Runner):
         return line
 
     def _run_ostf_on_docker(self, task):
-        LOG.log_arbitrary("Starting task %s" % task)
+        LOG.debug("Starting task %s" % task)
         # --show-full-report
         task = self.check_task(task)
         if task is None:
@@ -99,9 +101,9 @@ class OSTFOnDockerRunner(runner.Runner):
         self._setup_ostf_on_docker()
         for task in tasks:
             self.run_individual_task(task)
-        LOG.log_arbitrary("Succeeded tests: %s" % str(self.success))
-        LOG.log_arbitrary("Failed tests: %s" % str(self.failures))
-        LOG.log_arbitrary("Not found tests: %s" % str(self.not_found))
+        LOG.info("Succeeded tests: %s" % str(self.success))
+        LOG.info("Failed tests: %s" % str(self.failures))
+        LOG.info("Not found tests: %s" % str(self.not_found))
 
         return {"test_failures": self.failures,
                 "test_success": self.success,

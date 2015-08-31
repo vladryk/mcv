@@ -19,7 +19,7 @@ import inspect
 import consoler
 import ConfigParser
 import logging
-import logger as LOG
+from logging import handlers
 import imp
 import subprocess
 import os
@@ -64,18 +64,18 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-# setting up nice logging
-__ = '%(asctime)s %(levelname)s %(message)s'
-logger = logging.getLogger(__name__)
-
 
 def main():
+    import logging.config
+    logging.config.fileConfig('etc/logging.conf')
+    # This is somewhat radical way to shut up paramiko, should be replaced with
+    # handler substitution.
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
     consolerr = consoler.Consoler(parser=parser, args=args)
     try:
         consolerr.console_user()
-    except:
-        print "Something unforseen has just happened. The consoler is no more."
-        print "You can get an insight from /var/log/mcvconsoler.log"
+    except Exception as e:
+        logging.error("Something unforseen has just happened. The consoler is no more. You can get an insight from /var/log/mcvconsoler.log", exc_info=True)
 
 
 if __name__ == "__main__":
