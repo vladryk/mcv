@@ -452,32 +452,32 @@ class AccessSteward(object):
                 LOG.error( "Oh noes! Contoller authentication failure! Out of this Universe!")
                 sys.exit(1)
 
-        stdin, stdout, stdin = ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
+        stdin, stdout, stderr = ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
         # TODO: ok, this should not be done by sleeping
         time.sleep(3)
-        stdin, stdout, stdin = ssh.exec_command("cat " + rkname + ".pub >> .ssh/authorized_keys")
+        stdin, stdout, stderr = ssh.exec_command("cat " + rkname + ".pub >> .ssh/authorized_keys")
         time.sleep(3)
-        stdin, stdout, stdin = ssh.exec_command("iptables -L")
+        stdin, stdout, stderr = ssh.exec_command("iptables -L")
         if stdout.read().find("7654") == -1:
             LOG.debug("There is no such rule in controller's iptables! Have to add one")
             LOG.debug("issuing", mk_rule)
-            stdin, stdout, stdin = ssh.exec_command( mk_rule)
+            stdin, stdout, stderr = ssh.exec_command( mk_rule)
         else:
             LOG.debug("The iptables rule seems to be in place")
 
         result = None
         while result is None:
-            stdin, stdout, stdin = ssh.exec_command("ps aux")
+            stdin, stdout, stderr = ssh.exec_command("ps aux")
             result = re.search("ssh.*35357", stdout.read())
             if result is None:
                 LOG.debug("Apparently port forwarding is not set up properly")
                 LOG.debug("setting it with", mk_port)
                 time.sleep(3)
-                stdin, stdout, stdin = ssh.exec_command(mk_port)
+                stdin, stdout, stderr = ssh.exec_command(mk_port)
                 time.sleep(5)
             else:
                 LOG.debug( "Apparently port forwarding is set")
-        stdin, stdout, stdin = ssh.exec_command("rm " + rkname + "*")
+        stdin, stdout, stderr = ssh.exec_command("rm " + rkname + "*")
 
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
                                 shell=False, stdout=subprocess.PIPE,
