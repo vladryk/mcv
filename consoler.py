@@ -199,12 +199,15 @@ class Consoler(object):
             print "\t\t not found tests"
 
     def existing_plugin(self, plugin):
-        dirlist = filter(lambda x: os.path.isdir(os.path.join(self.plugin_dir, x)),
-                         os.listdir(os.path.join(os.getcwd(), self.plugin_dir)))
+        base = os.path.join(os.path.dirname(__file__), self.plugin_dir)
+        dirstolist = os.listdir(base)
+        dirlist = filter(lambda x: os.path.isdir(os.path.join(base, x)),
+                         dirstolist)
         return plugin in dirlist
 
     def a_real_file(self, fname, group):
-        dir_to_walk = os.path.join(self.plugin_dir, group, "tests")
+        dir_to_walk = os.path.join(os.path.dirname(__file__), self.plugin_dir,
+                                   group, "tests")
         return fname in os.listdir(dir_to_walk)
 
     def check_args_run(self, to_check):
@@ -230,10 +233,10 @@ class Consoler(object):
                 sys.exit(1)
             if len(to_check) > 3:
                 LOG.warning( "Ignoring arguments: "+ ", ".join(to_check[3:]))
-            if not existing_plugin(to_check[1]):
+            if not self.existing_plugin(to_check[1]):
                 LOG.error("Unrecognized test group: "+ to_check[1])
                 sys.exit(1)
-            if not a_real_file(to_check[2], to_check[1]):
+            if not self.a_real_file(to_check[2], to_check[1]):
                 LOG.error("Test not found: " + to_check[2])
                 sys.exit(1)
             retval = [to_check[1]]
