@@ -270,9 +270,9 @@ class Consoler(object):
             except TypeError as e:
                 run_name = "do_" + self.args.run[0]
                 expected_arglist = inspect.getargspec(getattr(self, run_name)).args
-                scolding_d = {"supplied_args": ", ".join(self.args.run[1:]),
-                              "function" : self.args.run[0],
-                              "expected_args": "\', \'".join(expected_arglist)}
+                scolding = {"supplied_args": ", ".join(self.args.run[1:]),
+                            "function" : self.args.run[0],
+                            "expected_args": "\', \'".join(expected_arglist)}
                 temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
                     "\'%(function)s\'\n\'%(function)s\' actually expects the "\
                     "folowing arguments: \'%(expected_args)s\'"
