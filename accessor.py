@@ -460,7 +460,7 @@ class AccessSteward(object):
         stdin, stdout, stderr = ssh.exec_command("iptables -L")
         if stdout.read().find("7654") == -1:
             LOG.debug("There is no such rule in controller's iptables! Have to add one")
-            LOG.debug("issuing", mk_rule)
+            LOG.debug("issuing " + mk_rule)
             stdin, stdout, stderr = ssh.exec_command( mk_rule)
         else:
             LOG.debug("The iptables rule seems to be in place")
@@ -471,7 +471,7 @@ class AccessSteward(object):
             result = re.search("ssh.*35357", stdout.read())
             if result is None:
                 LOG.debug("Apparently port forwarding is not set up properly")
-                LOG.debug("setting it with", mk_port)
+                LOG.debug("setting it with " + mk_port)
                 time.sleep(3)
                 stdin, stdout, stderr = ssh.exec_command(mk_port)
                 time.sleep(5)
