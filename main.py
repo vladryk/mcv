@@ -67,7 +67,8 @@ args = parser.parse_args()
 
 def main():
     import logging.config
-    logging.config.fileConfig('etc/logging.conf')
+    lc = os.path.join(os.path.dirname(__file__), 'etc/logging.conf')
+    logging.config.fileConfig(lc)
     # This is somewhat radical way to shut up paramiko, should be replaced with
     # handler substitution.
     logging.getLogger("paramiko").setLevel(logging.WARNING)
