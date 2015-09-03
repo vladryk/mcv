@@ -496,12 +496,21 @@ class AccessSteward(object):
         f.write(rally_json_template % credentials)
         f.close()
 
+    def check_computes(self):
+        services = self._get_novaclient().services.list()
+        self.compute = 0
+        for service in services:
+            if service.binary == 'nova-compute':
+                self.compute += 1
+        LOG.debug("Found " +  str(self.compute) + " computes.")
+
     def check_and_fix_environment(self, required_containers):
         self.required_containers = required_containers
         self.check_docker_images()
         self.check_and_fix_access_data()
         self.create_rally_json()
         self.check_mcv_secgroup()
+        self.check_computes()
         self.stop_rally_container(mute=True)
         self.start_rally_container_(mute=True)
         self.check_containers_are_up()

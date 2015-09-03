@@ -54,7 +54,7 @@ class Runner(object):
             return True
         return False
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         """Runs a single task.
 
         This function has to be defined in a subclass!"""
@@ -69,13 +69,13 @@ class Runner(object):
              LOG.error("Looks like not a single test will be run for group %s" % self.identity)
         LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
-    def run_batch(self, tasks):
+    def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
         self.check_task_list(tasks)
         self.total_checks = len(tasks)
         for task in tasks:
             LOG.info("Running "+ task)
-            if self.run_individual_task(task):
+            if self.run_individual_task(task, *args, **kwargs):
                 self.test_success.append(task)
         return {"test_failures": self.test_failures, 
                 "test_success": self.test_success, 

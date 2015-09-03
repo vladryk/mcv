@@ -164,13 +164,16 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.debug("Successfully prepared to task %s" % task)
             return True
 
-
-    def _run_rally_on_docker(self, task):
+    def _run_rally_on_docker(self, task, *args, **kwargs):
         LOG.info("Starting task %s" % task)
         if not self._create_task_in_docker(task):
             return {'failed': True}
-        cmd = "docker exec -it %s rally task start /tmp/pending_rally_task" %\
-             self.container
+        cmd = "docker exec -it %(container)s rally task start"\
+              " /tmp/pending_rally_task --task-args '{\"compute\":"\
+              "%(compute)s, \"concurrency\":%(concurrency)s}'" %\
+              {"container": self.container,
+               "compute": kwargs["compute"],
+               "concurrency": kwargs["concurrency"]}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
@@ -206,14 +209,14 @@ class RallyOnDockerRunner(RallyRunner):
         else:
             return p.split('\n')[-4:-1]
 
-    def run_batch(self, tasks):
+    def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(RallyRunner, self).run_batch(tasks)
+        return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         # here be the fix for running rally in a docker container.
         # apparently we'll need something to set up rally inside docker.
-        task_id = self._run_rally_on_docker(task)
+        task_id = self._run_rally_on_docker(task, *args, **kwargs)
         if task_id['failed'] and len(task_id.keys()) == 1:
             LOG.warning("Task %s has failed for some instrumental issues" % (task))
             self.test_failures.append(task)

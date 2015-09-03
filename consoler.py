@@ -129,7 +129,7 @@ class Consoler(object):
             per_component[k] = ",".join(v)
         return dict(per_component)
 
-    def dispatch_tests_to_runners(self, test_dict):
+    def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
         for key in test_dict.keys():
             dispatch_result[key] = {}
@@ -153,7 +153,8 @@ class Consoler(object):
                 batch = map(lambda x: x.strip('\n'), batch)
                 LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
                 try:
-                    run_failures = runner.run_batch(batch)
+                    run_failures = runner.run_batch(batch, compute=self.access_helper.compute,
+                                                    concurrency=self.config.get('basic', 'concurrency'))
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
                         LOG.debug("It looks like you are trying to use a wrong "\
@@ -263,8 +264,8 @@ class Consoler(object):
                                         self.config.get('basic', 'logfile'))
         if self.args.run is not None:
             required_containers = self.check_args_run(self.args.run)
-            access_helper = accessor.AccessSteward()
-            access_helper.check_and_fix_environment(required_containers)
+            self.access_helper = accessor.AccessSteward()
+            self.access_helper.check_and_fix_environment(required_containers)
             try:
                 run_results = getattr(self, "do_" + self.args.run[0])(*self.args.run[1:])
             except TypeError as e:
