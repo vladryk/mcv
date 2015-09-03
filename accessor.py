@@ -354,9 +354,10 @@ class AccessSteward(object):
                                    stdout=subprocess.PIPE).stdout.read()
 
     def check_mcv_secgroup(self):
-        res = self._get_novaclient().security_groups.list(search_opts={'name': 'mcv-special-group'})
-        if len(res) == 1:
-            return
+        res = self._get_novaclient().security_groups.list()
+        for r in res:
+            if r.name == 'mcv-special-group':
+                return
         self._get_novaclient().security_groups.create('mcv-special-group', 'mcvgroup')
         self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 5999, 5999, '0.0.0.0/0')
         self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 6000, 6000, '0.0.0.0/0')
