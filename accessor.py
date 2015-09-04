@@ -316,6 +316,7 @@ class AccessSteward(object):
             self.check_docker_images()
 
     def _check_and_fix_flavor(self):
+        LOG.debug("Searching for proper flavor.")
         # Novaclient can't search flavours by name so manually search in list.
         res = self._get_novaclient().flavors.list()
         for f in res:
@@ -323,7 +324,8 @@ class AccessSteward(object):
                 LOG.debug("Proper flavor for rally has been found")
                 return
         LOG.debug("Apparently there is no flavor suitable for running rally. Creating one...")
-        self._get_novaclient().flavors.create('m1.nano', 42, 128, 0)
+        self._get_novaclient().flavors.create(name='m1.nano', ram=128, vcpus=1,
+                                              disk=1, flavorid=42)
         time.sleep(3)
         return self._check_and_fix_flavor()
 
@@ -354,16 +356,34 @@ class AccessSteward(object):
                                    stdout=subprocess.PIPE).stdout.read()
 
     def check_mcv_secgroup(self):
+        LOG.debug("Checking for proper security group")
         res = self._get_novaclient().security_groups.list()
         for r in res:
             if r.name == 'mcv-special-group':
+                LOG.debug("Has found one")
+                # TODO: by the way, a group could exist while being not
+                # attached. It is wise to check this.
                 return
-        self._get_novaclient().security_groups.create('mcv-special-group', 'mcvgroup')
-        self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 5999, 5999, '0.0.0.0/0')
-        self._get_novaclient().security_group_rules.create('mcv-special-group', 'tcp', 6000, 6000, '0.0.0.0/0')
-        server = self._get_novaclient().servers.list(search_opts={'ip': self.access_data["instance_ip"]})[0]
-        if server:
-            self._get_novaclient().servers.add_security_group(server, 'mcv-special-group')
+        LOG.debug("Nope. Has to create one")
+        mcvgroup = self._get_novaclient().security_groups.\
+                       create('mcv-special-group', 'mcvgroup')
+        self._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=5999, to_port=5999, cidr='0.0.0.0/0')
+        self._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=6000, to_port=6000, cidr='0.0.0.0/0')
+        LOG.debug("Finished creating a gfroup and adding rules")
+        servers = self._get_novaclient().servers.list()
+        # TODO: this better be made pretty
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == self.access_data["instance_ip"]:
+                        LOG.debug("Found a server to attach the new group to")
+                        server.add_security_group(mcvgroup.id)
+        LOG.debug("And they lived happily ever after")
 
     def _check_rally_setup(self):
         self._check_and_fix_iptables_rule()
