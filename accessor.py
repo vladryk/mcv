@@ -160,13 +160,13 @@ class AccessSteward(object):
     def extract_ostf_container_id(self, output):
         self.ostf_container_id = self._extract_container_id("ostf", output)
 
-    def stop_rally_container(self, mute=False):
+    def stop_rally_container(self):
         LOG.debug( "Bringing down container with rally")
         res = subprocess.Popen(["docker", "stop", self.rally_container_id],
                                stdout=subprocess.PIPE).stdout.read()
         return res
 
-    def start_rally_container_(self, mute=False):
+    def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             "-p", "6000:6000", "-e", "OS_AUTH_URL=http://" +
@@ -177,7 +177,7 @@ class AccessSteward(object):
             "-e", "OS_PASSWORD=" + self.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
-        self._verify_rally_container_is_up(mute)
+        self._verify_rally_container_is_up()
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
@@ -207,31 +207,25 @@ class AccessSteward(object):
             "-e", "OS_REGION_NAME=RegionOne",
             "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
 
-    def start_rally_container(self, mute=False):
-        LOG.debug( "Bringing up Rally container")
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "6000:6000", "-it", "mcv-rally"],
-            stdout=subprocess.PIPE).stdout.read()
-
     def _verify_container_is_up(self, container_name, mute=False, extra=""):
         # container_name == rally, shaker, ostf
-        LOG.debug( "Checking %s container..." % container_name)
+        LOG.debug("Checking %s container..." % container_name)
         res = subprocess.Popen(["docker", "ps"],
             stdout=subprocess.PIPE).stdout.read()
         detector = re.compile("mcv-" + container_name)
         if re.search(detector, res) is not None:
             # This does not relly belongs here, better be moved someplace
             getattr(self, "extract_" + container_name + "_container_id")(res)
-            LOG.debug( "Container %s is fine" % container_name)
+            LOG.debug("Container %s is fine" % container_name)
         else:
-            LOG.debug( "It has to be started. "+ extra)
+            LOG.debug("It has to be started. "+ extra)
             getattr(self, "start_" + container_name + "_container")()
             time.sleep(10)  # we are in no hurry today
             return getattr(self, "_verify_" + container_name +
                            "_container_is_up")()
 
-    def _verify_rally_container_is_up(self, mute=False):
-        self._verify_container_is_up("rally", mute)
+    def _verify_rally_container_is_up(self):
+        self._verify_container_is_up("rally")
 
     def _verify_shaker_container_is_up(self):
         self._verify_container_is_up("shaker")
@@ -260,7 +254,6 @@ class AccessSteward(object):
         def trap():
             print "This doesn\'t look like a valid option."\
                   " Let\'s try once again."
-        self._verify_rally_container_is_up(mute=True)
         self._verify_access_data_is_set()
 
         LOG.debug("Trying to authenticate with OpenStack using provided credentials...")
@@ -330,12 +323,13 @@ class AccessSteward(object):
         return self._check_and_fix_flavor()
 
     def _rally_deployment_check(self):
+        LOG.debug("Checking if Rally deployment is present.")
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.rally_container_id,
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
-            LOG.info( "Trying to set up rally deployment")
+            LOG.info("It is not. Trying to set up rally deployment.")
             cmd = "docker inspect -f '{{.Id}}' %s" % self.rally_container_id
             long_id = subprocess.check_output(cmd, shell=True,
                                         stderr=subprocess.STDOUT)
@@ -347,6 +341,7 @@ class AccessSteward(object):
                 p = subprocess.check_output(cmd, shell=True,
                                             stderr=subprocess.STDOUT)
             except:
+                # TODO: a proper else clause is screeming to be added here.
                 LOG.warning( "Failed to copy Rally setup  json.")
             res = subprocess.Popen(["docker", "exec", "-it",
                                    self.rally_container_id, "rally",
@@ -354,6 +349,8 @@ class AccessSteward(object):
                                    "--file=existing.json",
                                    "--name=existing"],
                                    stdout=subprocess.PIPE).stdout.read()
+        else:
+            LOG.debug("Seems like it is present.")
 
     def check_mcv_secgroup(self):
         LOG.debug("Checking for proper security group")
@@ -373,7 +370,7 @@ class AccessSteward(object):
         self._get_novaclient().security_group_rules.\
                        create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
                               from_port=6000, to_port=6000, cidr='0.0.0.0/0')
-        LOG.debug("Finished creating a gfroup and adding rules")
+        LOG.debug("Finished creating a group and adding rules")
         servers = self._get_novaclient().servers.list()
         # TODO: this better be made pretty
         for server in servers:
@@ -391,7 +388,9 @@ class AccessSteward(object):
         self._rally_deployment_check()
 
     def _check_shaker_setup(self):
-        LOG.info( "Checking Shaker setup. If this is the first run of mcvconsoler on this cloud go grab some coffee, it will take a while.")
+        LOG.info("Checking Shaker setup. If this is the first run of "\
+                 "mcvconsoler on this cloud go grab some coffee, it will "\
+                 "take a while.")
         res = subprocess.Popen(["docker", "exec", "-it",
                 self.shaker_container_id, "shaker-image-builder",
                 "--image-builder-template",
@@ -401,8 +400,10 @@ class AccessSteward(object):
     def _do_config_extraction(self):
         LOG.info( "Preparing OSTF")
         res = subprocess.Popen(["docker", "exec", "-it",
-                self.ostf_container_id, "ostf-config-extractor", "-o", "/tmp/ostfcfg.conf"],
-                stdout=subprocess.PIPE).stdout.read()
+                                self.ostf_container_id,
+                                "ostf-config-extractor", "-o",
+                                "/tmp/ostfcfg.conf"],
+                               stdout=subprocess.PIPE).stdout.read()
 
     def _move_config_to_container(self):
         cmd = "docker inspect -f '{{.Id}}' %s" % self.ostf_container_id
@@ -416,7 +417,8 @@ class AccessSteward(object):
                                         stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             if e.output.find('Permission denied') != -1:
-                LOG.error( " Got an access issue, you might want to run this as root ")
+                LOG.error(" Got an access issue, you might want to run this "\
+                          "as root ")
             return False
         else:
             return True
@@ -450,20 +452,27 @@ class AccessSteward(object):
                              }
         mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
         rkname = "remote_mcv_key"
-        mk_port = "ssh -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no -i " + rkname +" -f -N -L %(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
+        mk_port = "ssh -o PreferredAuthentications=publickey -o "\
+                  "StrictHostKeyChecking=no -i " + rkname +" -f -N -L "\
+                  "%(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
                   port_substitution
 
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            ssh.connect(hostname="%(controller_ip)s" % self.access_data, username="root", password="r00tme")
+            ssh.connect(hostname="%(controller_ip)s" % self.access_data,
+                        username="root", password="r00tme")
         except paramiko.ssh_exception.AuthenticationException:
-            pwd = raw_input("Please enter password for root@%(controller_ip)s" % self.access_data)
+            pwd = raw_input("Please enter password for root@%(controller_ip)s"\
+                            % self.access_data)
             # TODO: do this in a smart way
             try:
-                ssh.connect(hostname="%(controller_ip)s" % self.access_data, username="root", password=pwd)
+                ssh.connect(hostname="%(controller_ip)s" % self.access_data,
+                            username="root", password=pwd)
+                # TODO: add check for allowed methods
             except:
-                LOG.error( "Oh noes! Contoller authentication failure! Out of this Universe!")
+                LOG.error("Oh noes! Contoller authentication failure! Out of"\
+                          " this Universe!")
                 sys.exit(1)
 
         stdin, stdout, stderr = ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
@@ -473,24 +482,22 @@ class AccessSteward(object):
         time.sleep(3)
         stdin, stdout, stderr = ssh.exec_command("iptables -L")
         if stdout.read().find("7654") == -1:
-            LOG.debug("There is no such rule in controller's iptables! Have to add one")
-            LOG.debug("issuing " + mk_rule)
+            LOG.debug("There is no rule in controller's iptables for proper forwarding! Have to add one")
             stdin, stdout, stderr = ssh.exec_command( mk_rule)
         else:
-            LOG.debug("The iptables rule seems to be in place")
+            LOG.debug("Controller's iptables rule seems to be in place")
 
         result = None
         while result is None:
             stdin, stdout, stderr = ssh.exec_command("ps aux")
             result = re.search("ssh.*35357", stdout.read())
             if result is None:
-                LOG.debug("Apparently port forwarding is not set up properly")
-                LOG.debug("setting it with " + mk_port)
+                LOG.debug("Apparently port forwarding on the conntrolller is not set up properly")
                 time.sleep(3)
                 stdin, stdout, stderr = ssh.exec_command(mk_port)
                 time.sleep(5)
             else:
-                LOG.debug( "Apparently port forwarding is set")
+                LOG.debug( "Apparently port forwarding on the conntrolller is set")
         stdin, stdout, stderr = ssh.exec_command("rm " + rkname + "*")
 
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
@@ -499,6 +506,7 @@ class AccessSteward(object):
                                 stderr=subprocess.PIPE).stdout.read()
         if re.search("DNAT.*7654\n", res) is not None:
             # leave slowly, don't wake it up
+            LOG.debug("Local iptables rule is set.")
             return
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
                                 "PREROUTING", "1", "-d", "192.168.0.2", "-p",
@@ -506,6 +514,7 @@ class AccessSteward(object):
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
                                 stdout=subprocess.PIPE).stdout.read()
+        LOG.debug("Now local iptables rule is set.")
 
     def create_rally_json(self):
         credentials = {"ip_address": self.access_data["auth_endpoint_ip"],
@@ -531,8 +540,6 @@ class AccessSteward(object):
         self.create_rally_json()
         self.check_mcv_secgroup()
         self.check_computes()
-        self.stop_rally_container(mute=True)
-        self.start_rally_container_(mute=True)
         self.check_containers_are_up()
         self.check_containers_set_up_properly()
         self.check_and_fix_floating_ips()
