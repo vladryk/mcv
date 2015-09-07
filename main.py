@@ -24,11 +24,21 @@ import imp
 import subprocess
 import os
 import sys
+import fcntl
+
+
+def acquire_lock():
+    try:
+        fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        return False
+    return True
 
 
 # hooking up a config
 config = ConfigParser.ConfigParser()
 default_config_file = "/etc/mcv/mcv.conf"
+lockfile = open("/var/lock/consoler", "w")
 
 # processing command line arguments.
 parser = argparse.ArgumentParser(
@@ -69,6 +79,9 @@ def main():
     import logging.config
     lc = os.path.join(os.path.dirname(__file__), 'etc/logging.conf')
     logging.config.fileConfig(lc)
+    if not acquire_lock():
+        logging.error("Thou shalt not pass! There is another instance of MCVConsoler!")
+        sys.exit(1)
     # This is somewhat radical way to shut up paramiko, should be replaced with
     # handler substitution.
     logging.getLogger("paramiko").setLevel(logging.WARNING)

@@ -81,10 +81,10 @@ class ShakerRunner(runner.Runner):
         res = json.loads(p)[0]  # actual test result as a dictionary
         return res
 
-    def run_batch(self, tasks):
-        return super(ShakerRunner, self).run_batch(tasks)
+    def run_batch(self, tasks, *args, **kwargs):
+        return super(ShakerRunner, self).run_batch(tasks, *args, **kwargs)
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
         task_id = self._run_rally(task)
         task_result = self._get_task_result(task_id)
@@ -154,11 +154,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         else:
             return p.split('\n')[-4:-1]
 
-    def run_batch(self, tasks):
+    def run_batch(self, tasks, *args, **kwargs):
         self._setup_shaker_on_docker()
-        return super(ShakerOnDockerRunner, self).run_batch(tasks)
+        return super(ShakerOnDockerRunner, self).run_batch(tasks, *args, **kwargs)
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         task_result = self._run_shaker_on_docker(task)
         if type(task_result) == dict and\
                 self._evaluate_task_result(task, task_result):

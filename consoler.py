@@ -116,7 +116,7 @@ class Consoler(object):
         """Discovers tests in default location.
         """
         # TODO: generalize discovery
-        config.get('basic', 'scenario_dir')
+        self.config.get('basic', 'scenario_dir')
         scenario_dir = os.path.join(os.path.dirname(__file__), self.plugin_dir)
         possible_places = map(lambda x: os.path.join(scenario_dir, x),
                               os.listdir(scenario_dir))
@@ -175,7 +175,7 @@ class Consoler(object):
         result = raw_input("Are you sure you want to proceed? [yes/No]")
         if result == "yes":
             LOG.warning("The user agreed to proceed")
-            test_dict = discover_test_suits()
+            test_dict = self.discover_test_suits()
             return self.dispatch_tests_to_runners(test_dict)
         else:
             LOG.info("The user decided not to proceed with wrecking the cloud")

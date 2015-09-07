@@ -97,10 +97,10 @@ class OSTFOnDockerRunner(runner.Runner):
                 name = nline.split("|")[2]
                 self.failures.append(name)
 
-    def run_batch(self, tasks):
+    def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
         for task in tasks:
-            self.run_individual_task(task)
+            self.run_individual_task(task, *args, **kwargs)
         LOG.info("Succeeded tests: %s" % str(self.success))
         LOG.info("Failed tests: %s" % str(self.failures))
         LOG.info("Not found tests: %s" % str(self.not_found))
@@ -109,5 +109,5 @@ class OSTFOnDockerRunner(runner.Runner):
                 "test_success": self.success,
                 "test_not_found": self.not_found}
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         task_id = self._run_ostf_on_docker(task)
