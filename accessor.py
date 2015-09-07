@@ -25,19 +25,6 @@ from paramiko import client
 from novaclient import client as nova
 from novaclient import exceptions as nexc
 
-rally_json_template = """{
-"type": "ExistingCloud",
-"auth_url": "http://%(ip_address)s:5000/v2.0/",
-"region_name": "RegionOne",
-"endpoint_type": "public",
-"admin": {
-    "username": "%(uname)s",
-    "password": "%(upass)s",
-    "tenant_name": "%(uten)s"
-    },
-"https_insecure": False,
-"https_cacert": "",
-}"""
 
 image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
 
@@ -143,99 +130,8 @@ class AccessSteward(object):
             if value is None:
                 getattr(self, "_request_" + key)()
 
-    def _extract_container_id(self, container_name, output):
-        output = output.split('\n')
-        container_name = "mcv-" + container_name
-        for line in output:
-            if re.search(container_name, line) is not None:
-                container_id = line[0:12]
-        return container_id
-
-    def extract_rally_container_id(self, output):
-        self.rally_container_id = self._extract_container_id("rally", output)
-
-    def extract_shaker_container_id(self, output):
-        self.shaker_container_id = self._extract_container_id("shaker", output)
-
-    def extract_ostf_container_id(self, output):
-        self.ostf_container_id = self._extract_container_id("ostf", output)
-
-    def stop_rally_container(self):
-        LOG.debug( "Bringing down container with rally")
-        res = subprocess.Popen(["docker", "stop", self.rally_container_id],
-                               stdout=subprocess.PIPE).stdout.read()
-        return res
-
-    def start_rally_container(self):
-        LOG.debug( "Bringing up Rally container with credentials")
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "6000:6000", "-e", "OS_AUTH_URL=http://" +
-            self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
-        self._verify_rally_container_is_up()
-
-    def start_shaker_container(self):
-        LOG.debug( "Bringing up Shaker container with credentials")
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "5999:5999", "-e", "OS_AUTH_URL=http://" +
-            self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
-
-    def start_ostf_container(self):
-        LOG.debug( "Bringing up OSTF container with credentials")
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
-            #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-e", "NAILGUN_HOST=" + self.access_data["nailgun_host"],
-            "-e", "NAILGUN_PORT=8000",
-            "-e", "CLUSTER_ID=" + self.access_data["cluster_id"],
-            "-e", "OS_REGION_NAME=RegionOne",
-            "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
-
-    def _verify_container_is_up(self, container_name, mute=False, extra=""):
-        # container_name == rally, shaker, ostf
-        LOG.debug("Checking %s container..." % container_name)
-        res = subprocess.Popen(["docker", "ps"],
-            stdout=subprocess.PIPE).stdout.read()
-        detector = re.compile("mcv-" + container_name)
-        if re.search(detector, res) is not None:
-            # This does not relly belongs here, better be moved someplace
-            getattr(self, "extract_" + container_name + "_container_id")(res)
-            LOG.debug("Container %s is fine" % container_name)
-        else:
-            LOG.debug("It has to be started. "+ extra)
-            getattr(self, "start_" + container_name + "_container")()
-            time.sleep(10)  # we are in no hurry today
-            return getattr(self, "_verify_" + container_name +
-                           "_container_is_up")()
-
-    def _verify_rally_container_is_up(self):
-        self._verify_container_is_up("rally")
-
     def _verify_shaker_container_is_up(self):
         self._verify_container_is_up("shaker")
-
-    def _verify_ostf_container_is_up(self):
-        self._verify_container_is_up("ostf")
-
-    def check_containers_are_up(self):
-        for container in self.required_containers:
-            getattr(self, "_verify_" + container + "_container_is_up")()
 
     def _get_novaclient(self):
         # TODO: fix hardcoded nova API-version
@@ -308,127 +204,6 @@ class AccessSteward(object):
             time.sleep(300)
             self.check_docker_images()
 
-    def _check_and_fix_flavor(self):
-        LOG.debug("Searching for proper flavor.")
-        # Novaclient can't search flavours by name so manually search in list.
-        res = self._get_novaclient().flavors.list()
-        for f in res:
-            if f.name == 'm1.nano':
-                LOG.debug("Proper flavor for rally has been found")
-                return
-        LOG.debug("Apparently there is no flavor suitable for running rally. Creating one...")
-        self._get_novaclient().flavors.create(name='m1.nano', ram=128, vcpus=1,
-                                              disk=1, flavorid=42)
-        time.sleep(3)
-        return self._check_and_fix_flavor()
-
-    def _rally_deployment_check(self):
-        LOG.debug("Checking if Rally deployment is present.")
-        res = subprocess.Popen(["docker", "exec", "-it",
-                                self.rally_container_id,
-                                "rally", "deployment", "check"],
-                               stdout=subprocess.PIPE).stdout.read()
-        if res.startswith("There is no"):
-            LOG.info("It is not. Trying to set up rally deployment.")
-            cmd = "docker inspect -f '{{.Id}}' %s" % self.rally_container_id
-            long_id = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-            rally_config_json_location = "existing.json"
-            cmd = r"cp " + rally_config_json_location +\
-                " /var/lib/docker/aufs/mnt/%s/home/rally" %\
-                long_id.rstrip('\n')
-            try:
-                p = subprocess.check_output(cmd, shell=True,
-                                            stderr=subprocess.STDOUT)
-            except:
-                # TODO: a proper else clause is screeming to be added here.
-                LOG.warning( "Failed to copy Rally setup  json.")
-            res = subprocess.Popen(["docker", "exec", "-it",
-                                   self.rally_container_id, "rally",
-                                   "deployment", "create",
-                                   "--file=existing.json",
-                                   "--name=existing"],
-                                   stdout=subprocess.PIPE).stdout.read()
-        else:
-            LOG.debug("Seems like it is present.")
-
-    def check_mcv_secgroup(self):
-        LOG.debug("Checking for proper security group")
-        res = self._get_novaclient().security_groups.list()
-        for r in res:
-            if r.name == 'mcv-special-group':
-                LOG.debug("Has found one")
-                # TODO: by the way, a group could exist while being not
-                # attached. It is wise to check this.
-                return
-        LOG.debug("Nope. Has to create one")
-        mcvgroup = self._get_novaclient().security_groups.\
-                       create('mcv-special-group', 'mcvgroup')
-        self._get_novaclient().security_group_rules.\
-                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                              from_port=5999, to_port=5999, cidr='0.0.0.0/0')
-        self._get_novaclient().security_group_rules.\
-                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                              from_port=6000, to_port=6000, cidr='0.0.0.0/0')
-        LOG.debug("Finished creating a group and adding rules")
-        servers = self._get_novaclient().servers.list()
-        # TODO: this better be made pretty
-        for server in servers:
-            addr = server.addresses
-            for network, ifaces in addr.iteritems():
-                for iface in ifaces:
-                    if iface['addr'] == self.access_data["instance_ip"]:
-                        LOG.debug("Found a server to attach the new group to")
-                        server.add_security_group(mcvgroup.id)
-        LOG.debug("And they lived happily ever after")
-
-    def _check_rally_setup(self):
-        self._check_and_fix_iptables_rule()
-        self._check_and_fix_flavor()
-        self._rally_deployment_check()
-
-    def _check_shaker_setup(self):
-        LOG.info("Checking Shaker setup. If this is the first run of "\
-                 "mcvconsoler on this cloud go grab some coffee, it will "\
-                 "take a while.")
-        res = subprocess.Popen(["docker", "exec", "-it",
-                self.shaker_container_id, "shaker-image-builder",
-                "--image-builder-template",
-                "/etc/shaker/shaker/resources/image_builder_template.yaml"],
-                stdout=subprocess.PIPE).stdout.read()
-
-    def _do_config_extraction(self):
-        LOG.info( "Preparing OSTF")
-        res = subprocess.Popen(["docker", "exec", "-it",
-                                self.ostf_container_id,
-                                "ostf-config-extractor", "-o",
-                                "/tmp/ostfcfg.conf"],
-                               stdout=subprocess.PIPE).stdout.read()
-
-    def _move_config_to_container(self):
-        cmd = "docker inspect -f '{{.Id}}' %s" % self.ostf_container_id
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        to_move = "ostfcfg.conf"
-        cmd = r"cp " + to_move +\
-              " /var/lib/docker/aufs/mnt/%s/tmp/ostfcfg.conf" %\
-              p.rstrip('\n')
-        try:
-            p = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            if e.output.find('Permission denied') != -1:
-                LOG.error(" Got an access issue, you might want to run this "\
-                          "as root ")
-            return False
-        else:
-            return True
-
-    def _check_ostf_setup(self):
-        self._do_config_extraction()
-
-    def check_containers_set_up_properly(self):
-        for container in self.required_containers:
-            getattr(self, "_check_" + container + "_setup")()
 
     def _fake_creds(self):
         self.access_data = {"controller_ip": '172.16.57.37',
@@ -442,6 +217,8 @@ class AccessSteward(object):
                            }
 
     def _check_and_fix_iptables_rule(self):
+        # Since this is needed for both Rally and Shaker it is better to keep
+        # it in accessor.
         # Let's patch cloud controller first. Be prepared to provide root
         # access to the controller. Mwa-ha-ha.
         # TODO: divide this some day
@@ -516,15 +293,6 @@ class AccessSteward(object):
                                 stdout=subprocess.PIPE).stdout.read()
         LOG.debug("Now local iptables rule is set.")
 
-    def create_rally_json(self):
-        credentials = {"ip_address": self.access_data["auth_endpoint_ip"],
-                       "uname": self.access_data["os_username"],
-                       "upass": self.access_data["os_password"],
-                       "uten": self.access_data["os_tenant_name"]}
-        f = open("existing.json", "w")
-        f.write(rally_json_template % credentials)
-        f.close()
-
     def check_computes(self):
         services = self._get_novaclient().services.list()
         self.compute = 0
@@ -537,9 +305,5 @@ class AccessSteward(object):
         self.required_containers = required_containers
         self.check_docker_images()
         self.check_and_fix_access_data()
-        self.create_rally_json()
-        self.check_mcv_secgroup()
-        self.check_computes()
-        self.check_containers_are_up()
-        self.check_containers_set_up_properly()
+        self._check_and_fix_iptables_rule()
         self.check_and_fix_floating_ips()

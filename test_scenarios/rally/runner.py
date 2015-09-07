@@ -17,6 +17,7 @@ import re
 import ConfigParser
 import logging
 import os
+import re
 import subprocess
 import sys
 from test_scenarios import runner
@@ -30,6 +31,20 @@ nevermind = None
 config = ConfigParser.ConfigParser()
 default_config = "etc/mcv.conf"
 LOG = logging
+
+rally_json_template = """{
+"type": "ExistingCloud",
+"auth_url": "http://%(ip_address)s:5000/v2.0/",
+"region_name": "RegionOne",
+"endpoint_type": "public",
+"admin": {
+    "username": "%(uname)s",
+    "password": "%(upass)s",
+    "tenant_name": "%(uten)s"
+    },
+"https_insecure": False,
+"https_cacert": "",
+}"""
 
 
 class RallyRunner(runner.Runner):
@@ -123,9 +138,115 @@ class RallyRunner(runner.Runner):
 
 class RallyOnDockerRunner(RallyRunner):
 
-    def __init__(self):
+    def __init__(self, accessor):
         self.container = None
+        self.accessor = accessor
         super(RallyOnDockerRunner, self).__init__()
+
+    def create_rally_json(self):
+        credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
+                       "uname": self.accessor.access_data["os_username"],
+                       "upass": self.accessor.access_data["os_password"],
+                       "uten": self.accessor.access_data["os_tenant_name"]}
+        f = open("existing.json", "w")
+        f.write(rally_json_template % credentials)
+        f.close()
+
+    def check_mcv_secgroup(self):
+        LOG.debug("Checking for proper security group")
+        res = self.accessor._get_novaclient().security_groups.list()
+        for r in res:
+            if r.name == 'mcv-special-group':
+                LOG.debug("Has found one")
+                # TODO: by the way, a group could exist while being not
+                # attached. It is wise to check this.
+                return
+        LOG.debug("Nope. Has to create one")
+        mcvgroup = self.accessor._get_novaclient().security_groups.\
+                       create('mcv-special-group', 'mcvgroup')
+        self.accessor._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=5999, to_port=5999, cidr='0.0.0.0/0')
+        self.accessor._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=6000, to_port=6000, cidr='0.0.0.0/0')
+        LOG.debug("Finished creating a group and adding rules")
+        servers = self.accessor._get_novaclient().servers.list()
+        # TODO: this better be made pretty
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == self.accessor.access_data["instance_ip"]:
+                        LOG.debug("Found a server to attach the new group to")
+                        server.add_security_group(mcvgroup.id)
+        LOG.debug("And they lived happily ever after")
+
+    def start_rally_container(self):
+        LOG.debug( "Bringing up Rally container with credentials")
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+            "-p", "6000:6000", "-e", "OS_AUTH_URL=http://" +
+            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            "-e", "OS_TENANT_NAME=" +
+            self.accessor.access_data["os_tenant_name"],
+            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
+        self._verify_rally_container_is_up()
+
+    def _verify_rally_container_is_up(self):
+        self.verify_container_is_up("rally")
+
+    def _check_and_fix_flavor(self):
+        LOG.debug("Searching for proper flavor.")
+        # Novaclient can't search flavours by name so manually search in list.
+        res = self.accessor._get_novaclient().flavors.list()
+        for f in res:
+            if f.name == 'm1.nano':
+                LOG.debug("Proper flavor for rally has been found")
+                return
+        LOG.debug("Apparently there is no flavor suitable for running rally. Creating one...")
+        self.accessor._get_novaclient().flavors.create(name='m1.nano', ram=128, vcpus=1,
+                                              disk=1, flavorid=42)
+        time.sleep(3)
+        return self._check_and_fix_flavor()
+
+
+    def _rally_deployment_check(self):
+        LOG.debug("Checking if Rally deployment is present.")
+        res = subprocess.Popen(["docker", "exec", "-it",
+                                self.container_id,
+                                "rally", "deployment", "check"],
+                               stdout=subprocess.PIPE).stdout.read()
+        if res.startswith("There is no"):
+            LOG.info("It is not. Trying to set up rally deployment.")
+            cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
+            long_id = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+            rally_config_json_location = "existing.json"
+            cmd = r"cp " + rally_config_json_location +\
+                " /var/lib/docker/aufs/mnt/%s/home/rally" %\
+                long_id.rstrip('\n')
+            try:
+                p = subprocess.check_output(cmd, shell=True,
+                                            stderr=subprocess.STDOUT)
+            except:
+                # TODO: a proper else clause is screeming to be added here.
+                LOG.warning( "Failed to copy Rally setup  json.")
+            res = subprocess.Popen(["docker", "exec", "-it",
+                                   self.container_id, "rally",
+                                   "deployment", "create",
+                                   "--file=existing.json",
+                                   "--name=existing"],
+                                   stdout=subprocess.PIPE).stdout.read()
+        else:
+            LOG.debug("Seems like it is present.")
+
+    def _check_rally_setup(self):
+        self._check_and_fix_flavor()
+        self._rally_deployment_check()
+
 
     def _setup_rally_on_docker(self):
         # do docker magic here
@@ -134,19 +255,14 @@ class RallyOnDockerRunner(RallyRunner):
         # open question -- who should provide the credentials? right now it
         # should be ok to put them in the conf file, later on it is better to
         # retrieve them automagically.
-        # Find docker container:
-        p = subprocess.check_output("docker ps", shell=True,
-                                    stderr=subprocess.STDOUT)
-        p = p.split('\n')
-        for line in p:
-            elements = line.split()
-            if elements[1].find("rally") != -1:
-                self.container = elements[0]
-                status = elements[4]
-                break
+        self.create_rally_json()
+        self.check_mcv_secgroup()
+        self.accessor.check_computes()
+        self._verify_rally_container_is_up()
+        self._check_rally_setup()
 
     def _create_task_in_docker(self, task):
-        cmd  = "docker inspect -f '{{.Id}}' %s" % self.container
+        cmd  = "docker inspect -f '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
         LOG.debug("Preparing to task %s" % task)
@@ -171,7 +287,7 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = "docker exec -it %(container)s rally task start"\
               " /tmp/pending_rally_task --task-args '{\"compute\":"\
               "%(compute)s, \"concurrency\":%(concurrency)s}'" %\
-              {"container": self.container,
+              {"container": self.container_id,
                "compute": kwargs["compute"],
                "concurrency": kwargs["concurrency"]}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -201,7 +317,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _get_task_result_from_docker(self, task_id):
         LOG.debug("Retrieving task results for %s" % task_id)
-        cmd = "docker exec -it %s %s" % (self.container, task_id)
+        cmd = "docker exec -it %s %s" % (self.container_id, task_id)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         if task_id.find("detailed") ==-1:
             res = json.loads(p)[0]  # actual test result as a dictionary

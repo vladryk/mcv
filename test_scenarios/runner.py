@@ -14,8 +14,10 @@
 
 
 import ConfigParser
+import subprocess
 import logging
 import os
+import re
 import sys
 
 # Base class for runners should be placed here.
@@ -59,6 +61,31 @@ class Runner(object):
 
         This function has to be defined in a subclass!"""
         raise NotImplementedError
+
+    def verify_container_is_up(self, container_name):
+        # container_name == rally, shaker, ostf
+        LOG.debug("Checking %s container..." % container_name)
+        res = subprocess.Popen(["docker", "ps"],
+            stdout=subprocess.PIPE).stdout.read()
+        detector = re.compile("mcv-" + container_name)
+        if re.search(detector, res) is not None:
+            # This does not relly belongs here, better be moved someplace
+            self.container_id = self._extract_container_id(container_name, res)
+            LOG.debug("Container %s is fine" % container_name)
+        else:
+            LOG.debug("It has to be started. "+ extra)
+            getattr(self, "start_" + container_name + "_container")()
+            time.sleep(10)  # we are in no hurry today
+            return getattr(self, "_verify_" + container_name +
+                           "_container_is_up")()
+
+    def _extract_container_id(self, container_name, output):
+        output = output.split('\n')
+        container_name = "mcv-" + container_name
+        for line in output:
+            if re.search(container_name, line) is not None:
+                container_id = line[0:12]
+        return container_id
 
     def check_task_list(self, tasks):
         fine_to_run = filter(self.scenario_is_fine, tasks)

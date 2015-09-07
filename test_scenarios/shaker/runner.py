@@ -96,10 +96,34 @@ class ShakerRunner(runner.Runner):
 class ShakerOnDockerRunner(ShakerRunner):
 
     def __init__(self):
-        self.container = None
+        self.container_id = None
         super(ShakerOnDockerRunner, self).__init__()
 
+    def _check_shaker_setup(self):
+        LOG.info("Checking Shaker setup. If this is the first run of "\
+                 "mcvconsoler on this cloud go grab some coffee, it will "\
+                 "take a while.")
+        res = subprocess.Popen(["docker", "exec", "-it",
+                self.shaker_container_id, "shaker-image-builder",
+                "--image-builder-template",
+                "/etc/shaker/shaker/resources/image_builder_template.yaml"],
+                stdout=subprocess.PIPE).stdout.read()
+
+    def start_shaker_container(self):
+        LOG.debug( "Bringing up Shaker container with credentials")
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+            "-p", "5999:5999", "-e", "OS_AUTH_URL=http://" +
+            self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            "-e", "OS_TENANT_NAME=" +
+            self.access_data["os_tenant_name"],
+            "-e", "OS_USERNAME=" + self.access_data["os_username"],
+            "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
+
     def _setup_shaker_on_docker(self):
+        self.verify_container_is_up("shaker")
+        self._check_shaker_setup()
         p = subprocess.check_output("docker ps", shell=True,
                                     stderr=subprocess.STDOUT)
         p = p.split('\n')

@@ -46,8 +46,37 @@ class OSTFOnDockerRunner(runner.Runner):
         self.container = None
         super(OSTFOnDockerRunner, self).__init__()
 
+    def _do_config_extraction(self):
+        LOG.info( "Preparing OSTF")
+        res = subprocess.Popen(["docker", "exec", "-it",
+                                self.ostf_container_id,
+                                "ostf-config-extractor", "-o",
+                                "/tmp/ostfcfg.conf"],
+                               stdout=subprocess.PIPE).stdout.read()
+
+    def start_ostf_container(self):
+        LOG.debug( "Bringing up OSTF container with credentials")
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+            "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
+            #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            "-e", "OS_TENANT_NAME=" +
+            self.accessor.access_data["os_tenant_name"],
+            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
+            "-e", "NAILGUN_PORT=8000",
+            "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
+            "-e", "OS_REGION_NAME=RegionOne",
+            "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
+
+    def _verify_ostf_container_is_up(self):
+        self.verify_container_is_up("ostf")
+
     def _setup_ostf_on_docker(self):
         # Find docker container:
+        self._verify_ostf_container_is_up()
+        self._do_config_extraction()
         p = subprocess.check_output("docker ps", shell=True,
                                     stderr=subprocess.STDOUT)
         p = p.split('\n')

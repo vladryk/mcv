@@ -148,12 +148,12 @@ class Consoler(object):
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: ", exc_info=True)
             else:
-                runner = getattr(m, self.config.get(key, 'runner'))()
+                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper)
                 batch = test_dict[key].split(',')
                 batch = map(lambda x: x.strip('\n'), batch)
                 LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
                 try:
-                    run_failures = runner.run_batch(batch, compute=self.access_helper.compute,
+                    run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
                                                     concurrency=self.config.get('basic', 'concurrency'))
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
