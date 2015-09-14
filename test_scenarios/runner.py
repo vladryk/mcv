@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import sys
+import time
 
 # Base class for runners should be placed here.
 
@@ -73,11 +74,10 @@ class Runner(object):
             self.container_id = self._extract_container_id(container_name, res)
             LOG.debug("Container %s is fine" % container_name)
         else:
-            LOG.debug("It has to be started. "+ extra)
+            LOG.debug("It has to be started.")
             getattr(self, "start_" + container_name + "_container")()
             time.sleep(10)  # we are in no hurry today
-            return getattr(self, "_verify_" + container_name +
-                           "_container_is_up")()
+            return self.verify_container_is_up(container_name)
 
     def _extract_container_id(self, container_name, output):
         output = output.split('\n')

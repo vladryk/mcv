@@ -35,7 +35,7 @@ class ShakerRunner(runner.Runner):
 
     valid_staarten = ("yaml", "json")
 
-    def __init__(self, config_location=None):
+    def __init__(self, accessor=None, config_location=None):
         super(ShakerRunner, self).__init__()
         self.identity = "shaker"
         self.config_section = "shaker"
@@ -95,8 +95,9 @@ class ShakerRunner(runner.Runner):
 
 class ShakerOnDockerRunner(ShakerRunner):
 
-    def __init__(self):
+    def __init__(self, accessor=None):
         self.container_id = None
+        self.accessor = accessor
         super(ShakerOnDockerRunner, self).__init__()
 
     def _check_shaker_setup(self):
@@ -113,11 +114,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.debug( "Bringing up Shaker container with credentials")
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             "-p", "5999:5999", "-e", "OS_AUTH_URL=http://" +
-            self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
-            self.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.access_data["os_password"],
+            self.accessor.access_data["os_tenant_name"],
+            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
 
