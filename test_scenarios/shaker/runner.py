@@ -162,7 +162,7 @@ class ShakerOnDockerRunner(ShakerRunner):
          /etc/shaker/scenarios/networking/%s --report-template \
          /etc/shaker/shaker/resources/report_template.jinja2 --debug \
          --log-file /etc/shaker/shaker.log --output theoutput" %\
-             (self.container, self.endpoint, task)
+             (self.container, self.accessor.access_data["instance_ip"], task)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
