@@ -105,7 +105,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                  "mcvconsoler on this cloud go grab some coffee, it will "\
                  "take a while.")
         res = subprocess.Popen(["docker", "exec", "-it",
-                self.shaker_container_id, "shaker-image-builder",
+                self.container_id, "shaker-image-builder",
                 "--image-builder-template",
                 "/etc/shaker/shaker/resources/image_builder_template.yaml"],
                 stdout=subprocess.PIPE).stdout.read()
