@@ -237,16 +237,18 @@ class Consoler(object):
                 LOG.error("Can't find group '" + to_check[1] + "' in"+ self.path_to_config+ "Please, provide exisitng group name!")
                 sys.exit(1)
             for key in results:
-                if key in ['rally', 'ostf', 'shaker'] and key not in retval:
+                if key in ['rally', 'ostf', 'shaker', 'resources'] and key not in retval:
                     retval.append(key)
         elif to_check[0] == 'single':
             if len(to_check) < 3:
+
                 LOG.error( "Too few arguments for option single. You must specify test group and test name")
                 sys.exit(1)
             if len(to_check) > 3:
                 LOG.warning( "Ignoring arguments: "+ ", ".join(to_check[3:]))
             if not self.existing_plugin(to_check[1]):
                 LOG.error("Unrecognized test group: "+ to_check[1])
+
                 sys.exit(1)
             if not self.a_real_file(to_check[2], to_check[1]):
                 LOG.error("Test not found: " + to_check[2])
