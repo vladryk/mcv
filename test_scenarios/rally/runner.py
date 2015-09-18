@@ -141,16 +141,8 @@ class RallyOnDockerRunner(RallyRunner):
     def __init__(self, accessor):
         self.container = None
         self.accessor = accessor
+        self.test_storage_place = "/tmp/rally_tests"
         super(RallyOnDockerRunner, self).__init__()
-
-    def create_rally_json(self):
-        credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
-                       "uname": self.accessor.access_data["os_username"],
-                       "upass": self.accessor.access_data["os_password"],
-                       "uten": self.accessor.access_data["os_tenant_name"]}
-        f = open("existing.json", "w")
-        f.write(rally_json_template % credentials)
-        f.close()
 
     def check_mcv_secgroup(self):
         LOG.debug("Checking for proper security group")
@@ -194,6 +186,18 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
         self._verify_rally_container_is_up()
+        # Since noone is actually giving a number two to how this is done
+        # and some people actively deny the logic arrangement I'll do it this
+        # dumb way.
+        cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
+        long_id = subprocess.check_output(cmd, shell=True,
+                                          stderr=subprocess.STDOUT).rstrip('\n')
+        subprocess.Popen(["sudo", "cp", "-r",
+                          "/etc/toolbox/rally/mcv/scenarios.consoler",
+                          "/var/lib/docker/aufs/mnt/%(id)s/%(place)s"\
+                          % {"id": long_id,
+                          "place": self.test_storage_place}],\
+                          stdout=subprocess.PIPE).stdout.read()
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
@@ -206,9 +210,11 @@ class RallyOnDockerRunner(RallyRunner):
             if f.name == 'm1.nano':
                 LOG.debug("Proper flavor for rally has been found")
                 return
-        LOG.debug("Apparently there is no flavor suitable for running rally. Creating one...")
-        self.accessor._get_novaclient().flavors.create(name='m1.nano', ram=128, vcpus=1,
-                                              disk=1, flavorid=42)
+        LOG.debug("Apparently there is no flavor suitable for running rally. "\
+                  "Creating one...")
+        self.accessor._get_novaclient().flavors.create(name='m1.nano', ram=128,
+                                                       vcpus=1, disk=1,
+                                                       flavorid=42)
         time.sleep(3)
         return self._check_and_fix_flavor()
 
@@ -220,20 +226,7 @@ class RallyOnDockerRunner(RallyRunner):
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
-            LOG.info("It is not. Trying to set up rally deployment.")
-            cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
-            long_id = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-            rally_config_json_location = "existing.json"
-            cmd = r"cp " + rally_config_json_location +\
-                " /var/lib/docker/aufs/mnt/%s/home/rally" %\
-                long_id.rstrip('\n')
-            try:
-                p = subprocess.check_output(cmd, shell=True,
-                                            stderr=subprocess.STDOUT)
-            except:
-                # TODO: a proper else clause is screeming to be added here.
-                LOG.warning( "Failed to copy Rally setup  json.")
+            LOG.debug("It is not. Trying to set up rally deployment.")
             res = subprocess.Popen(["docker", "exec", "-it",
                                    self.container_id, "rally",
                                    "deployment", "create",
@@ -249,47 +242,22 @@ class RallyOnDockerRunner(RallyRunner):
 
 
     def _setup_rally_on_docker(self):
-        # do docker magic here
-        # apparently this has to be done with providing credentials in the
-        # form of json
-        # open question -- who should provide the credentials? right now it
-        # should be ok to put them in the conf file, later on it is better to
-        # retrieve them automagically.
-        self.create_rally_json()
         self.check_mcv_secgroup()
         self.accessor.check_computes()
         self._verify_rally_container_is_up()
         self._check_rally_setup()
 
-    def _create_task_in_docker(self, task):
-        cmd  = "docker inspect -f '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        test_location = os.path.join(os.path.dirname(__file__), "tests", task)
-        LOG.debug("Preparing to task %s" % task)
-        cmd = r"cp "+test_location+\
-              " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
-              p.rstrip('\n')
-        try:
-            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            if e.output.find('Permission denied') != -1:
-                LOG.warning("  Got an access issue, you might want to run this as root  ")
-            LOG.error(exc_info=True)
-            return False
-        else:
-            LOG.debug("Successfully prepared to task %s" % task)
-            return True
-
     def _run_rally_on_docker(self, task, *args, **kwargs):
         LOG.info("Starting task %s" % task)
-        if not self._create_task_in_docker(task):
-            return {'failed': True}
         cmd = "docker exec -it %(container)s rally task start"\
-              " /tmp/pending_rally_task --task-args '{\"compute\":"\
-              "%(compute)s, \"concurrency\":%(concurrency)s}'" %\
+              " %(location)s/%(task)s --task-args '{\"compute\":"\
+              "%(compute)s, \"concurrency\":%(concurrency)s,"\
+              "\"current_path\": %(location)s}'" %\
               {"container": self.container_id,
                "compute": kwargs["compute"],
-               "concurrency": kwargs["concurrency"]}
+               "concurrency": kwargs["concurrency"],
+               "task": task,
+               "location": self.test_storage_place}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
