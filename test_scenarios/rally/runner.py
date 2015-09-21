@@ -230,7 +230,7 @@ class RallyOnDockerRunner(RallyRunner):
             res = subprocess.Popen(["docker", "exec", "-it",
                                    self.container_id, "rally",
                                    "deployment", "create",
-                                   "--file=existing.json",
+                                   "--fromenv",
                                    "--name=existing"],
                                    stdout=subprocess.PIPE).stdout.read()
         else:
