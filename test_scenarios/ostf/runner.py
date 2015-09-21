@@ -50,7 +50,7 @@ class OSTFOnDockerRunner(runner.Runner):
     def _do_config_extraction(self):
         LOG.info( "Preparing OSTF")
         res = subprocess.Popen(["docker", "exec", "-it",
-                                self.ostf_container_id,
+                                self.container_id,
                                 "ostf-config-extractor", "-o",
                                 "/tmp/ostfcfg.conf"],
                                stdout=subprocess.PIPE).stdout.read()
