@@ -64,7 +64,10 @@ class AccessSteward(object):
                             "cluster_id": None,}
         self.config = config
         for key in self.access_data.keys():
-             self.access_data[key] = self.config.get('basic', key, None)
+             try:
+                 self.access_data[key] = self.config.get('basic', key)
+             except ConfigParser.NoOptionError:
+                 pass
         self.novaclient = None
 
     def _validate_ip(self, ip):
