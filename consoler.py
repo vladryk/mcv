@@ -154,7 +154,9 @@ class Consoler(object):
                 LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
-                                                    concurrency=self.config.get('basic', 'concurrency'))
+                                                    concurrency=self.config.get('basic', 'concurrency'),
+                                                    gre_enabled=self.config.get('basic', "gre_enabled"),
+                                                    vlan_amount=self.config.get('basic', "vlan_amount"))
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
                         LOG.debug("It looks like you are trying to use a wrong "\

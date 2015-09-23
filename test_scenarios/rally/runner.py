@@ -252,10 +252,13 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = "docker exec -it %(container)s rally task start"\
               " %(location)s/%(task)s --task-args '{\"compute\":"\
               "%(compute)s, \"concurrency\":%(concurrency)s,"\
-              "\"current_path\": %(location)s}'" %\
+              "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
+              "\"vlan_amount\":%(vlan_amount)s}'" %\
               {"container": self.container_id,
                "compute": kwargs["compute"],
                "concurrency": kwargs["concurrency"],
+               "gre_enabled": kwargs["gre_enabled"],
+               "vlan_amount": kwargs["vlan_amount"],
                "task": task,
                "location": self.test_storage_place}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
