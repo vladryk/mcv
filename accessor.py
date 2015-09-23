@@ -13,6 +13,7 @@
 #    under the License.
 
 
+import ConfigParser
 import operator
 import logging
 import re
@@ -52,7 +53,7 @@ class AccessSteward(object):
                      "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\ \|\ -",
                      re.X)
 
-    def __init__(self):
+    def __init__(self, config):
         self.access_data = {"controller_ip": None,
                             "instance_ip": None,
                             "os_username": None,
@@ -61,6 +62,9 @@ class AccessSteward(object):
                             "auth_endpoint_ip": None,
                             "nailgun_host": None,
                             "cluster_id": None,}
+        self.config = config
+        for key in self.access_data.keys():
+             self.access_data[key] = self.config.get('basic', key, None)
         self.novaclient = None
 
     def _validate_ip(self, ip):
@@ -207,7 +211,7 @@ class AccessSteward(object):
 
     def _fake_creds(self):
         self.access_data = {"controller_ip": '172.16.57.37',
-                            "instance_ip": '172.16.57.41',
+                            "instance_ip": '172.16.57.42',
                             "os_username": 'admin',
                             "os_tenant_name": 'admin',
                             "os_password": 'admin',
@@ -238,8 +242,14 @@ class AccessSteward(object):
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             ssh.connect(hostname="%(controller_ip)s" % self.access_data,
-                        username="root", password="r00tme")
+                        username=self.config.get('basic', 'controller_uname'),
+                        password=self.config.get('basic', 'controller_pwd'))
+        except ConfigParser..NoOptionError:
+            LOG.critical("SSH authorization credentials are not defined in the config")
+            sys.exit(1)
         except paramiko.ssh_exception.AuthenticationException:
+            LOG.critical("Can not access controller via ssh with pro vided credentials!")
+            sys.exit(1)
             pwd = raw_input("Please enter password for root@%(controller_ip)s"\
                             % self.access_data)
             # TODO: do this in a smart way
