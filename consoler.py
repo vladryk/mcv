@@ -15,6 +15,7 @@
 
 import accessor
 import argparse
+import datetime
 import inspect
 import ConfigParser
 import logging
@@ -131,6 +132,8 @@ class Consoler(object):
 
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
+        self.results_vault = "/tmp/mcv_run_" + str(datetime.datetime.utcnow()).replace(" ","_")
+        os.mkdir(self.results_vault)
         for key in test_dict.keys():
             dispatch_result[key] = {}
             try:
@@ -148,7 +151,9 @@ class Consoler(object):
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: ", exc_info=True)
             else:
-                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper)
+                path = os.path.join(self.results_vault, key)
+                os.mkdir(path)
+                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path)
                 batch = test_dict[key].split(',')
                 batch = map(lambda x: x.strip('\n'), batch)
                 LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
@@ -286,7 +291,12 @@ class Consoler(object):
                 LOG.error("The following error has terminated the consoler:", exc_info=True)
         if run_results is not None:
             self.describe_results(run_results)
-            reporter.brew_a_report(run_results)
+            reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
+            cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
+                                                                                    "location": self.results_vault}
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            cmd = "rm -rf %(location)s" % {"location": self.results_vault}
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         print

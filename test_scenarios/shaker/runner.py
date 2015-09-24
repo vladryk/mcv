@@ -95,9 +95,10 @@ class ShakerRunner(runner.Runner):
 
 class ShakerOnDockerRunner(ShakerRunner):
 
-    def __init__(self, accessor=None):
+    def __init__(self, accessor, path):
         self.container_id = None
         self.accessor = accessor
+        self.path = path
         super(ShakerOnDockerRunner, self).__init__()
 
     def _check_shaker_setup(self):
@@ -161,12 +162,16 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
          /etc/shaker/scenarios/networking/%s --report-template \
          /etc/shaker/shaker/resources/report_template.jinja2 --debug \
-         --log-file /etc/shaker/shaker.log --output theoutput" %\
-             (self.container, self.accessor.access_data["instance_ip"], task)
+         --log-file /etc/shaker/shaker.log --output theoutput --report %s.html" %\
+             (self.container, self.accessor.access_data["instance_ip"], task, task)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         result = json.loads(p)
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         return result
 
     def _get_task_result_from_docker(self, task_id):

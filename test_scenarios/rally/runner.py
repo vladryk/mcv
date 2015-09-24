@@ -138,7 +138,8 @@ class RallyRunner(runner.Runner):
 
 class RallyOnDockerRunner(RallyRunner):
 
-    def __init__(self, accessor):
+    def __init__(self, accessor, path):
+        self.path =  path
         self.container = None
         self.accessor = accessor
         self.test_storage_place = "/tmp/rally_tests"
@@ -282,6 +283,12 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
+        cmd = "docker exec -it %(container)s rally task report --out=%(task)s.html" % {"container": self.container_id, "task": task}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         return {'next_command': ret_val,
                 'original output': original_output,
                 'failed': failed}
