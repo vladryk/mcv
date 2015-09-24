@@ -247,7 +247,7 @@ class AccessSteward(object):
             ssh.connect(hostname="%(controller_ip)s" % self.access_data,
                         username=self.config.get('basic', 'controller_uname'),
                         password=self.config.get('basic', 'controller_pwd'))
-        except ConfigParser..NoOptionError:
+        except ConfigParser.NoOptionError:
             LOG.critical("SSH authorization credentials are not defined in the config")
             sys.exit(1)
         except paramiko.ssh_exception.AuthenticationException:
