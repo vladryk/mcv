@@ -306,6 +306,21 @@ class AccessSteward(object):
                                 stdout=subprocess.PIPE).stdout.read()
         LOG.debug("Now local iptables rule is set.")
 
+    def stop_forwarding(self):
+        #TODO: do this in a separate m ethd
+        LOG.info("Reverting changes needed for access to admin network")
+        ssh = client.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(hostname="%(controller_ip)s" % self.access_data,
+                        username=self.config.get('basic', 'controller_uname'),
+                        password=self.config.get('basic', 'controller_pwd'))#"r00tme")
+        except:
+            LOG.critical("Oh noes, ssh is broken")
+            return
+        stdin, stdout, stderr = ssh.exec_command("ps aux | grep '[s]sh -o Preferred' | awk '{ print $2 }'| xargs kill")
+        stdin, stdout, stderr = ssh.exec_command("iptables -L --line-numbers | grep 7654 | awk '{print $1}' | xargs iptables -D INPUT")
+
     def check_computes(self):
         services = self._get_novaclient().services.list()
         self.compute = 0
@@ -314,9 +329,13 @@ class AccessSteward(object):
                 self.compute += 1
         LOG.debug("Found " +  str(self.compute) + " computes.")
 
-    def check_and_fix_environment(self, required_containers):
+    def check_and_fix_environment(self, required_containers, no_tunneling=False):
         self.required_containers = required_containers
         self.check_docker_images()
         self.check_and_fix_access_data()
-        self._check_and_fix_iptables_rule()
+        if not no_tunneling:
+            LOG.info("Port forwardnig for Rally will be done automatically")
+            self._check_and_fix_iptables_rule()
+        else:
+            LOG.info("Port forwarding for Rally will not be done")
         self.check_and_fix_floating_ips()

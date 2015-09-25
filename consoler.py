@@ -272,7 +272,7 @@ class Consoler(object):
         if self.args.run is not None:
             required_containers = self.check_args_run(self.args.run)
             self.access_helper = accessor.AccessSteward(self.config)
-            self.access_helper.check_and_fix_environment(required_containers)
+            self.access_helper.check_and_fix_environment(required_containers, self.args.no_tunneling)
             try:
                 run_results = getattr(self, "do_" + self.args.run[0])(*self.args.run[1:])
             except TypeError as e:
@@ -297,6 +297,7 @@ class Consoler(object):
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
             cmd = "rm -rf %(location)s" % {"location": self.results_vault}
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         print

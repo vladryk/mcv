@@ -72,6 +72,10 @@ parser.add_argument(
     "--config",
     help="""Provide custom config file instead of the default one""")
 
+parser.add_argument(
+    "--no-tunneling", action="store_true", default=False,
+    help="""Forbids setting up automatic tunnels""")
+
 args = parser.parse_args()
 
 
