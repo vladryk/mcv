@@ -282,12 +282,12 @@ class AccessSteward(object):
             stdin, stdout, stderr = ssh.exec_command("ps aux")
             result = re.search("ssh.*35357", stdout.read())
             if result is None:
-                LOG.debug("Apparently port forwarding on the conntrolller is not set up properly")
+                LOG.debug("Apparently port forwarding on the conntroller is not set up properly")
                 time.sleep(3)
                 stdin, stdout, stderr = ssh.exec_command(mk_port)
                 time.sleep(5)
             else:
-                LOG.debug( "Apparently port forwarding on the conntrolller is set")
+                LOG.debug( "Apparently port forwarding on the conntroller is set")
         stdin, stdout, stderr = ssh.exec_command("rm " + rkname + "*")
 
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
@@ -365,8 +365,8 @@ class AccessSteward(object):
         self.check_and_fix_access_data()
         self.check_mcv_secgroup()
         if not no_tunneling:
-            LOG.info("Port forwardnig for Rally will be done automatically")
+            LOG.info("Port forwarding will be done automatically")
             self._check_and_fix_iptables_rule()
         else:
-            LOG.info("Port forwarding for Rally will not be done")
+            LOG.info("Port forwarding will not be done")
         self.check_and_fix_floating_ips()

@@ -156,7 +156,7 @@ class Consoler(object):
                 runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path)
                 batch = test_dict[key].split(',')
                 batch = map(lambda x: x.strip('\n'), batch)
-                LOG.debug("Running " + str(len(batch)) + " test "+" s"*(len(batch)!=1) +  " for " + key)
+                LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
                                                     concurrency=self.config.get('basic', 'concurrency'),
@@ -292,8 +292,10 @@ class Consoler(object):
         if run_results is not None:
             self.describe_results(run_results)
             reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
-            cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
-                                                                                    "location": self.results_vault}
+            r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
+                        "location": self.results_vault}
+
+            cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
             cmd = "rm -rf %(location)s" % {"location": self.results_vault}
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -302,7 +304,7 @@ class Consoler(object):
                                     self.config.get("basic", "logfile"))
         print
         print "-"*40
-        print "One page report could be found in mcv_results.html"
+        print "One page report could be found in /tmp/mcv_run_%(timestamp)s.tar.gz" % r_helper
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
