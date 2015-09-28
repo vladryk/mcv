@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from test_scenarios import runner
 try:
     import json
@@ -145,36 +146,6 @@ class RallyOnDockerRunner(RallyRunner):
         self.test_storage_place = "/tmp/rally_tests"
         super(RallyOnDockerRunner, self).__init__()
 
-    def check_mcv_secgroup(self):
-        LOG.debug("Checking for proper security group")
-        res = self.accessor._get_novaclient().security_groups.list()
-        for r in res:
-            if r.name == 'mcv-special-group':
-                LOG.debug("Has found one")
-                # TODO: by the way, a group could exist while being not
-                # attached. It is wise to check this.
-                return
-        LOG.debug("Nope. Has to create one")
-        mcvgroup = self.accessor._get_novaclient().security_groups.\
-                       create('mcv-special-group', 'mcvgroup')
-        self.accessor._get_novaclient().security_group_rules.\
-                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                              from_port=5999, to_port=5999, cidr='0.0.0.0/0')
-        self.accessor._get_novaclient().security_group_rules.\
-                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                              from_port=6000, to_port=6000, cidr='0.0.0.0/0')
-        LOG.debug("Finished creating a group and adding rules")
-        servers = self.accessor._get_novaclient().servers.list()
-        # TODO: this better be made pretty
-        for server in servers:
-            addr = server.addresses
-            for network, ifaces in addr.iteritems():
-                for iface in ifaces:
-                    if iface['addr'] == self.accessor.access_data["instance_ip"]:
-                        LOG.debug("Found a server to attach the new group to")
-                        server.add_security_group(mcvgroup.id)
-        LOG.debug("And they lived happily ever after")
-
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
@@ -243,7 +214,6 @@ class RallyOnDockerRunner(RallyRunner):
 
 
     def _setup_rally_on_docker(self):
-        self.check_mcv_secgroup()
         self.accessor.check_computes()
         self._verify_rally_container_is_up()
         self._check_rally_setup()

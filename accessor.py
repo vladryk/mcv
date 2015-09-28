@@ -329,10 +329,41 @@ class AccessSteward(object):
                 self.compute += 1
         LOG.debug("Found " +  str(self.compute) + " computes.")
 
+    def check_mcv_secgroup(self):
+        LOG.debug("Checking for proper security group")
+        res = self._get_novaclient().security_groups.list()
+        for r in res:
+            if r.name == 'mcv-special-group':
+                LOG.debug("Has found one")
+                # TODO: by the way, a group could exist while being not
+                # attached. It is wise to check this.
+                return
+        LOG.debug("Nope. Has to create one")
+        mcvgroup = self._get_novaclient().security_groups.\
+                       create('mcv-special-group', 'mcvgroup')
+        self._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=5999, to_port=5999, cidr='0.0.0.0/0')
+        self._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=6000, to_port=6000, cidr='0.0.0.0/0')
+        LOG.debug("Finished creating a group and adding rules")
+        servers = self._get_novaclient().servers.list()
+        # TODO: this better be made pretty
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == self.access_data["instance_ip"]:
+                        LOG.debug("Found a server to attach the new group to")
+                        server.add_security_group(mcvgroup.id)
+        LOG.debug("And they lived happily ever after")
+
     def check_and_fix_environment(self, required_containers, no_tunneling=False):
         self.required_containers = required_containers
         self.check_docker_images()
         self.check_and_fix_access_data()
+        self.check_mcv_secgroup()
         if not no_tunneling:
             LOG.info("Port forwardnig for Rally will be done automatically")
             self._check_and_fix_iptables_rule()
