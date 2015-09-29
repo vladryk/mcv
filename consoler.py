@@ -203,8 +203,6 @@ class Consoler(object):
             print "\t\t successful tests"
             print len(results[key]['results']['test_failures']),
             print "\t\t failed tests"
-            print len(results[key]['results']['test_not_found']),
-            print "\t\t not found tests"
 
     def existing_plugin(self, plugin):
         base = os.path.join(os.path.dirname(__file__), self.plugin_dir)
