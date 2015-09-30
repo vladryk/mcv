@@ -87,7 +87,7 @@ class Consoler(object):
             print "WARNING! Load test suit contains rally load tests. These tests may"
             print "break your cloud. It is not recommended to run these tests on"
             print "production clouds."
-            result  = raw_input("Are yout sure you want to procede? [yes/No]")
+            result  = raw_input("Are yout sure you want to proceed? [yes/No]")
             if result != "yes":
                 print "This is a wise decision"
                 return None

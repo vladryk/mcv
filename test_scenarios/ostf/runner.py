@@ -35,7 +35,7 @@ LOG = logging
 
 class OSTFOnDockerRunner(runner.Runner):
 
-    def __init__(self, accessor):
+    def __init__(self, accessor, *args, **kwargs):
         self.accessor = accessor
         self.identity = "ostf"
         self.config_section = "ostf"
