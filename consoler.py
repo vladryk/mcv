@@ -283,6 +283,8 @@ class Consoler(object):
                     "\'%(function)s\'\n\'%(function)s\' actually expects the "\
                     "folowing arguments: \'%(expected_args)s\'"
                 LOG.error(temessage % scolding, exc_info=True)
+            except ValueError as e:
+                LOG.error("Some unexpected outer errojr has terminated the tool. Please try rerunning mcvconsoler")
             except Exception as e:
                 print "Something went wrong with the command, please"\
                       " refer to logs to find out what"
@@ -297,12 +299,15 @@ class Consoler(object):
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
             cmd = "rm -rf %(location)s" % {"location": self.results_vault}
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        else:
+            LOG.warning("For some reason test tools have returned nothing.")
         self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         print
         print "-"*40
-        print "One page report could be found in /tmp/mcv_run_%(timestamp)s.tar.gz" % r_helper
+        if run_results is not None:
+            print "One page report could be found in /tmp/mcv_run_%(timestamp)s.tar.gz" % r_helper
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
