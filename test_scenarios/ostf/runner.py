@@ -54,6 +54,7 @@ class OSTFOnDockerRunner(runner.Runner):
                                 "ostf-config-extractor", "-o",
                                 "/tmp/ostfcfg.conf"],
                                stdout=subprocess.PIPE).stdout.read()
+        LOG.debug("Config extraction resulted in: " + res)
 
     def start_ostf_container(self):
         LOG.debug( "Bringing up OSTF container with credentials")
@@ -113,7 +114,8 @@ class OSTFOnDockerRunner(runner.Runner):
         try:
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError:
-            self.failures.append(name)
+            LOG.error("Task %s has failed with: " % task, exc_info=True)
+            self.failures.append(task)
             return
         original_output = p
         result = p.split("\n")

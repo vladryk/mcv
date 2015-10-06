@@ -252,6 +252,26 @@ class Consoler(object):
         return retval
 
     def console_user(self):
+        # TODO: split this god's abomination.
+        def do_finalization(run_results):
+            if run_results is not None:
+                self.describe_results(run_results)
+                try:
+                    reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
+                except:
+                    LOG.warning("Brewing a report has failed. Probably the tooldoes not support html reports generation")
+                    return {"timestamp" : "xxx", "location": "xxx"}
+                r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
+                            "location": self.results_vault}
+                cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
+                p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+                cmd = "rm -rf %(location)s" % {"location": self.results_vault}
+                p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+                LOG.debug("Done with report generation.")
+            else:
+                LOG.warning("For some reason test tools have returned nothing.")
+            return r_helper
+
         if len(sys.argv) < 2:
             self.parser.print_help()
             sys.exit(1)
@@ -289,18 +309,7 @@ class Consoler(object):
                 print "Something went wrong with the command, please"\
                       " refer to logs to find out what"
                 LOG.error("The following error has terminated the consoler:", exc_info=True)
-        if run_results is not None:
-            self.describe_results(run_results)
-            reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
-            r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
-                        "location": self.results_vault}
-
-            cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
-            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-            cmd = "rm -rf %(location)s" % {"location": self.results_vault}
-            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        else:
-            LOG.warning("For some reason test tools have returned nothing.")
+        r_helper = do_finalization(run_results)
         self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
