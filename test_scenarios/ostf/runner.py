@@ -14,7 +14,6 @@
 
 
 import re
-import ConfigParser
 import logging
 import os
 import subprocess
@@ -27,7 +26,6 @@ except:
 
 nevermind = None
 
-config = ConfigParser.ConfigParser()
 default_config = "etc/mcv.conf"
 
 LOG = logging
@@ -36,6 +34,7 @@ LOG = logging
 class OSTFOnDockerRunner(runner.Runner):
 
     def __init__(self, accessor, *args, **kwargs):
+        self.config = kwargs["config"]
         self.accessor = accessor
         self.identity = "ostf"
         self.config_section = "ostf"
@@ -58,6 +57,14 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def start_ostf_container(self):
         LOG.debug( "Bringing up OSTF container with credentials")
+        mos_version = self.config.get("ostf", "version")
+        if mos_version == "6.1":
+            cname = "mcv-ostf61"
+        elif mos_version == "7.0":
+            cname = "mcv-ostf70"
+        else:
+            LOG.error("Unsupported MOS version: " + mos_version)
+            sys.exit(33)
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
             #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
@@ -70,7 +77,7 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "NAILGUN_PORT=8000",
             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
             "-e", "OS_REGION_NAME=RegionOne",
-            "-it", "mcv-ostf"], stdout=subprocess.PIPE).stdout.read()
+            "-it", cname], stdout=subprocess.PIPE).stdout.read()
 
     def _verify_ostf_container_is_up(self):
         self.verify_container_is_up("ostf")

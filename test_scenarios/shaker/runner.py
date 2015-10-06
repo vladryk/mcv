@@ -35,7 +35,7 @@ class ShakerRunner(runner.Runner):
 
     valid_staarten = ("yaml", "json")
 
-    def __init__(self, accessor=None, config_location=None):
+    def __init__(self, accessor=None, config_location=None, *args, **kwargs):
         super(ShakerRunner, self).__init__()
         self.identity = "shaker"
         self.config_section = "shaker"
@@ -95,7 +95,7 @@ class ShakerRunner(runner.Runner):
 
 class ShakerOnDockerRunner(ShakerRunner):
 
-    def __init__(self, accessor, path):
+    def __init__(self, accessor, path, *args, **kwargs):
         self.container_id = None
         self.accessor = accessor
         self.path = path

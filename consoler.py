@@ -153,7 +153,7 @@ class Consoler(object):
             else:
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
-                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path)
+                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path, config=self.config)
                 batch = test_dict[key].split(',')
                 batch = map(lambda x: x.strip('\n'), batch)
                 LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)

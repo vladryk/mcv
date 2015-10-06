@@ -52,7 +52,7 @@ class RallyRunner(runner.Runner):
 
     valid_staarten = ("yaml", "json")
 
-    def __init__(self, config_location=None):
+    def __init__(self, config_location=None, *args, **kwargs):
         super(RallyRunner, self).__init__()
         self.identity = "rally"
         self.config_section = "rally"
@@ -139,7 +139,7 @@ class RallyRunner(runner.Runner):
 
 class RallyOnDockerRunner(RallyRunner):
 
-    def __init__(self, accessor, path):
+    def __init__(self, accessor, path, *args, **kwargs):
         self.path =  path
         self.container = None
         self.accessor = accessor
