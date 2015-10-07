@@ -197,12 +197,18 @@ class Consoler(object):
             print "For", key, ":",
             if results[key].get('major_crash', None) is not None:
                 print "A major tool failure has been detected"
-                return
+                continue
             print
             print len(results[key]['results']['test_success']),
             print "\t\t successful tests"
             print len(results[key]['results']['test_failures']),
             print "\t\t failed tests"
+
+    def get_total_failures(self, results):
+        t_failures = 0
+        for key in results.iterkeys():
+            t_failures += len(results[key]['results']['test_failures'])
+        return t_failures
 
     def existing_plugin(self, plugin):
         base = os.path.join(os.path.dirname(__file__), self.plugin_dir)
@@ -320,3 +326,7 @@ class Consoler(object):
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
+        if self.get_total_failures(run_results or {}) != 0:
+            return self.config.getint('basic', 'failure_indicator')
+        else:
+            return 0

@@ -91,10 +91,11 @@ def main():
     logging.getLogger("paramiko").setLevel(logging.WARNING)
     consolerr = consoler.Consoler(parser=parser, args=args)
     try:
-        consolerr.console_user()
+        return consolerr.console_user()
     except Exception as e:
         logging.error("Something unforseen has just happened. The consoler is no more. You can get an insight from /var/log/mcvconsoler.log", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
