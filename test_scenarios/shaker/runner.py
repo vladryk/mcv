@@ -96,6 +96,7 @@ class ShakerRunner(runner.Runner):
 class ShakerOnDockerRunner(ShakerRunner):
 
     def __init__(self, accessor, path, *args, **kwargs):
+        self.config = kwargs["config"]
         self.container_id = None
         self.accessor = accessor
         self.path = path
@@ -113,8 +114,9 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
+        protocol = self.config.get('basic', 'auth_protocol')
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "5999:5999", "-e", "OS_AUTH_URL=http://" +
+            "-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],

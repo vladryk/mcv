@@ -54,6 +54,7 @@ class RallyRunner(runner.Runner):
 
     def __init__(self, config_location=None, *args, **kwargs):
         super(RallyRunner, self).__init__()
+        self.config = kwargs["config"]
         self.identity = "rally"
         self.config_section = "rally"
         self.test_failures = []  # this object is supposed to live for one run
@@ -140,6 +141,7 @@ class RallyRunner(runner.Runner):
 class RallyOnDockerRunner(RallyRunner):
 
     def __init__(self, accessor, path, *args, **kwargs):
+        self.config = kwargs["config"]
         self.path =  path
         self.container = None
         self.accessor = accessor
@@ -148,8 +150,9 @@ class RallyOnDockerRunner(RallyRunner):
 
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
+        protocol = self.config.get('basic', 'auth_protocol')
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "6000:6000", "-e", "OS_AUTH_URL=http://" +
+            "-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],

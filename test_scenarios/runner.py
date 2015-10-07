@@ -112,4 +112,4 @@ class Runner(object):
         raise NotImplementedError
 
     def orient_self(self):
-        self.directory = os.getcwd("");
+        self.directory = os.getcwd("")
