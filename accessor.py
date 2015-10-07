@@ -145,7 +145,7 @@ class AccessSteward(object):
         if self.novaclient is None:
             client = nova.Client(
                 '2', username=self.access_data["os_username"],
-                auth_url="http://" + self.access_data["auth_endpoint_ip"] +
+                auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.access_data["auth_endpoint_ip"] +
                          ":5000/v2.0/",
                 api_key=self.access_data["os_password"],
                 project_id=self.access_data["os_tenant_name"]
