@@ -148,7 +148,8 @@ class AccessSteward(object):
                 auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.access_data["auth_endpoint_ip"] +
                          ":5000/v2.0/",
                 api_key=self.access_data["os_password"],
-                project_id=self.access_data["os_tenant_name"]
+                project_id=self.access_data["os_tenant_name"],
+                insecure=True,
             )
             self.novaclient = client
         return self.novaclient
