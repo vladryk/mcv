@@ -146,7 +146,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.container = None
         self.accessor = accessor
         self.test_storage_place = "/tmp/rally_tests"
-        super(RallyOnDockerRunner, self).__init__()
+        super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
 
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
@@ -193,6 +193,14 @@ class RallyOnDockerRunner(RallyRunner):
         time.sleep(3)
         return self._check_and_fix_flavor()
 
+    def create_rally_json(self):
+        credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
+                       "uname": self.accessor.access_data["os_username"],
+                       "upass": self.accessor.access_data["os_password"],
+                       "uten": self.accessor.access_data["os_tenant_name"]}
+        f = open("existing.json", "w")
+        f.write(rally_json_template % credentials)
+        f.close()
 
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
@@ -202,10 +210,25 @@ class RallyOnDockerRunner(RallyRunner):
                                stdout=subprocess.PIPE).stdout.read()
         if res.startswith("There is no"):
             LOG.debug("It is not. Trying to set up rally deployment.")
+            cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
+            long_id = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+            self.create_rally_json()
+            rally_config_json_location = "existing.json"
+            cmd = r"cp " + rally_config_json_location +\
+                " /var/lib/docker/aufs/mnt/%s/home/rally" %\
+                long_id.rstrip('\n')
+            try:
+                p = subprocess.check_output(cmd, shell=True,
+                                            stderr=subprocess.STDOUT)
+            except:
+                LOG.warning( "Failed to copy Rally setup  json.")
+                sys.exit(1)
             res = subprocess.Popen(["docker", "exec", "-it",
                                    self.container_id, "rally",
                                    "deployment", "create",
-                                   "--fromenv",
+                                   "--file=existing.json",
+                                  # "--fromenv",
                                    "--name=existing"],
                                    stdout=subprocess.PIPE).stdout.read()
         else:

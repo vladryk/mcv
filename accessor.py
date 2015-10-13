@@ -61,7 +61,8 @@ class AccessSteward(object):
                             "os_password": None,
                             "auth_endpoint_ip": None,
                             "nailgun_host": None,
-                            "cluster_id": None,}
+                            "cluster_id": None,
+                            "auth_fqdn": None,}
         self.config = config
         for key in self.access_data.keys():
              try:
@@ -132,6 +133,10 @@ class AccessSteward(object):
             cluster_id = "1"
         self.access_data["cluster_id"] = cluster_id
 
+    def _request_auth_fqdn(self):
+        auth_fqdn = raw_input("Please provide authentication endpoint name [None]: ")
+        self.access_data["auth_fqdn"] = auth_fqdn
+
     def _verify_access_data_is_set(self):
         for key, value in self.access_data.iteritems():
             if value is None:
@@ -154,6 +159,18 @@ class AccessSteward(object):
             self.novaclient = client
         return self.novaclient
 
+    def _make_sure_controller_name_could_be_resolved(self):
+        a_fqdn = self.access_data["auth_fqdn"]
+        if a_fqdn != "":
+            LOG.debug("FQDN is specified.")
+            f = open('/etc/hosts', 'a+r')
+            for line in f.readlines():
+                if line.find(a_fqdn) != -1:
+                    return
+            f.write(self.access_data['auth_endpoint_ip'] + ' ' + self.access_data['auth_fqdn'] +"\n")
+            f.close()
+
+
     def check_and_fix_access_data(self):
         def trap():
             print "This doesn\'t look like a valid option."\
@@ -161,6 +178,7 @@ class AccessSteward(object):
         self._verify_access_data_is_set()
 
         LOG.debug("Trying to authenticate with OpenStack using provided credentials...")
+        self._make_sure_controller_name_could_be_resolved()
         try:
             res = self._get_novaclient().servers.list()
         except nexc.ConnectionRefused:
