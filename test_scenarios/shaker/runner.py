@@ -156,10 +156,17 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         self.endpoint = p.split('|')[3].split(':')[1].lstrip('/')
-        cmd = "docker exec -it %s shaker-image-builder \
-        --image-builder-template  \
-        /etc/shaker/shaker/resources/image_builder_template.yaml" % \
-        self.container
+        # TODO: check this with an image when there is one.
+        if self.config.get("shaker", "shaker_image") != "-1":
+            LOG.debug("Using local shaker image.")
+            cmd = "docker exec -it %s shaker-image-builder --image-name %s" % \
+                  (self.container, self.config.get("shaker", "shaker_image"))
+        else:
+            LOG.debug("Building new shaker image from scratch.")
+            cmd = "docker exec -it %s shaker-image-builder \
+            --image-builder-template  \
+            /etc/shaker/shaker/resources/image_builder_template.yaml" % \
+            self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
          /etc/shaker/scenarios/networking/%s --report-template \
