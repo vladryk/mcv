@@ -27,6 +27,12 @@ try:
 except:
     import simplejson as json
 
+# Needed for Rally. Whoever finds this after Rally is fixed please don't
+# hesitate to remove
+from SimpleHTTPServer import SimpleHTTPRequestHandler
+from BaseHTTPServer import HTTPServer
+import threading
+
 nevermind = None
 
 config = ConfigParser.ConfigParser()
@@ -146,6 +152,15 @@ class RallyOnDockerRunner(RallyRunner):
         self.container = None
         self.accessor = accessor
         self.test_storage_place = "/tmp/rally_tests"
+        # Apparently rally can't use any images other than accessible via a url
+        # Ok, then dumb-n-dumber game is on!
+        LOG.debug("Now the part with the server")
+        server = HTTPServer(('', 6666), SimpleHTTPRequestHandler)
+        thread = threading.Thread(target = server.serve_forever)
+        thread.daemon = True
+        thread.start()
+        # whoever reads this please remove this ^^^^ abomination at first
+        # chance.
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
 
     def start_rally_container(self):

@@ -2,7 +2,7 @@
   GlanceImages.create_and_delete_image:
     -
       args:
-        image_location: "http://172.16.44.5/cirros-0.3.1-x86_64-disk.img"
+        image_location: "http://127.0.0.1:6666/cirros-0.3.1-x86_64-disk.img"
         container_format: "bare"
         disk_format: "qcow2"
       runner:
