@@ -249,11 +249,11 @@ class AccessSteward(object):
         # access to the controller. Mwa-ha-ha.
         # TODO: divide this some day
         # TODO: this might change so it is much wiser to do actual check
-        keystone_private_endpoint_ip = "192.168.0.2"
+        keystone_private_endpoint_ip = self.config.get("basic", "private_endpoint_ip")
         port_substitution = {"cnt_ip": self.access_data["controller_ip"],
                              "kpeip": keystone_private_endpoint_ip,
                              }
-        mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT"
+        mk_rule = "iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT -m comment --comment \'MCV_tunnel\'"
         rkname = "remote_mcv_key"
         mk_port = "ssh -o PreferredAuthentications=publickey -o "\
                   "StrictHostKeyChecking=no -i " + rkname +" -f -N -L "\
@@ -289,8 +289,8 @@ class AccessSteward(object):
         time.sleep(3)
         stdin, stdout, stderr = ssh.exec_command("cat " + rkname + ".pub >> .ssh/authorized_keys")
         time.sleep(3)
-        stdin, stdout, stderr = ssh.exec_command("iptables -L")
-        if stdout.read().find("7654") == -1:
+        stdin, stdout, stderr = ssh.exec_command("iptables -L -n")
+        if stdout.read().find("MCV_tunnel") == -1:
             LOG.debug("There is no rule in controller's iptables for proper forwarding! Have to add one")
             stdin, stdout, stderr = ssh.exec_command( mk_rule)
         else:
@@ -309,7 +309,7 @@ class AccessSteward(object):
                 LOG.debug( "Apparently port forwarding on the conntroller is set")
         stdin, stdout, stderr = ssh.exec_command("rm " + rkname + "*")
 
-        res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L", ],
+        res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L -n", ],
                                 shell=False, stdout=subprocess.PIPE,
                                 stdin=subprocess.PIPE,
                                 stderr=subprocess.PIPE).stdout.read()
@@ -318,7 +318,7 @@ class AccessSteward(object):
             LOG.debug("Local iptables rule is set.")
             return
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
-                                "PREROUTING", "1", "-d", "192.168.0.2", "-p",
+                                "PREROUTING", "1", "-d", self.config.get("basic", "private_endpoint_ip"), "-p",
                                 "tcp", "--dport", "35357", "-j", "DNAT",
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
@@ -326,7 +326,7 @@ class AccessSteward(object):
         LOG.debug("Now local iptables rule is set.")
 
     def stop_forwarding(self):
-        #TODO: do this in a separate m ethd
+        #TODO: do this in a separate method
         LOG.info("Reverting changes needed for access to admin network")
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -338,7 +338,7 @@ class AccessSteward(object):
             LOG.critical("Oh noes, ssh is broken")
             return
         stdin, stdout, stderr = ssh.exec_command("ps aux | grep '[s]sh -o Preferred' | awk '{ print $2 }'| xargs kill")
-        stdin, stdout, stderr = ssh.exec_command("iptables -L --line-numbers | grep 7654 | awk '{print $1}' | xargs iptables -D INPUT")
+        stdin, stdout, stderr = ssh.exec_command("iptables -L -n --line-numbers | grep MCV_tunnel | awk '{print $1}' | xargs iptables -D INPUT")
 
     def check_computes(self):
         services = self._get_novaclient().services.list()

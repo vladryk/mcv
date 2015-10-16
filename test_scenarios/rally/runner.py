@@ -35,7 +35,7 @@ LOG = logging
 
 rally_json_template = """{
 "type": "ExistingCloud",
-"auth_url": "http://%(ip_address)s:5000/v2.0/",
+"auth_url": "%(auth_protocol)s://%(ip_address)s:5000/v2.0/",
 "region_name": "RegionOne",
 "endpoint_type": "public",
 "admin": {
@@ -43,7 +43,7 @@ rally_json_template = """{
     "password": "%(upass)s",
     "tenant_name": "%(uten)s"
     },
-"https_insecure": False,
+"https_insecure": %(insecure)s,
 "https_cacert": "",
 }"""
 
@@ -151,8 +151,12 @@ class RallyOnDockerRunner(RallyRunner):
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
         protocol = self.config.get('basic', 'auth_protocol')
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
+        add_host = ""
+        if self.config.get("basic", "auth_fqdn") != '':
+            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+            [add_host]*(add_host != "") +
+            ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
@@ -194,16 +198,34 @@ class RallyOnDockerRunner(RallyRunner):
         return self._check_and_fix_flavor()
 
     def create_rally_json(self):
+        auth_protocol = self.config.get("basic", "auth_protocol")
         credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
                        "uname": self.accessor.access_data["os_username"],
                        "upass": self.accessor.access_data["os_password"],
-                       "uten": self.accessor.access_data["os_tenant_name"]}
+                       "uten": self.accessor.access_data["os_tenant_name"],
+                       "auth_protocol": auth_protocol,
+                       "insecure": "true" if auth_protocol == "https" else "false"}
         f = open("existing.json", "w")
         f.write(rally_json_template % credentials)
         f.close()
 
+    def _patch_rally(self):
+        # Currently there is a bug in rally which prevents it from doing good
+        # things sometimes. Yes, that's the reason we have too few good
+        # things. Not the best way to go, yet I hope that this won't be needed
+        # very very soon.
+        LOG.debug("Patching Rally.")
+        cmd = "docker exec -it %s sudo sed -i '/def create_keystone_client(args):/a\ \ \ \ args[\"insecure\"]=True' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %s sudo sed -i 's/\ *insecure=self.endpoint.insecure/insecure=True/' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
+        if self.config.get("basic", "auth_protocol") == "https":
+            self._patch_rally()
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.container_id,
                                 "rally", "deployment", "check"],

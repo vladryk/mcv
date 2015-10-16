@@ -262,13 +262,14 @@ class Consoler(object):
     def console_user(self):
         # TODO: split this god's abomination.
         def do_finalization(run_results):
+            r_helper = {"timestamp" : "xxx", "location": "xxx"}
             if run_results is not None:
                 self.describe_results(run_results)
                 try:
                     reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
                 except:
                     LOG.warning("Brewing a report has failed. Probably the tooldoes not support html reports generation")
-                    return {"timestamp" : "xxx", "location": "xxx"}
+                    return r_helper
                 r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
                             "location": self.results_vault}
                 cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
