@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import ConfigParser
 import logging
 import os
@@ -23,6 +22,9 @@ try:
     import json
 except:
     import simplejson as json
+
+import glanceclient as glance
+from keystoneclient.v2_0 import client as keystone_v2
 
 nevermind = None
 
@@ -102,21 +104,60 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.path = path
         super(ShakerOnDockerRunner, self).__init__()
 
+    def get_glanceclient(self):
+        self.key_client = keystone_v2.Client(
+            username=self.accessor.access_data['os_username'],
+            auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.accessor.access_data["auth_endpoint_ip"] +
+                     ":5000/v2.0/",
+            password=self.accessor.access_data['os_password'],
+            tenant_name=self.accessor.access_data['os_tenant_name'],
+            insecure=True)
+        image_api_url =self.key_client.service_catalog.url_for(
+            service_type="image")
+        self.glance = glance.Client(
+            '1',
+            endpoint=image_api_url,
+            token=self.key_client.auth_token,
+            insecure=True)
+
     def _check_shaker_setup(self):
         LOG.info("Checking Shaker setup. If this is the first run of "\
                  "mcvconsoler on this cloud go grab some coffee, it will "\
                  "take a while.")
+        path = '/home/mcv/toolbox/shaker'
+        for f in os.listdir(path):
+            if f.endswith(".ss.img"):
+                path += '/' + f
+                break
+        if path.endswith('shaker'):
+            LOG.error('No shaker image available')
+            return
+        LOG.debug('Authenticating in glance')
+        self.get_glanceclient()
+        i_list = self.glance.images.list()
+        image = False
+        for im in i_list:
+            if im.name=='shaker-image':
+                image = True
+        if not image:
+            LOG.debug('Creating shaker image')
+            self.glance.images.create(name='shaker-image', disk_format="qcow2", container_format="bare",data=open(path))
+        else:
+            LOG.debug("Shaker image exists")
+        LOG.debug("Run shaker-image-builder")
         res = subprocess.Popen(["docker", "exec", "-it",
-                self.container_id, "shaker-image-builder",
-                "--image-builder-template",
-                "/etc/shaker/shaker/resources/image_builder_template.yaml"],
+                self.container_id, "shaker-image-builder--image-name shaker-image"],
                 stdout=subprocess.PIPE).stdout.read()
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
         protocol = self.config.get('basic', 'auth_protocol')
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
-            "-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
+        if self.config.get("basic", "auth_fqdn") != '':
+            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
+
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+                               [add_host]*(add_host != "") +
+            ["-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
@@ -152,21 +193,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
-        cmd = "docker exec -it %s keystone endpoint-list | grep :5000" %\
-        self.container
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        self.endpoint = p.split('|')[3].split(':')[1].lstrip('/')
-        # TODO: check this with an image when there is one.
-        if self.config.get("shaker", "shaker_image") != "-1":
-            LOG.debug("Using local shaker image.")
-            cmd = "docker exec -it %s shaker-image-builder --image-name %s" % \
-                  (self.container, self.config.get("shaker", "shaker_image"))
-        else:
-            LOG.debug("Building new shaker image from scratch.")
-            cmd = "docker exec -it %s shaker-image-builder \
-            --image-builder-template  \
-            /etc/shaker/shaker/resources/image_builder_template.yaml" % \
-            self.container
+        self.endpoint = self.accessor.access_data['auth_endpoint_ip']
+        cmd = "docker exec -it %s shaker-image-builder --image-name shaker-image" %self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
          /etc/shaker/scenarios/networking/%s --report-template \
@@ -181,7 +209,16 @@ class ShakerOnDockerRunner(ShakerRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        self.clear_shaker_image()
         return result
+
+    def clear_shaker_image(self):
+        clear_image = self.config.get('shaker', 'clear_image')
+        if clear_image == 'True':
+            i_list = self.glance.images.list()
+            for im in i_list:
+                if im.name=='shaker-image':
+                    self.glance.images.delete(im)
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
