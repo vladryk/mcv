@@ -84,12 +84,9 @@ class Consoler(object):
         # anyone could create loading group with a wrong name and easily break
         # everything up.
         if test_group.find('load') != -1:
-            print "WARNING! Load test suit contains rally load tests. These tests may"
-            print "break your cloud. It is not recommended to run these tests on"
-            print "production clouds."
-            result  = raw_input("Are yout sure you want to proceed? [yes/No]")
-            if result != "yes":
-                print "This is a wise decision"
+            if self.config.get('rally', 'rally_load') != 'True':
+                print "WARNING! Load test suit contains rally load tests. These tests may"
+                print "break your cloud. So, please set rally_load=True manually in mcv.conf "
                 return None
         tests_to_run = self.prepare_tests(test_group)
         if tests_to_run is None:
@@ -179,14 +176,12 @@ class Consoler(object):
         """Run full test suit"""
         LOG.info("Starting full check run.")
         LOG.warning("WARNING! Full test suite contains Rally load tests. These tests may break your cloud. It is not recommended to run these tests on production clouds.")
-        result = raw_input("Are you sure you want to proceed? [yes/No]")
-        if result == "yes":
-            LOG.warning("The user agreed to proceed")
-            test_dict = self.discover_test_suits()
-            return self.dispatch_tests_to_runners(test_dict)
-        else:
-            LOG.info("The user decided not to proceed with wrecking the cloud")
-        return {}
+        if self.config.get('rally', 'rally_load') != 'True':
+            print "WARNING!Full test suite contains Rally load tests. These tests may"
+            print "break your cloud. So, please set rally_load=True manually in mcv.conf "
+            return {}
+        test_dict = self.discover_test_suits()
+        return self.dispatch_tests_to_runners(test_dict)
 
     def describe_results(self, results):
         """Pretty printer for results"""
