@@ -124,6 +124,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.info("Checking Shaker setup. If this is the first run of "\
                  "mcvconsoler on this cloud go grab some coffee, it will "\
                  "take a while.")
+        if self.config.get("basic", "auth_protocol") == "https":
+            self._patch_shaker()
         path = '/home/mcv/toolbox/shaker'
         for f in os.listdir(path):
             if f.endswith(".ss.img"):
@@ -211,6 +213,22 @@ class ShakerOnDockerRunner(ShakerRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         self.clear_shaker_image()
         return result
+
+    def _patch_shaker(self):
+        # Currently there is a bug in shaker which prevents it from doing good
+        # things sometimes. Yes, that's the second reason we have too few good
+        # things. Not the best way to go, yet since noone is planning to develop
+        # it any time soon we'll stick with this.
+        LOG.debug("Patching Shaker.")
+        cmd = "docker exec -it %s sudo sed -i 's/                                    token=keystone_client.auth_token)/                                    token=keystone_client.auth_token, insecure=True)/' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/glance.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %s sudo sed -i 's/    return session.Session(auth=auth)/    return session.Session(auth=auth, verify=False)/' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %s sudo sed -i '/def create_keystone_client(\*\*kwargs):/a\ \ \ \ kwargs[\"verify\"]=False' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True,
+                                        stderr=subprocess.STDOUT)
 
     def clear_shaker_image(self):
         clear_image = self.config.get('shaker', 'clear_image')
