@@ -126,7 +126,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                  "take a while.")
         if self.config.get("basic", "auth_protocol") == "https":
             self._patch_shaker()
-        path = '/home/mcv/toolbox/shaker'
+        path = '/etc/toolbox/shaker'
         for f in os.listdir(path):
             if f.endswith(".ss.img"):
                 path += '/' + f
