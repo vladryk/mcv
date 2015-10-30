@@ -192,6 +192,16 @@ class RallyOnDockerRunner(RallyRunner):
                           % {"id": long_id,
                           "place": self.test_storage_place}],\
                           stdout=subprocess.PIPE).stdout.read()
+        # here we fix glance image issues
+        subprocess.Popen(["sudo", "chmod", "a+r",
+                          "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img"],
+                         stdout=subprocess.PIPE).stdout.read()
+
+        subprocess.Popen(["sudo", "cp",
+                          "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img",
+                          "/var/lib/docker/aufs/mnt/%(id)s/home/rally"\
+                          % {"id": long_id, }],\
+                          stdout=subprocess.PIPE).stdout.read()
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
