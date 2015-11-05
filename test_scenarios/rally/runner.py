@@ -239,13 +239,9 @@ class RallyOnDockerRunner(RallyRunner):
         # things sometimes. Yes, that's the reason we have too few good
         # things. Not the best way to go, yet I hope that this won't be needed
         # very very soon.
-        LOG.debug("Patching Rally.")
-        cmd = "docker exec -it %s sudo sed -i '/def create_keystone_client(args):/a\ \ \ \ args[\"insecure\"]=True' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %s sudo sed -i 's/\ *insecure=self.endpoint.insecure/insecure=True/' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %s sudo sed -i '282s/.*/)#            **self._get_auth_info(project_name_key=\"tenant_name\"))/' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
+        res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        return
 
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
