@@ -71,6 +71,7 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+            "-e", "NAILGUN_PROTOCOL="+self.config.get('basic', 'auth_protocol'),
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
