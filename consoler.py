@@ -45,6 +45,7 @@ class Consoler(object):
         try:
             restmp = self.config.options(section)
         except ConfigParser.NoSectionError:
+            LOG.warning("Test group %s doesn't seem to exist in config!" % test_group)
             return {}
 
         out =  dict([(opt, self.config.get(section, opt)) for opt in
@@ -199,6 +200,34 @@ class Consoler(object):
             print len(results[key]['results']['test_failures']),
             print "\t\t failed tests"
 
+    def update_config(self, results):
+        sent = False
+        for key in results.iterkeys():
+            to_rerun = ",".join(results[key]["results"]["test_failures"])
+            if to_rerun != "":
+                LOG.debug("Adding option %(key)s=%(trr)s" % {"key": key,
+                                                             "trr": to_rerun})
+                if not self.config.has_section("custom_test_group_failed"):
+                    LOG.debug("Looks like there is no section 'custom_test_group_failed' in %s. Adding one." % self.path_to_config)
+                    self.config.add_section("custom_test_group_failed")
+                self.config.set("custom_test_group_failed", key, to_rerun)
+                sent = True
+            else:
+                if self.config.has_section("custom_test_group_failed") and\
+                        self.config.has_option("custom_test_group_failed", key):
+                    LOG.debug("Removing %s from custom_test_group_failed" % key)
+                    self.config.remove_option("custom_test_group_failed", key)
+                    sent = True
+        if self.config.has_section("custom_test_group_failed") and\
+                self.config.options("custom_test_group_failed") == []:
+            LOG.debug("Removing section 'custom_test_group_failed' since it is empty")
+            self.config.remove_section("custom_test_group_failed")
+            sent = True
+        if sent:
+            LOG.debug("Apparently config has changed. Writing changes down")
+            with open(self.path_to_config, "w") as cf:
+                self.config.write(cf)
+
     def get_total_failures(self, results):
         t_failures = 0
         for key in results.iterkeys():
@@ -260,6 +289,7 @@ class Consoler(object):
             r_helper = {"timestamp" : "xxx", "location": "xxx"}
             if run_results is not None:
                 self.describe_results(run_results)
+                self.update_config(run_results)
                 try:
                     reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
                 except:
