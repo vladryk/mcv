@@ -220,15 +220,16 @@ class ShakerOnDockerRunner(ShakerRunner):
         # things. Not the best way to go, yet since noone is planning to develop
         # it any time soon we'll stick with this.
         LOG.debug("Patching Shaker.")
-        cmd = "docker exec -it %s sudo sed -i 's/                                    token=keystone_client.auth_token)/                                    token=keystone_client.auth_token, insecure=True)/' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/glance.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %s sudo sed -i 's/    return session.Session(auth=auth)/    return session.Session(auth=auth, verify=False)/' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %s sudo sed -i '/def create_keystone_client(\*\*kwargs):/a\ \ \ \ kwargs[\"verify\"]=False' /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
+        cmds = [
+        "sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" venv2/lib/python2.7/site-packages/heatclient/common/http.py",
+        "sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  venv2/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
+        "sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
+        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/glance.py",
+        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/heat.py"
+        ]
+        for cmd in cmds:
+            res = subprocess.check_output(cmd, shell=True,
+                                          stderr=subprocess.STDOUT)
 
     def clear_shaker_image(self):
         clear_image = self.config.get('shaker', 'clear_image')
