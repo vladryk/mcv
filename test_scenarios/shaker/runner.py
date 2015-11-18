@@ -221,11 +221,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         # it any time soon we'll stick with this.
         LOG.debug("Patching Shaker.")
         cmds = [
-        "sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" venv2/lib/python2.7/site-packages/heatclient/common/http.py",
-        "sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  venv2/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
-        "sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
-        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/glance.py",
-        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" venv2/lib/python2.7/site-packages/shaker/openstack/clients/heat.py"
+        "sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" /usr/local/lib/python2.7/site-packages/heatclient/common/http.py",
+        "sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
+        "sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
+        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/glance.py",
+        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/heat.py"
         ]
         for cmd in cmds:
             res = subprocess.check_output(cmd, shell=True,
