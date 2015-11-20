@@ -66,14 +66,14 @@ class BaseStorageSpeed(object):
         temp = open(path, 'r')
         template = temp.read()
         temp.close()
+        r_res = [(1024 * float(self.size))/i for i in r_res]
         r_res.insert(0, 0)
-        r_res = [i/(1000.0 * int(self.size)) for i in r_res]
         r_average = round(sum(r_res) / 3.0, 2)
         read = ''
         for i in range(1, 4):
             read +='<tr><td>{} attempt:</td><td align="right">Speed {} MB/s</td><tr>\n'.format(i, round(r_res[i],2))
+        w_res = [(1024 * float(self.size))/i for i in w_res]
         w_res.insert(0, 0)
-        w_res = [i/(1000.0 * int(self.size)) for i in w_res]
         w_average = round(sum(w_res) / 3.0, 2)
         write = ''
         for i in range(1, 4):
@@ -89,7 +89,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size = kwargs.get('volume_size') or 1
+        self.size = kwargs.get('volume_size')
 
     def create_test_volume(self):
         LOG.debug('Creating test volume')
@@ -113,14 +113,16 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Volume successfully created')
 
     def measure_write(self):
+        count = 1024 * float(self.size)
         start_time = time.time()
-        count = 1000 * int(self.size)
+
         subprocess.call(['dd', 'conv=notrunc', 'if=/dev/urandom', 'of=/mnt/testvolume/testimage.ss.img', 'bs=1M', 'count=%d' % count])
         return time.time() - start_time
 
     def measure_read(self):
+        count = 1024 * float(self.size)
         start_time = time.time()
-        count = 1000 * int(self.size)
+
         subprocess.call(['dd', 'if=/mnt/testvolume/testimage.ss.img', 'of=/dev/zero', 'bs=1M', 'count=%d' % count])
         return time.time() - start_time
 
@@ -163,14 +165,14 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size = kwargs.get('image_size') or 1
+        self.size = kwargs.get('image_size')
 
     def generate_image(self):
         LOG.debug('Generating image')
         filename = 'testglancespeed.ss.img'
         self.of = os.path.join(os.getcwd(), filename)
         if not os.path.exists(self.of):
-            count = 1000 * int(self.size)
+            count = 1024 * float(self.size)
             subprocess.call(['dd', 'if=/dev/urandom', 'of=' + self.of, 'bs=1M', 'count=%d' % count])
         LOG.debug('Test image successfully generated')
 
