@@ -221,14 +221,14 @@ class ShakerOnDockerRunner(ShakerRunner):
         # it any time soon we'll stick with this.
         LOG.debug("Patching Shaker.")
         cmds = [
-        "sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" /usr/local/lib/python2.7/site-packages/heatclient/common/http.py",
-        "sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
-        "sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/keystone.py",
-        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/glance.py",
-        "sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/site-packages/shaker/openstack/clients/heat.py"
+        "docker exec -it %s sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" /usr/local/lib/python2.7/dist-packages/heatclient/common/http.py",
+        "docker exec -it %s sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
+        "docker exec -it %s sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
+        "docker exec -it %s sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/glance.py",
+        "docker exec -it %s sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/heat.py"
         ]
         for cmd in cmds:
-            res = subprocess.check_output(cmd, shell=True,
+            res = subprocess.check_output(cmd % self.container_id, shell=True,
                                           stderr=subprocess.STDOUT)
 
     def clear_shaker_image(self):
