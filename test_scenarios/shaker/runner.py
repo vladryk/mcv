@@ -54,7 +54,8 @@ class ShakerRunner(runner.Runner):
         if resulting_dict.get('error', '') == '':
             LOG.info("Task %s has completed successfully." % task)
         else:
-            LOG.warning("Task %s has failed with the following error: %s" % (task,resulting_dict['error']))
+            LOG.warning("Task %s has failed with the following error: %s" % \
+                        (task,resulting_dict['error']))
             return False
         return True
 
@@ -143,20 +144,22 @@ class ShakerOnDockerRunner(ShakerRunner):
                 image = True
         if not image:
             LOG.debug('Creating shaker image')
-            self.glance.images.create(name='shaker-image', disk_format="qcow2", container_format="bare",data=open(path))
+            self.glance.images.create(name='shaker-image', disk_format="qcow2",
+                                      container_format="bare",data=open(path))
         else:
             LOG.debug("Shaker image exists")
         LOG.debug("Run shaker-image-builder")
         res = subprocess.Popen(["docker", "exec", "-it",
-                self.container_id, "shaker-image-builder--image-name shaker-image"],
-                stdout=subprocess.PIPE).stdout.read()
+                                self.container_id,
+                                "shaker-image-builder--image-name shaker-image"],
+                                stdout=subprocess.PIPE).stdout.read()
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
         protocol = self.config.get('basic', 'auth_protocol')
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
-
+            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +\
+                       ":" + self.accessor.access_data["auth_endpoint_ip"]
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
                                [add_host]*(add_host != "") +
             ["-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
@@ -196,20 +199,25 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
         self.endpoint = self.accessor.access_data['auth_endpoint_ip']
-        cmd = "docker exec -it %s shaker-image-builder --image-name shaker-image" %self.container
+        cmd = "docker exec -it %s shaker-image-builder --image-name " +\
+              "shaker-image" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        # Note: make port configurable
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
          /etc/shaker/scenarios/networking/%s --report-template \
          /etc/shaker/shaker/resources/report_template.jinja2 --debug \
-         --log-file /etc/shaker/shaker.log --output theoutput --report %s.html" %\
-             (self.container, self.accessor.access_data["instance_ip"], task, task)
+         --log-file /etc/shaker/shaker.log --output theoutput --report \
+         %s.html" % (self.container, self.accessor.access_data["instance_ip"],
+                     task, task)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         result = json.loads(p)
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        cmd = "sudo cp %(pref)s/%(id)s/%(task)s.html %(pth)s" % \
+                  {"pref": "/var/lib/docker/aufs/mnt", "id": p.rstrip('\n'),
+                   'task': task, "pth": self.path}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         self.clear_shaker_image()
         return result
@@ -217,18 +225,29 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _patch_shaker(self):
         # Currently there is a bug in shaker which prevents it from doing good
         # things sometimes. Yes, that's the second reason we have too few good
-        # things. Not the best way to go, yet since noone is planning to develop
-        # it any time soon we'll stick with this.
+        # things. Not the best way to go, yet since noone is planning to
+        # develop it any time soon we'll stick with this.
         LOG.debug("Patching Shaker.")
+        cmd_prefix = "docker exec -it %s sed -i" % self.container_id
+        path_prefix = "/usr/local/lib/python2.7/dist-packages"
         cmds = [
-        "docker exec -it %s sed -i \"/location = resp.headers.get('location')/ a \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ location = location.replace('http', 'https')\" /usr/local/lib/python2.7/dist-packages/heatclient/common/http.py",
-        "docker exec -it %s sed -i \"23a \ \ \ \ kwargs['verify'] = False\"  /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
-        "docker exec -it %s sed -i \"s/return session.Session(auth=auth, verify=cacert)/return session.Session(auth=auth, verify=False)/\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/keystone.py",
-        "docker exec -it %s sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/glance.py",
-        "docker exec -it %s sed -i \"/token=keystone_client.auth_token,/a insecure=True,\" /usr/local/lib/python2.7/dist-packages/shaker/openstack/clients/heat.py"
-        ]
+            ("/location = resp.headers.get('location')/ a " + "\ "*16 + \
+                "location = location.replace('http', 'https')",
+             "heatclient/common/http.py"),
+            ("23a \ \ \ \ kwargs['verify'] = False",
+             "shaker/openstack/clients/keystone.py"),
+            ("s/return session.Session(auth=auth, verify=cacert)/return " +\
+                 "session.Session(auth=auth, verify=False)/",
+             "shaker/openstack/clients/keystone.py"),
+            ("/token=keystone_client.auth_token,/a insecure=True,",
+             "shaker/openstack/clients/glance.py"),
+            ("/token=keystone_client.auth_token,/a insecure=True,",
+             "shaker/openstack/clients/heat.py")
+            ]
         for cmd in cmds:
-            res = subprocess.check_output(cmd % self.container_id, shell=True,
+            path = os.path.join(path_prefix, cmd[-1])
+            cmd = " ".join([cmd_prefix, "\"" + cmd[0] +"\"", path])
+            res = subprocess.check_output(cmd, shell=True,
                                           stderr=subprocess.STDOUT)
 
     def clear_shaker_image(self):
@@ -251,7 +270,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_shaker_on_docker()
-        return super(ShakerOnDockerRunner, self).run_batch(tasks, *args, **kwargs)
+        return super(ShakerOnDockerRunner, self).run_batch(tasks, *args,
+                                                           **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         task_result = self._run_shaker_on_docker(task)
