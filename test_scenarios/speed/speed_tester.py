@@ -38,23 +38,27 @@ class BaseStorageSpeed(object):
             '1', username=access_data['os_username'],
             auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'])
+            project_id=access_data['os_tenant_name'],
+            insecure=True)
         self.novaclient = nova.Client(
             '2', username=access_data['os_username'],
             auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'])
+            project_id=access_data['os_tenant_name'],
+            insecure=True)
         self.key_client = keystone_v2.Client(
             username=access_data['os_username'],
             auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             password=access_data['os_password'],
-            tenant_name=access_data['os_tenant_name'])
+            tenant_name=access_data['os_tenant_name'],
+            insecure=True)
         image_api_url = self.key_client.service_catalog.url_for(
             service_type="image")
         self.glanceclient = glance.Client(
             '1',
             endpoint=image_api_url,
-            token=self.key_client.auth_token)
+            token=self.key_client.auth_token,
+            insecure=True)
         LOG.debug('Authentication ends well')
 
     def generate_report(self, storage, r_res, w_res):
@@ -135,7 +139,8 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Start cleanup resources')
         mcv = self.novaclient.servers.find(name='mcv')
         try:
-            subprocess.call('umount /mnt/testvolume')
+            subprocess.call('umount /mnt/testvolume', shell=True)
+            subprocess.call('rm -rf /mnt/testvolume', shell=True)
         except OSError:
             LOG.error('Unmounting volume failed')
 
