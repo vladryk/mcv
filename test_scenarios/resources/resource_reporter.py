@@ -13,6 +13,7 @@
 #    under the License.
 import json
 import logging
+import os
 
 import novaclient.client as nova
 import cinderclient.client as cinder
@@ -54,6 +55,7 @@ RESOURCES_TEMPLATE = {
 
 
 class ResourceSearch(object):
+
     resources = None
     access_data = None
 
@@ -117,38 +119,44 @@ class ResourceSearch(object):
         LOG.debug("Trying to obtain authenticated OS clients")
         self.key_client = keystone_v2.Client(
             username=access_data['os_username'],
-            auth_url='http://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             password=access_data['os_password'],
-            tenant_name=access_data['os_tenant_name'])
+            tenant_name=access_data['os_tenant_name'],
+            insecure=True)
 
         self.novaclient = nova.Client(
             '2', username=access_data['os_username'],
-            auth_url='http://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'])
+            project_id=access_data['os_tenant_name'],
+            insecure=True)
 
         self.cinderclient = cinder.Client(
             '1', username=access_data['os_username'],
-            auth_url='http://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'])
+            project_id=access_data['os_tenant_name'],
+            insecure=True)
         image_api_url = self.key_client.service_catalog.url_for(
             service_type="image")
         self.glanceclient = glance.Client(
             '1',
             endpoint=image_api_url,
-            token=self.key_client.auth_token)
+            token=self.key_client.auth_token,
+            insecure=True)
         network_api_url = self.key_client.service_catalog.url_for(
             service_type="network")
         self.neutronclient = neutron.Client(
             '2.0', token=self.key_client.auth_token,
             endpoint_url=network_api_url,
-            auth_url='http://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/')
+            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            insecure=True)
 
 
 class ErrorResourceSearch(ResourceSearch):
 
-    def __init__(self, access_data):
+    def __init__(self, access_data, *args, **kwargs):
+        self.config = kwargs.get('config')
         self.resources = {
             'servers': [],
             'volumes': [],
@@ -218,7 +226,8 @@ class ErrorResourceSearch(ResourceSearch):
         return self.fill_the_template()
 
     def fill_the_template(self):
-        temp = open('erred_template.txt', 'r')
+        path = os.path.join(os.path.dirname(__file__), 'erred_template.txt')
+        temp = open(path, 'r')
         template = temp.read()
         temp.close()
         servers = ''
@@ -232,7 +241,6 @@ class ErrorResourceSearch(ResourceSearch):
             volumes +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Is bootable {bootable}</td>\n'.format(**v)
         ports = ''
         for p in self.resources['ports']:
-            print p
             ports +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Fixed IPs {fixed_ips}</td>\n'.format(**p)
         return template.format(servers=servers,
                                images=images,
@@ -242,7 +250,8 @@ class ErrorResourceSearch(ResourceSearch):
 
 class GeneralResourceSearch(ResourceSearch):
 
-    def __init__(self, access_data):
+    def __init__(self, access_data, *args, **kwargs):
+        self.config = kwargs.get('config')
         self.resources = RESOURCES_TEMPLATE
         self.init_clients(access_data)
 
@@ -256,9 +265,11 @@ class GeneralResourceSearch(ResourceSearch):
     def _count_usage(self, usage):
         res = {}
         for f in usage:
-            if usage[f] * 1.0 / sum(usage.itervalues()) > 0.3:
-                used = usage[f] * 100 / sum(usage.itervalues())
-                res[f] = '%d%%' % used
+            if sum(usage.itervalues()) != 0:
+                if usage[f] * 1.0 / sum(usage.itervalues()) > 0.3:
+                    used = usage[f] * 100 / sum(usage.itervalues())
+                    res[f] = '%d%%' % used
+
         return res
 
     def get_flavor_data(self):
@@ -371,11 +382,12 @@ class GeneralResourceSearch(ResourceSearch):
         self.get_volume_data()
         self.get_image_data()
         self.get_network_data()
-        self.fill_the_template()
-        return self.resources
+        html = self.fill_the_template()
+        return html
 
     def fill_the_template(self):
-        temp = open('statistic_template.txt', 'r')
+        path = os.path.join(os.path.dirname(__file__), 'statistic_template.txt')
+        temp = open(path, 'r')
         template = temp.read()
         temp.close()
         return template.format(**self.resources)

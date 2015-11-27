@@ -22,8 +22,9 @@ LOG = logging
 
 class ResourceReportRunner(run.Runner):
 
-    def __init__(self, accessor):
+    def __init__(self, accessor, *args, **kwargs):
         # Need accessor for access data
+        self.config = kwargs.get("config")
         self.accessor = accessor
         self.identity = "resources"
         self.config_section = "resources"
@@ -56,7 +57,7 @@ class ResourceReportRunner(run.Runner):
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')
             return False
-        reporter = reporter_class(self.accessor.access_data)
+        reporter = reporter_class(self.accessor.access_data, config=self.config)
         res = reporter.search_resources()
         self.generate_report(res, task)
         return True
