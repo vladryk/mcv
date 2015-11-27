@@ -95,6 +95,11 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Creating test volume')
         self.vol = self.cinderclient.volumes.create(int(self.size))
         mcv = self.novaclient.servers.find(name='mcv')
+        for i in range(0, 60):
+            vol = self.cinderclient.volumes.get(self.vol.id)
+            if vol.status == 'available':
+                break
+            time.sleep(1)
         attach = self.novaclient.volumes.create_server_volume(mcv.id, self.vol.id, device='/dev/vdb')
         path = '/dev/disk/by-id/virtio-%s' % self.vol.id[:20]
         for i in range(0, 60):
