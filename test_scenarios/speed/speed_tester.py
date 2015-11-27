@@ -94,7 +94,17 @@ class BlockStorageSpeed(BaseStorageSpeed):
     def create_test_volume(self):
         LOG.debug('Creating test volume')
         self.vol = self.cinderclient.volumes.create(int(self.size))
-        mcv = self.novaclient.servers.find(name='mcv')
+        ip = self.config.get('basic', 'instance_ip')
+        servers = self.novaclient.servers.list()
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == ip:
+                        mcv = server
+        if not mcv:
+            LOG.error('You should specify correct instance IP in mcv.conf')
+            raise RuntimeError
         for i in range(0, 60):
             vol = self.cinderclient.volumes.get(self.vol.id)
             if vol.status == 'available':
