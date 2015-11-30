@@ -43,6 +43,7 @@ class ShakerRunner(runner.Runner):
         self.config_section = "shaker"
         self.test_failures = []  # this object is supposed to live for one run
                                  # so let's leave it as is for now.
+        self.failure_indicator = 40
 
     def _it_ends_well(self, something):
         if something.split('.')[-1] in self.valid_staarten:

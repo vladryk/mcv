@@ -31,6 +31,7 @@ class SpeedTestRunner(run.Runner):
         self.config = kwargs.get('config')
         self.test_failures = []
         super(SpeedTestRunner, self).__init__()
+        self.failure_indicator = 20
 
     def scenario_is_fine(self, scenario):
         return True

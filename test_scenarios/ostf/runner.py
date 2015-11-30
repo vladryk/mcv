@@ -45,6 +45,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.not_found = []
         self.container = None
         super(OSTFOnDockerRunner, self).__init__()
+        self.failure_indicator = 60
 
     def _do_config_extraction(self):
         LOG.info( "Preparing OSTF")

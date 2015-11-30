@@ -162,6 +162,7 @@ class RallyOnDockerRunner(RallyRunner):
         # whoever reads this please remove this ^^^^ abomination at first
         # chance.
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
+        self.failure_indicator = 50
 
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")

@@ -30,6 +30,7 @@ class ResourceReportRunner(run.Runner):
         self.config_section = "resources"
         self.test_failures = []
         super(ResourceReportRunner, self).__init__()
+        self.failure_indicator = 30
 
     def scenario_is_fine(self, scenario):
         return True

@@ -38,6 +38,7 @@ class Consoler(object):
         self.parser = parser
         self.args = args
         self.plugin_dir = "test_scenarios"
+        self.failure_indicator = 0
         pass
 
     def prepare_tests(self, test_group):
@@ -160,6 +161,12 @@ class Consoler(object):
                                                     concurrency=self.config.get('basic', 'concurrency'),
                                                     gre_enabled=self.config.get('basic', "gre_enabled"),
                                                     vlan_amount=self.config.get('basic', "vlan_amount"))
+
+                    if len(run_failures['test_failures']) > 0:
+                        if self.failure_indicator == 0:
+                            self.failure_indicator = runner.failure_indicator
+                        else:
+                            self.failure_indicator = 100
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
                         LOG.debug("It looks like you are trying to use a wrong "\
@@ -354,7 +361,5 @@ class Consoler(object):
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
-        if self.get_total_failures(run_results or {}) != 0:
-            return self.config.getint('basic', 'failure_indicator')
-        else:
-            return 0
+        return self.failure_indicator
+

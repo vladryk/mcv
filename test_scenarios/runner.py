@@ -33,6 +33,7 @@ class Runner(object):
         self.current_task = 1
         self.test_success = []
         self.test_not_found = []
+        self.failure_indicator = 10
         super(Runner, self).__init__()
 
     def _it_ends_well(self, scenario):

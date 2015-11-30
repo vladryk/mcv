@@ -44,6 +44,7 @@ class DummyRunner(runner.Runner):
             self.config_location = config_location
         self.test_failures = []  # this object is supposed to live for one run
                                  # so let's leave it as is for now.
+        self.failure_indicator = 70
 
     def _it_ends_well(self, something):
         return True

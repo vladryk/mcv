@@ -32,7 +32,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.path =  path
         self.container = None
         self.accessor = accessor
-        super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
+        super(rrunner.RallyOnDockerRunner, self).__init__(*args, **kwargs)
+        self.failure_indicator = 90
 
     def scenario_is_fine(self, scenario):
         return True
@@ -61,9 +62,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def run_batch(self, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(RallyRunner, self).run_batch(['tempest'], *args, **kwargs)
+        return super(rrunner.RallyRunner, self).run_batch(['tempest'], *args, **kwargs)
 
-    def run_individual_task(self, *args, **kwargs):
+    def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
         LOG.info("The following are the results of running Tempest: %s" %\
                  results)
