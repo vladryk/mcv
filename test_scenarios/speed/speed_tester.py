@@ -111,12 +111,21 @@ class BlockStorageSpeed(BaseStorageSpeed):
                 break
             time.sleep(1)
         attach = self.novaclient.volumes.create_server_volume(mcv.id, self.vol.id, device='/dev/vdb')
-        path = '/dev/disk/by-id/virtio-%s' % self.vol.id[:20]
+        id_path = '/dev/disk/%s/virtio-%s' % ('by-id', self.vol.id[:20])
+        uuid_path = '/dev/disk/%s/virtio-%s' % ('by-uuid', self.vol.id[:20])
+        path = None
         for i in range(0, 60):
-            if os.path.exists(path):
+            if os.path.exists(id_path):
                 LOG.debug('Volume created')
+                path = id_path
+                break
+            elif os.path.exists(uuid_path):
+                LOG.debug('Volume created')
+                path = uuid_path
                 break
             time.sleep(1)
+        if not path:
+            raise RuntimeError
         LOG.debug('Mounting volume to mcv VM')
         subprocess.call('mkfs.ext4 %s' % path, shell=True)
         subprocess.call('mkdir -p /mnt/testvolume', shell=True)
