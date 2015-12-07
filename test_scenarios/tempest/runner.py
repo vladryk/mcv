@@ -19,6 +19,7 @@ from test_scenarios.rally import runner as rrunner
 
 LOG = logging
 
+
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     """Runner to run Tempest via Rally.
 
@@ -29,17 +30,38 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs["config"]
-        self.path =  path
+        self.path = path
         self.container = None
         self.accessor = accessor
-        super(rrunner.RallyOnDockerRunner, self).__init__(*args, **kwargs)
-        self.failure_indicator = 90
+        super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
+        self.failure_indicator = 80
+
+    def _verify_rally_container_is_up(self):
+        self.verify_container_is_up("tempest")
 
     def scenario_is_fine(self, scenario):
         return True
 
     def _it_ends_well(self, scenario):
         return True
+
+    def start_tempest_container(self):
+        LOG.debug("Bringing up Tempest container with credentials")
+        protocol = self.config.get('basic', 'auth_protocol')
+        add_host = ""
+        if self.config.get("basic", "auth_fqdn") != '':
+            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+            [add_host]*(add_host != "") +
+            ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
+            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+            "-e", "OS_TENANT_NAME=" +
+            self.accessor.access_data["os_tenant_name"],
+            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-it", "mcv-tempest"], stdout=subprocess.PIPE).stdout.read()
+        self._verify_rally_container_is_up()
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         # TODO: when container contains Tempest use  --source /path/to/Tempest
@@ -62,7 +84,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def run_batch(self, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(rrunner.RallyRunner, self).run_batch(['tempest'], *args, **kwargs)
+        return super(TempestOnDockerRunner, self).run_batch(['tempest'], *args, **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
