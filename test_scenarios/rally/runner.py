@@ -12,8 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
-import re
 import ConfigParser
 import logging
 import os
@@ -281,7 +279,6 @@ class RallyOnDockerRunner(RallyRunner):
     def _check_rally_setup(self):
         self._check_and_fix_flavor()
         self._rally_deployment_check()
-
 
     def _setup_rally_on_docker(self):
         self.accessor.check_computes()

@@ -25,7 +25,6 @@ import subprocess
 import os
 import sys
 
-
 LOG = logging
 
 
@@ -39,7 +38,10 @@ class Consoler(object):
         self.args = args
         self.plugin_dir = "test_scenarios"
         self.failure_indicator = 0
-        pass
+        self.config_config()
+        self.concurrency = self.config.get('basic', 'concurrency')
+        self.gre_enabled = self.config.get('basic', "gre_enabled")
+        self.vlan_amount = self.config.get('basic', "vlan_amount")
 
     def prepare_tests(self, test_group):
         section  = "custom_test_group_" + test_group
@@ -52,6 +54,15 @@ class Consoler(object):
         out =  dict([(opt, self.config.get(section, opt)) for opt in
                     self.config.options(section)])
         return out
+
+    def config_config(self):
+        if self.args.config is not None:
+            default_config = self.args.config
+        else:
+            default_config = self.default_config_file
+        self.path_to_config = os.path.join(os.path.dirname(__file__),
+                                           default_config)
+        self.config.read(self.path_to_config)
 
     def do_custom(self, test_group):
         """Run custom test set.
@@ -96,7 +107,14 @@ class Consoler(object):
         # tests_to_run is a dictionary that looks like this:
         # {'rally':'test1,test2,test3', 'ostf':'test1,test2', 'wtf':'test8'}
         pretty_print_tests(tests_to_run)
+        if test_group.find('scale') != -1:
+            return self.do_scale(tests_to_run)
         return self.dispatch_tests_to_runners(tests_to_run)
+
+    def do_scale(self, tests_to_run):
+        LOG.info("Starting scale check run.")
+        self.concurrency = self.config.get('scale', 'concurrency')
+        print self.dispatch_tests_to_runners(tests_to_run)
 
     def do_short(self):
         """Run the most essential tests.
@@ -158,9 +176,10 @@ class Consoler(object):
                 LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
-                                                    concurrency=self.config.get('basic', 'concurrency'),
-                                                    gre_enabled=self.config.get('basic', "gre_enabled"),
-                                                    vlan_amount=self.config.get('basic', "vlan_amount"))
+                                                    concurrency=self.concurrency,
+                                                    gre_enabled=self.gre_enabled,
+                                                    vlan_amount=self.vlan_amount,
+                                                    test_group=kwargs.get('testgroup'))
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == 0:
@@ -317,13 +336,7 @@ class Consoler(object):
             self.parser.print_help()
             sys.exit(1)
         run_results = None
-        if self.args.config  is not None:
-            default_config = self.args.config
-        else:
-            default_config = self.default_config_file
-        self.path_to_config = os.path.join(os.path.dirname(__file__),
-                                           default_config)
-        self.config.read(self.path_to_config)
+
         # TODO: leaving this leftover for now. In the nearest future this
         # should be forwarded to the real logging.
         path_to_main_log = os.path.join(self.config.get('basic', 'logdir'),
@@ -345,7 +358,7 @@ class Consoler(object):
                     "folowing arguments: \'%(expected_args)s\'"
                 LOG.error(temessage % scolding, exc_info=True)
             except ValueError as e:
-                LOG.error("Some unexpected outer errojr has terminated the tool. Please try rerunning mcvconsoler")
+                LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler")
             except Exception as e:
                 print "Something went wrong with the command, please"\
                       " refer to logs to find out what"
