@@ -86,6 +86,7 @@ class SpeedTestRunner(run.Runner):
             res, r_average, w_average = reporter.measure_speed()
         except RuntimeError:
             LOG.error('Failed to measure speed')
+            self.test_failures.append(task)
             return False
         self.generate_report(res, task)
         if self._evaluate_task_results([r_average, w_average]):

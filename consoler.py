@@ -163,10 +163,12 @@ class Consoler(object):
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: ", exc_info=True)
+                self.failure_indicator = 12
             except Exception as e:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: ", exc_info=True)
+                self.failure_indicator = 12
             else:
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
@@ -194,6 +196,7 @@ class Consoler(object):
                     raise e
                 except Exception as e:
                     run_failures = test_dict[key].split(',')
+                    self.failure_indicator = 11
                     raise e
                 dispatch_result[key]['results'] = run_failures
                 dispatch_result[key]['batch'] = batch
@@ -359,10 +362,12 @@ class Consoler(object):
                 LOG.error(temessage % scolding, exc_info=True)
             except ValueError as e:
                 LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler")
+                self.failure_indicator = 13
             except Exception as e:
                 print "Something went wrong with the command, please"\
                       " refer to logs to find out what"
                 LOG.error("The following error has terminated the consoler:", exc_info=True)
+                self.failure_indicator = 13
         r_helper = do_finalization(run_results)
         self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
