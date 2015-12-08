@@ -200,7 +200,7 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
         self.endpoint = self.accessor.access_data['auth_endpoint_ip']
-        cmd = "docker exec -it %s shaker-image-builder --image-name " +\
+        cmd = "docker exec -it %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         # Note: make port configurable
