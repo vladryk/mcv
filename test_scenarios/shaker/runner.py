@@ -70,7 +70,7 @@ class ShakerRunner(runner.Runner):
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        # here out is in fact a command which can be run to obtain task resuls
+        # here out is in fact a command which can be run to obtain task results
         # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
         return out
@@ -96,6 +96,7 @@ class ShakerRunner(runner.Runner):
             return
         else:
             self.test_failures.append(task)
+
 
 class ShakerOnDockerRunner(ShakerRunner):
 
@@ -126,8 +127,9 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.info("Checking Shaker setup. If this is the first run of "\
                  "mcvconsoler on this cloud go grab some coffee, it will "\
                  "take a while.")
+        insecure = ""
         if self.config.get("basic", "auth_protocol") == "https":
-            self._patch_shaker()
+            insecure = " --os-insecure"
         path = '/etc/toolbox/shaker'
         for f in os.listdir(path):
             if f.endswith(".ss.img"):
@@ -141,7 +143,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         i_list = self.glance.images.list()
         image = False
         for im in i_list:
-            if im.name=='shaker-image':
+            if im.name == 'shaker-image':
                 image = True
         if not image:
             LOG.debug('Creating shaker image')
@@ -152,7 +154,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.debug("Run shaker-image-builder")
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.container_id,
-                                "shaker-image-builder--image-name shaker-image"],
+                                "shaker-image-builder --image-name shaker-image" + insecure],
                                 stdout=subprocess.PIPE).stdout.read()
 
     def start_shaker_container(self):
@@ -186,7 +188,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 break
 
     def _create_task_in_docker(self, task):
-        cmd  = "docker inspect -f '{{.Id}}' %s" % self.container
+        cmd = "docker inspect -f '{{.Id}}' %s" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
         LOG.debug("Preparing to task %s" % task)
@@ -199,18 +201,20 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
+        insecure = ""
+        if self.config.get("basic", "auth_protocol") == "https":
+            insecure = " --os-insecure"
         self.endpoint = self.accessor.access_data['auth_endpoint_ip']
         cmd = "docker exec -it %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
         # Note: make port configurable
-        cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario \
-         /etc/shaker/scenarios/networking/%s --report-template \
-         /etc/shaker/shaker/resources/report_template.jinja2 --debug \
-         --log-file /etc/shaker/shaker.log --output theoutput --report \
-         %s.html" % (self.container, self.accessor.access_data["instance_ip"],
+        cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario " \
+         "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
+         " --debug --output theoutput --report " \
+         "%s.html" % (self.container, self.accessor.access_data["instance_ip"],
                      task, task)
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %s cat theoutput" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         result = json.loads(p)
@@ -223,47 +227,19 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.clear_shaker_image()
         return result
 
-    def _patch_shaker(self):
-        # Currently there is a bug in shaker which prevents it from doing good
-        # things sometimes. Yes, that's the second reason we have too few good
-        # things. Not the best way to go, yet since noone is planning to
-        # develop it any time soon we'll stick with this.
-        LOG.debug("Patching Shaker.")
-        cmd_prefix = "docker exec -it %s sed -i" % self.container_id
-        path_prefix = "/usr/local/lib/python2.7/dist-packages"
-        cmds = [
-            ("/location = resp.headers.get('location')/ a " + "\ "*16 + \
-                "location = location.replace('http', 'https')",
-             "heatclient/common/http.py"),
-            ("23a \ \ \ \ kwargs['verify'] = False",
-             "shaker/openstack/clients/keystone.py"),
-            ("s/return session.Session(auth=auth, verify=cacert)/return " +\
-                 "session.Session(auth=auth, verify=False)/",
-             "shaker/openstack/clients/keystone.py"),
-            ("/token=keystone_client.auth_token,/a insecure=True,",
-             "shaker/openstack/clients/glance.py"),
-            ("/token=keystone_client.auth_token,/a insecure=True,",
-             "shaker/openstack/clients/heat.py")
-            ]
-        for cmd in cmds:
-            path = os.path.join(path_prefix, cmd[-1])
-            cmd = " ".join([cmd_prefix, "\"" + cmd[0] +"\"", path])
-            res = subprocess.check_output(cmd, shell=True,
-                                          stderr=subprocess.STDOUT)
-
     def clear_shaker_image(self):
         clear_image = self.config.get('shaker', 'clear_image')
         if clear_image == 'True':
             i_list = self.glance.images.list()
             for im in i_list:
-                if im.name=='shaker-image':
+                if im.name == 'shaker-image':
                     self.glance.images.delete(im)
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container, task_id)
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        if task_id.find("detailed") ==-1:
+        if task_id.find("detailed") == -1:
             res = json.loads(p)[0]  # actual test result as a dictionary
             return res
         else:
