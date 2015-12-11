@@ -163,7 +163,17 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     def cleanup(self):
         LOG.debug('Start cleanup resources')
-        mcv = self.novaclient.servers.find(name='mcv')
+        ip = self.config.get('basic', 'instance_ip')
+        servers = self.novaclient.servers.list()
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == ip:
+                        mcv = server
+        if not mcv:
+            LOG.error('You should specify correct instance IP in mcv.conf')
+            raise RuntimeError
         try:
             subprocess.call('umount /mnt/testvolume', shell=True)
             subprocess.call('rm -rf /mnt/testvolume', shell=True)
