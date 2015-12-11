@@ -53,7 +53,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
             [add_host]*(add_host != "") +
-            ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
+            ["-p", "6001:6001", "-e", "OS_AUTH_URL=" + protocol +"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
