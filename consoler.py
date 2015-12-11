@@ -114,7 +114,7 @@ class Consoler(object):
     def do_scale(self, tests_to_run):
         LOG.info("Starting scale check run.")
         self.concurrency = self.config.get('scale', 'concurrency')
-        print self.dispatch_tests_to_runners(tests_to_run)
+        return self.dispatch_tests_to_runners(tests_to_run)
 
     def do_short(self):
         """Run the most essential tests.
