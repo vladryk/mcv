@@ -45,6 +45,9 @@ class ShakerRunner(runner.Runner):
                                  # so let's leave it as is for now.
         self.failure_indicator = 40
 
+    def scenario_is_fine(self, scenario):
+        return True
+
     def _it_ends_well(self, something):
         if something.split('.')[-1] in self.valid_staarten:
             return True
