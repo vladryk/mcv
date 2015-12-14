@@ -56,6 +56,13 @@ class Runner(object):
                                       'tests', scenario)
         if os.path.exists(where_is_wally) and self._it_ends_well(scenario):
             return True
+
+        #@TODO(bartash): here we need this block, as this mechanism
+        # should be restructured completely
+        # In fact, if Rally scenarios are at the place they're expected to be,
+        # Certification Task scenarios must be there too
+        if scenario == 'certification':
+                return True
         return False
 
     def run_individual_task(self, task, *args, **kwargs):

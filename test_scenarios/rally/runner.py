@@ -285,20 +285,56 @@ class RallyOnDockerRunner(RallyRunner):
         self._verify_rally_container_is_up()
         self._check_rally_setup()
 
+   def _prepare_certification_task_args(self):
+        args = {}
+
+        def _ADD(argname):
+            args[argname] = self.config.get('certification', argname)
+
+        _ADD("tenants_amount")
+        _ADD("users_amount")
+        _ADD("storage_amount")
+        _ADD("computes_amount")
+        _ADD("controllers_amount")
+        _ADD("network_amount")
+
+        args["smoke"] = True
+        args["use_existing_users"] = False
+        args["flavor_name"] = "m1.tiny"
+        args["image_name"] = "^(cirros.*uec|TestVM)$"
+        args["glance_image_location"] = ""
+        args["service_list"] = self.config.get('certification', 'services'
+                                              ).split(',')
+        return args
+
+
     def _run_rally_on_docker(self, task, *args, **kwargs):
-        LOG.info("Starting task %s" % task)
-        cmd = "docker exec -it %(container)s rally task start"\
-              " %(location)s/%(task)s --task-args '{\"compute\":"\
-              "%(compute)s, \"concurrency\":%(concurrency)s,"\
-              "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
-              "\"vlan_amount\":%(vlan_amount)s}'" %\
-              {"container": self.container_id,
-               "compute": kwargs["compute"],
-               "concurrency": kwargs["concurrency"],
-               "gre_enabled": kwargs["gre_enabled"],
-               "vlan_amount": kwargs["vlan_amount"],
-               "task": task,
-               "location": self.test_storage_place}
+        if task == 'certification':
+            # Certification Task requires another way to run
+            LOG.info("Starting Rally Certification Task")
+            task_args = self._prepare_certification_task_args()
+
+            cmd = ("docker exec -it {container} rally task start"
+                  " {location}/certification/openstack/task.yaml"
+                  " --task-args '{task_args}'").format(
+                      container = self.container_id,
+                      location = self.test_storage_place,
+                      task_args = json.dumps(task_args))
+        else:
+            LOG.info("Starting task %s" % task)
+            cmd = "docker exec -it %(container)s rally task start"\
+                  " %(location)s/%(task)s --task-args '{\"compute\":"\
+                  "%(compute)s, \"concurrency\":%(concurrency)s,"\
+                 "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
+                  "\"vlan_amount\":%(vlan_amount)s}'" %\
+                  {"container": self.container_id,
+                   "compute": kwargs["compute"],
+                   "concurrency": kwargs["concurrency"],
+                   "gre_enabled": kwargs["gre_enabled"],
+                   "vlan_amount": kwargs["vlan_amount"],
+                   "task": task,
+                   "location": self.test_storage_place}
+
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
