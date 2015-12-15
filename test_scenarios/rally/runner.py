@@ -285,7 +285,7 @@ class RallyOnDockerRunner(RallyRunner):
         self._verify_rally_container_is_up()
         self._check_rally_setup()
 
-   def _prepare_certification_task_args(self):
+    def _prepare_certification_task_args(self):
         args = {}
 
         def _ADD(argname):
