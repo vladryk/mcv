@@ -151,7 +151,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         if not image:
             LOG.debug('Creating shaker image')
             self.glance.images.create(name='shaker-image', disk_format="qcow2",
-                                      container_format="bare",data=open(path))
+                                      container_format="bare", data=open(path),
+                                      min_disk=3, min_ram=512)
         else:
             LOG.debug("Shaker image exists")
         LOG.debug("Run shaker-image-builder")
