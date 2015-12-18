@@ -47,7 +47,9 @@ def fix_rally(file_location):
     p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
 def fix_shaker(file_location):
-    cmd = "sed -i '431 a \  <li class=\"active\" style=\"list-style-type: none;\"><a href=\"../index.html\">Back to Index</a></li>' %s" % file_location
+    cmd = "sed -i '/<div\ class=\"container\"\ id=\"container\">/ a\  <li " \
+    "class=\"active\" style=\"list-style-type: none;\"><a " \
+    "href=\"../index.html\">Back to Index</a></li>' %s" % file_location
     p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
 fix_dispatcher = {"rally": fix_rally, "shaker": fix_shaker}

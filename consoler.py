@@ -361,7 +361,7 @@ class Consoler(object):
                     "folowing arguments: \'%(expected_args)s\'"
                 LOG.error(temessage % scolding, exc_info=True)
             except ValueError as e:
-                LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler")
+                LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler", exc_info=True)
                 self.failure_indicator = 13
             except Exception as e:
                 print "Something went wrong with the command, please"\
