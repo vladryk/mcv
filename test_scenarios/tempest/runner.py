@@ -16,7 +16,7 @@
 import logging
 import subprocess
 from test_scenarios.rally import runner as rrunner
-
+import json
 LOG = logging
 
 
@@ -33,6 +33,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.path = path
         self.container = None
         self.accessor = accessor
+
         super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
         self.failure_indicator = 80
 
@@ -65,7 +66,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         # TODO: when container contains Tempest use  --source /path/to/Tempest
-        LOG.info("Starting Tempest verification")
+        LOG.info("Searching for installed tempest")
+        cmd = 'docker exec -it %(container)s find /home/rally/.rally/tempest -name "for-deployment-*" -type d ' % {"container": self.container_id}
+        install = p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        if not install:
+            LOG.info("No installation found. Installing tempest")
+            cmd = "docker exec -it %(container)s rally verify install --deployment existing --source /tempest"
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        LOG.info("Starting verification")
         cmd = "docker exec -it %(container)s rally verify start" %\
               {"container": self.container_id}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -74,20 +82,60 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         # get the last run results. This should be done in a more robust and
         # sane manner at some point.
+        run = p.split('\n')[-3].split('|')[8]
+        if run == 'failed':
+            LOG.error('Verification failed, unable to generate report')
+            return ''
         run = p.split('\n')[-3].split('|')[1]
-        cmd = "docker exec -it %(container)s rally verify show %(run)s" %\
-              {"container": self.container_id,
-               "run": run}
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        # TODO: should contain also a pass/fail indicator from Tempest
+        LOG.info('Generating html report')
+        cmd = "docker exec -it %(container)s rally verify results --html --out=%(task)s.html" % {"container": self.container_id, "task": task}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %(container)s rally verify results --json" % {"container": self.container_id}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         return p
+
+    def parse_results(self, res):
+        LOG.info("Parsing results")
+        if res == '':
+            self.failure_indicator = 83
+            return False
+        self.tasks = json.loads(res)
+        failures = self.tasks.get('failures')
+        errors = self.tasks.get('errors')
+        for (name, case) in self.tasks['test_cases'].iteritems():
+            if case['status'] == 'OK':
+                self.test_success.append(case['name'])
+        if failures or errors:
+            for (name, case) in self.tasks['test_cases'].iteritems():
+                if case['status'] == 'FAIL':
+                    self.test_failures.append(case['name'])
+                    self.failure_indicator = 81
+                elif case['status'] == 'ERROR':
+                    self.test_failures.append(case['name'])
+                    self.failure_indicator = 82
+            return False
+        return True
 
     def run_batch(self, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(TempestOnDockerRunner, self).run_batch(['tempest'], *args, **kwargs)
+        self.run_individual_task('tempest', *args,  **kwargs)
+        tasks = self.tasks['test_cases'].keys()
+        self.total_checks = len(tasks)
+        LOG.info("Running full tempest suite ")
+        return {"test_failures": self.test_failures,
+                "test_success": self.test_success,
+                "test_not_found": self.test_not_found}
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
-        LOG.info("The following are the results of running Tempest: %s" %\
-                 results)
-        return True
+
+        self.parse_results(results)
+        if not self.test_failures:
+            return True
+        return False
