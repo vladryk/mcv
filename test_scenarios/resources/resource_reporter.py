@@ -324,7 +324,11 @@ class GeneralResourceSearch(ResourceSearch):
         most_used = self._count_usage(self.resources['volumes'])
         self.resources['most_used_volumes'] = most_used
         unused = sum([v.size for v in volumes if v.status != 'in-use'])
-        unattached = unused * 100 / sum([v.size for v in volumes])
+        full_size = sum([v.size for v in volumes])
+        if full_size:
+            unattached = unused * 100 / full_size
+        else:
+            unattached = 100
         self.resources['unattached'] = '%d%%' % unattached
         LOG.debug('Volume usage statistic successfully collected')
 
@@ -353,7 +357,11 @@ class GeneralResourceSearch(ResourceSearch):
         self.resources['most_used_images'] = most_used
         # Need it because glance returns generator
         all_images = self.glanceclient.images.list()
-        unused = sum(self.resources['images'].itervalues()) * 100 / sum([i.size for i in all_images])
+        full_size = sum([i.size for i in all_images])
+        if full_size:
+            unused = sum(self.resources['images'].itervalues()) * 100 / full_size
+        else:
+            unused = 100
         self.resources['unused'] = '%d%%' % unused
         LOG.debug('Image usage statistic successfully collected')
 
