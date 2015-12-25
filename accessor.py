@@ -366,6 +366,9 @@ class AccessSteward(object):
         self._get_novaclient().security_group_rules.\
                        create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
                               from_port=6000, to_port=6000, cidr='0.0.0.0/0')
+        self._get_novaclient().security_group_rules.\
+                       create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
+                              from_port=6001, to_port=6001, cidr='0.0.0.0/0')
         LOG.debug("Finished creating a group and adding rules")
         servers = self._get_novaclient().servers.list()
         # TODO: this better be made pretty

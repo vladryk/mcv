@@ -17,6 +17,7 @@ import logging
 import subprocess
 from test_scenarios.rally import runner as rrunner
 import json
+import glob
 LOG = logging
 
 
@@ -63,16 +64,40 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-it", "mcv-tempest"], stdout=subprocess.PIPE).stdout.read()
         self._verify_rally_container_is_up()
+        # here we fix glance image issues
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+        self.long_id = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).rstrip('\n')
+
+    def copy_tempest_image(self):
+        LOG.info('Copying image files required by tempest')
+        subprocess.Popen(["sudo", "chmod", "a+r",
+                          "/etc/toolbox/rally/cirros-0.3.4-x86_64-disk.img"],
+                         stdout=subprocess.PIPE).stdout.read()
+        cmd = "docker exec -it %(container)s mkdir /home/rally/.rally/tempest/data" %\
+              {"container": self.container_id}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        subprocess.Popen(["sudo", "cp",
+                          "/etc/toolbox/rally/cirros-0.3.4-x86_64-disk.img",
+                          "/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/data"\
+                          % {"id": self.long_id, }],\
+                          stdout=subprocess.PIPE).stdout.read()
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
-        # TODO: when container contains Tempest use  --source /path/to/Tempest
         LOG.info("Searching for installed tempest")
-        cmd = 'docker exec -it %(container)s find /home/rally/.rally/tempest -name "for-deployment-*" -type d ' % {"container": self.container_id}
-        install = p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+        self.long_id = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).rstrip('\n')
+
+        install = glob.glob('/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/for-deployment-*'% {"id": self.long_id})
         if not install:
             LOG.info("No installation found. Installing tempest")
-            cmd = "docker exec -it %(container)s rally verify install --deployment existing --source /tempest"
+            cmd = "docker exec -it %(container)s rally verify install --deployment existing --source /tempest"%\
+             {"container": self.container_id}
+
             p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            cirros = glob.glob('/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/data/cirros-*'% {"id": self.long_id})
+            if not cirros:
+                self.copy_tempest_image()
+
         LOG.info("Starting verification")
         cmd = "docker exec -it %(container)s rally verify start" %\
               {"container": self.container_id}
@@ -100,6 +125,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         return p
 
+    def _patch_rally(self):
+        pass
+
     def parse_results(self, res):
         LOG.info("Parsing results")
         if res == '':
@@ -109,16 +137,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         failures = self.tasks.get('failures')
         errors = self.tasks.get('errors')
         for (name, case) in self.tasks['test_cases'].iteritems():
-            if case['status'] == 'OK':
+            if case['status'] == 'success':
                 self.test_success.append(case['name'])
         if failures or errors:
             for (name, case) in self.tasks['test_cases'].iteritems():
-                if case['status'] == 'FAIL':
+                if case['status'] == 'fail':
                     self.test_failures.append(case['name'])
                     self.failure_indicator = 81
-                elif case['status'] == 'ERROR':
-                    self.test_failures.append(case['name'])
-                    self.failure_indicator = 82
             return False
         return True
 
