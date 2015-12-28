@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" dir="ltr" lang="en-US">
+<head profile="http://gmpg.org/xfn/11">
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+  <title>Network speed</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.4/simplex/bootstrap.min.css">
+  <link rel='stylesheet' type='text/css'
+      href='http://fonts.googleapis.com/css?family=Open+Sans:400,700,400italic&subset=latin,cyrillic'>
+</head>
+<body>
+<div class="container" id="container">
+  <li class="active" style="list-style-type: none;"><a href="../index.html">Back to Index</a></li>
+  <div class="row text-center">
+    <h1>MCV Report | Network speed</h1>
+  </div>
+  <hr>
+  <div class="row">
+    <h3>Measure VM to VM network speed.</h3>
+    Threshold of storage speed specified in <b>{threshold} Gb/s</b>
+
+<div id="records_table_wrapper" class="dataTables_wrapper no-footer"><table class="table table-striped dataTable no-footer" id="records_table" role="grid">
+    <thead>
+    <tr role="row">
+      <th class="sorting_asc" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-label="Test Case: activate to sort column ascending" style="width: 68px;">
+        Test Case
+      </th>
+      <th class="sorting" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-sort="ascending" aria-label="Scenario: activate to sort column ascending" style="width: 120px;">
+        Scenario
+      </th>
+      <th class="sorting" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-label="Mean Speed: activate to sort column ascending" style="width: 84px;">
+        Mean Speed(Gb/s)
+      </th>
+      <th class="sorting" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-label="Compute Node: activate to sort column ascending" style="width: 160px;">
+        Compute Node
+      </th>
+      <th class="sorting" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-label="More Information: activate to sort column ascending" style="width: 134px;">
+        More Information
+      </th>
+      <th class="sorting" tabindex="0" aria-controls="records_table" rowspan="1" colspan="1" aria-label="Status: activate to sort column ascending" style="width: 52px;">
+        Status
+      </th>
+    </tr>
+    </thead>
+    <tbody>
+
+    {output}
+
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

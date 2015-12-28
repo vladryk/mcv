@@ -1,0 +1,14 @@
+description:
+  Same tenants via floating IP and VMs are on different nodes
+
+deployment:
+  template: l3_north_south.hot
+  accommodation: [pair, single_room]
+
+execution:
+  progression: quadratic
+  tests:
+  -
+    title: TCP download
+    class: flent
+    method: tcp_download

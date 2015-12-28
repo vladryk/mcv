@@ -108,6 +108,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.container_id = None
         self.accessor = accessor
         self.path = path
+        self.list_speed_tests = ['same_node.yaml', 'different_nodes.yaml',
+                                 'floating_ip.yaml']
         super(ShakerOnDockerRunner, self).__init__()
 
     def get_glanceclient(self):
@@ -195,12 +197,13 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = "docker inspect -f '{{.Id}}' %s" % self.container
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
-        LOG.debug("Preparing to task %s" % task)
-        cmd = r"cp "+test_location+\
-              " /var/lib/docker/aufs/mnt/%s/tmp/pending_rally_task" %\
+        LOG.info("Preparing to task %s" % task)
+        cmd = r"cp " + test_location +\
+              " /var/lib/docker/aufs/mnt/%s/usr/local/lib/python2.7/"\
+              "dist-packages/shaker/scenarios/networking/" %\
               p.rstrip('\n')
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        LOG.debug("Successfully prepared to task %s" % task)
+        LOG.info("Successfully prepared to task %s" % task)
 
 
     def _run_shaker_on_docker(self, task):
@@ -212,20 +215,37 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = "docker exec -it %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
         p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
+
+        if (task in self.list_speed_tests):
+            self._create_task_in_docker(task)
+
         # Note: make port configurable
         cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario " \
          "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
-         " --debug --output theoutput --report " \
-         "%s.html" % (self.container, self.accessor.access_data["instance_ip"],
-                     task, task)
+         " --debug --output %s.out --report-template json --report " \
+         "%s.json" % (self.container, self.accessor.access_data["instance_ip"],
+                     task, task, task)
         p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %s cat theoutput" % self.container
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        result = json.loads(p)
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        container_id = p.rstrip('\n')
+
+        cmd = "docker exec -it %s shaker-report --input %s.out --report " \
+         "%s.html" % (self.container, task, task)
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+
+        cmd = "sudo cp %(pref)s/%(id)s/%(task)s.json %(pth)s" % \
+                  {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
+                   'task': task, "pth": self.path}
+        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+
+        temp = open('%s/%s.json' % (self.path, task), 'r')
+        p = temp.read()
+        temp.close()
+        result = json.loads(p)
+
         cmd = "sudo cp %(pref)s/%(id)s/%(task)s.html %(pth)s" % \
-                  {"pref": "/var/lib/docker/aufs/mnt", "id": p.rstrip('\n'),
+                  {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
                    'task': task, "pth": self.path}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         self.clear_shaker_image()
@@ -249,12 +269,136 @@ class ShakerOnDockerRunner(ShakerRunner):
         else:
             return p.split('\n')[-4:-1]
 
+    def _parse_shaker_report(self, task, threshold):
+
+        f = open('%s/%s.json' % (self.path, task), 'r')
+        report = json.loads(f.read())
+        f.close()
+
+        test_case = ''
+        for i in report['scenarios']:
+            test_case += report['scenarios'][i]['description']
+
+        speeds = []
+        for i in report['records']:
+            try:
+                if report['records'][i]['chart'][1][0] == "Mean TCP download":
+                    speeds = report['records'][i]['chart'][1]
+                    speeds.pop(0)
+            except KeyError:
+                pass
+
+        nodes = set()
+
+        for i in report['agents']:
+            nodes.add(report['agents'][i]['node'])
+
+        success = True & len(speeds)
+        for i in speeds:
+            if (i < float(threshold) * 1024):
+                success = False
+
+        ok = """
+        <span class="label label-success">
+          <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+          success
+        </span>
+        """
+
+        error = """
+        <span class="label label-danger">
+          <span class="glyphicon glyphicon-stop" aria-hidden="true"></span>
+          error
+        </span>
+        """
+
+        if (success):
+            status = ok
+        else:
+            status = error
+
+        return test_case, speeds, nodes, success, status
+
+    def _generate_one_row_report(self, result, task, threshold):
+        template = """
+        <tr role="row">
+          <td class="sorting_1">{test_case}</td>
+          <td>{scenario}</td>
+          <td>{speed}</td>
+          <td>{node}</td>
+          <td>
+            <a href="./{task}.html">shaker report</a>
+          </td>
+          <td>{status}</td>
+        </tr>
+        """
+
+        test_case, speeds, nodes, success, status = self._parse_shaker_report(
+            task, threshold)
+        speed = ''
+        for i in speeds:
+            to_gb = i / 1024
+            speed += '%.2f' % to_gb + ', '
+        speed = speed[:-2]
+        node = ''
+        for i in nodes:
+            node += i + ', '
+        node = node[:-2]
+
+        return template.format(test_case=test_case,
+                               scenario=task,
+                               speed=speed,
+                               node=node,
+                               task=task,
+                               status=status), success
+
+    def _generate_report_network_speed(self, threshold, task, output):
+        LOG.info('Generating report for network_speed tests')
+
+        path = os.path.join(os.path.dirname(__file__), 'network_speed_template.html')
+        temp = open(path, 'r')
+        template = temp.read()
+        temp.close()
+        template = template.format(threshold=threshold, output=output)
+
+        report = file('%s/%s.html' % (self.path, task), 'w')
+        report.write(template)
+        report.close()
+
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_shaker_on_docker()
         return super(ShakerOnDockerRunner, self).run_batch(tasks, *args,
                                                            **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
+        if (task == 'network_speed'):
+            self.failure_indicator = 22
+
+            try:
+                threshold = self.config.get('network_speed', 'threshold')
+            except ConfigParser.NoOptionError:
+                LOG.info('Default threshold is 7 Gb/s')
+                threshold = 7
+
+            output = ''
+            success = True
+
+            for internal_task in self.list_speed_tests:
+                task_result = self._run_shaker_on_docker(internal_task)
+                row, report_status = self._generate_one_row_report(task_result,
+                    internal_task, threshold)
+                output += row
+                success &= report_status
+            self._generate_report_network_speed(threshold, task, output)
+
+            if success:
+                return True
+            else:
+                LOG.warning("Task %s has failed with %s" % (
+                    task, '"Average network speed is less then threshold"'))
+                self.test_failures.append(task)
+                return False
+
         task_result = self._run_shaker_on_docker(task)
         if type(task_result) == dict and\
                 self._evaluate_task_result(task, task_result):

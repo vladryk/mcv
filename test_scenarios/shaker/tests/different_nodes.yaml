@@ -1,0 +1,14 @@
+description:
+  Same tenant VMs on different nodes
+
+deployment:
+  template: l2.hot
+  accommodation: [pair, single_room]
+
+execution:
+  progression: linear
+  tests:
+  -
+    title: TCP download
+    class: flent
+    method: tcp_download
