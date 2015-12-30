@@ -16,6 +16,7 @@ import logging
 import ConfigParser
 
 import test_scenarios.runner as run
+from test_scenarios.speed.prepare_instance import Preparer
 from test_scenarios.speed import speed_tester as st
 
 LOG = logging
@@ -30,6 +31,7 @@ class SpeedTestRunner(run.Runner):
         self.config_section = "speed"
         self.config = kwargs.get('config')
         self.test_failures = []
+        self.path = path
         super(SpeedTestRunner, self).__init__()
         self.failure_indicator = 20
 
@@ -53,13 +55,28 @@ class SpeedTestRunner(run.Runner):
                 break
         return res
 
+    def _prepare_vm(self):
+        tenant = self.accessor.access_data['os_tenant_name']
+        auth_url = self.config.get('basic', 'auth_protocol') + "://"
+        auth_url += self.accessor.access_data["auth_endpoint_ip"]
+        auth_url += ":5000/v2.0/"
+        myPreparer = Preparer(uname=self.accessor.access_data['os_username'],
+                              passwd=self.accessor.access_data['os_password'],
+                              tenant=tenant,
+                              auth_url=auth_url)
+        return myPreparer.prepare_instance()
+
+    def _remove_vm(self):
+        myPreparer = Preparer()
+        myPreparer.delete_instance()
+
     def run_batch(self, tasks, *args, **kwargs):
         return super(SpeedTestRunner, self).run_batch(tasks)
 
     def generate_report(self, html, task):
         # Append last run to existing file for now. Not sure how to fix this properly
         LOG.debug('Generating report in speed.html file')
-        report = file('%s.html' % task, 'w')
+        report = file('%s/%s.html' % (self.path, task), 'w')
         report.write(html)
         report.close()
 
