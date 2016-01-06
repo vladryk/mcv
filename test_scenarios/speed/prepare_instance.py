@@ -78,7 +78,7 @@ class Preparer(object):
     def _launch_instance(self):
         LOG.info('Launch instance from cirros-image')
         image = self.nova.images.find(name="cirros-image")
-        flavor = self.nova.flavors.find(name="m1.tiny")
+        flavor = self.nova.flavors.find(name="m1.nano")
         network = self.nova.networks.find(label="net04")
         self.server = self.nova.servers.create(name="speed-test",
                                                image=image.id,

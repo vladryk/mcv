@@ -15,6 +15,7 @@ import logging
 import subprocess
 import time
 import os
+import paramiko
 
 import cinderclient.client as cinder
 import glanceclient as glance
@@ -31,6 +32,7 @@ class BaseStorageSpeed(object):
         self.config = kwargs.get('config')
         self.init_clients(access_data)
         self.size = None
+        self.timeout = 0
 
     def init_clients(self, access_data):
         LOG.debug("Trying to obtain authenticated OS clients")
@@ -84,70 +86,112 @@ class BaseStorageSpeed(object):
                                r_average=r_average,
                                w_average=w_average), r_average, w_average
 
+    def get_test_vm(self):
+        vm = self.novaclient.servers.find(name='speed-test')
+        addr  = vm.addresses.values()[0]
+        for a in addr:
+            if a['OS-EXT-IPS:type'] == 'floating':
+                floating_ip = a['addr']
+
+        return vm, floating_ip
+
+    def set_ssh_connection(self, ip):
+        hostname = ip
+        port = 22
+        username = 'cirros'
+        password = 'cubswin:)'
+        self.client = paramiko.Transport((hostname, port))
+        self.client.connect(username=username, password=password)
+        LOG.info('SSH connection to test VM successfully established')
+
+    def run_ssh_cmd(self, cmd):
+        command = 'sudo ' + cmd
+        stdout_data = []
+        stderr_data = []
+        session = self.client.open_channel(kind='session')
+        session.exec_command(command)
+        while True:
+            if session.recv_ready():
+                stdout_data.append(session.recv(1024))
+            if session.recv_stderr_ready():
+                stderr_data.append(session.recv_stderr(1024))
+            if session.exit_status_ready():
+                break
+
+        status = session.recv_exit_status()
+        if status != 0:
+            LOG.info('Command "%s" finished with non-zero exit code'% cmd)
+        out = ''.join(stdout_data)
+        err = ''.join(stderr_data)
+        session.close()
+        return out
+
 
 class BlockStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
         self.size = kwargs.get('volume_size')
+        self.device = None
 
     def create_test_volume(self):
         LOG.debug('Creating test volume')
+        (self.test_vm, test_vm_ip) = self.get_test_vm()
+        self.set_ssh_connection(test_vm_ip)
         self.vol = self.cinderclient.volumes.create(int(self.size))
-        ip = self.config.get('basic', 'instance_ip')
-        servers = self.novaclient.servers.list()
-        for server in servers:
-            addr = server.addresses
-            for network, ifaces in addr.iteritems():
-                for iface in ifaces:
-                    if iface['addr'] == ip:
-                        mcv = server
-        if not mcv:
-            LOG.error('You should specify correct instance IP in mcv.conf')
+
+        if not self.test_vm:
+            LOG.error('Creation of test vm failed')
             raise RuntimeError
         for i in range(0, 60):
             vol = self.cinderclient.volumes.get(self.vol.id)
             if vol.status == 'available':
                 break
             time.sleep(1)
-        attach = self.novaclient.volumes.create_server_volume(mcv.id, self.vol.id, device='/dev/vdb')
-        id_path = '/dev/disk/%s/virtio-%s' % ('by-id', self.vol.id[:20])
-        uuid_path = '/dev/disk/%s/virtio-%s' % ('by-uuid', self.vol.id[:20])
-        path = None
+
+        attach = self.novaclient.volumes.create_server_volume(self.test_vm.id, self.vol.id, device='/dev/vdb')
+        path = '/dev/vdb'
+        cmd = "test -e %s && echo 1" % path
         for i in range(0, 60):
-            if os.path.exists(id_path):
-                LOG.debug('Volume created')
-                path = id_path
+            res = self.run_ssh_cmd(cmd)
+            if res:
+                self.device = path
                 break
-            elif os.path.exists(uuid_path):
-                LOG.debug('Volume created')
-                path = uuid_path
-                break
+
             time.sleep(1)
-        if not path:
-            raise RuntimeError
-        LOG.debug('Mounting volume to mcv VM')
-        subprocess.call('mkfs.ext4 %s' % path, shell=True)
-        subprocess.call('mkdir -p /mnt/testvolume', shell=True)
-        try:
-            subprocess.call('mount %s /mnt/testvolume' % path, shell=True)
-        except IOError, OSError:
-            LOG.error('Mounting volume failed')
-            raise RuntimeError
+        #NOTE: cirros or cinder work strange and sometimes attach volume not to specified device,
+        #  so additional check for it
+        if not self.device:
+            cmd = "test -e %s && echo 1" % '/dev/vdc'
+            res = self.run_ssh_cmd(cmd)
+            if res:
+                self.device = '/dev/vdc'
+
+        if not self.device:
+            LOG.error("Failed to attach test volume")
+            self.cleanup()
+            raise e
+        LOG.debug('Mounting volume to test VM')
+        res = self.run_ssh_cmd('/usr/sbin/mkfs.ext4 %s' % self.device)
+        res = self.run_ssh_cmd('mkdir -p /mnt/testvolume')
+        res = self.run_ssh_cmd('mount %s /mnt/testvolume' % self.device)
+
         LOG.debug('Volume successfully created')
 
     def measure_write(self):
         count = 1024 * float(self.size)
         start_time = time.time()
 
-        subprocess.call(['dd', 'conv=notrunc', 'if=/dev/urandom', 'of=/mnt/testvolume/testimage.ss.img', 'bs=1M', 'count=%d' % count])
+        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/urandom of=/mnt/testvolume/testimage.ss.img bs=1M count=%d' % count)
+
         return time.time() - start_time
 
     def measure_read(self):
         count = 1024 * float(self.size)
         start_time = time.time()
 
-        subprocess.call(['dd', 'if=/mnt/testvolume/testimage.ss.img', 'of=/dev/zero', 'bs=1M', 'count=%d' % count])
+        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=1M count=%d' % count)
+
         return time.time() - start_time
 
     def measure_speed(self):
@@ -163,24 +207,14 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     def cleanup(self):
         LOG.debug('Start cleanup resources')
-        ip = self.config.get('basic', 'instance_ip')
-        servers = self.novaclient.servers.list()
-        for server in servers:
-            addr = server.addresses
-            for network, ifaces in addr.iteritems():
-                for iface in ifaces:
-                    if iface['addr'] == ip:
-                        mcv = server
-        if not mcv:
-            LOG.error('You should specify correct instance IP in mcv.conf')
-            raise RuntimeError
+        vm, ip = self.get_test_vm()
         try:
-            subprocess.call('umount /mnt/testvolume', shell=True)
-            subprocess.call('rm -rf /mnt/testvolume', shell=True)
+            res = self.run_ssh_cmd('umount /mnt/testvolume')
+            res = self.run_ssh_cmd('rm -rf /mnt/testvolume')
         except OSError:
             LOG.error('Unmounting volume failed')
-
-        self.novaclient.volumes.delete_server_volume(mcv.id, self.vol.id)
+        self.client.close()
+        self.novaclient.volumes.delete_server_volume(vm.id, self.vol.id)
         LOG.debug('Waiting for volume became available')
         for i in range(0, 60):
             vol = self.cinderclient.volumes.get(self.vol.id)
