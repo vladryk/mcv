@@ -12,10 +12,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 import logging
-import subprocess
-import time
+import math
 import os
 import paramiko
+import subprocess
+import time
 
 import cinderclient.client as cinder
 import glanceclient as glance
@@ -23,7 +24,6 @@ from keystoneclient.v2_0 import client as keystone_v2
 import novaclient.client as nova
 
 LOG = logging
-
 
 
 class BaseStorageSpeed(object):
@@ -100,9 +100,21 @@ class BaseStorageSpeed(object):
         port = 22
         username = 'cirros'
         password = 'cubswin:)'
-        self.client = paramiko.Transport((hostname, port))
-        self.client.connect(username=username, password=password)
-        LOG.info('SSH connection to test VM successfully established')
+
+        conn = False
+        for i in range(0, 20):
+            try:
+                self.client = paramiko.Transport((hostname, port))
+                self.client.connect(username=username, password=password)
+                conn = True
+                break
+            except paramiko.SSHException as e:
+                LOG.info('Waiting for test VM became available')
+            time.sleep(10)
+        if conn:
+            LOG.info('SSH connection to test VM successfully established')
+        else:
+            raise RuntimeError("Can't connect to test vm")
 
     def run_ssh_cmd(self, cmd):
         command = 'sudo ' + cmd
@@ -138,27 +150,27 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Creating test volume')
         (self.test_vm, test_vm_ip) = self.get_test_vm()
         self.set_ssh_connection(test_vm_ip)
-        self.vol = self.cinderclient.volumes.create(int(self.size))
+        self.vol = self.cinderclient.volumes.create(int(math.ceil(self.size)))
 
         if not self.test_vm:
             LOG.error('Creation of test vm failed')
             raise RuntimeError
-        for i in range(0, 60):
+        for i in range(0, 20):
             vol = self.cinderclient.volumes.get(self.vol.id)
             if vol.status == 'available':
                 break
-            time.sleep(1)
+            time.sleep(3)
 
         attach = self.novaclient.volumes.create_server_volume(self.test_vm.id, self.vol.id, device='/dev/vdb')
         path = '/dev/vdb'
         cmd = "test -e %s && echo 1" % path
-        for i in range(0, 60):
+        for i in range(0, 20):
             res = self.run_ssh_cmd(cmd)
             if res:
                 self.device = path
                 break
 
-            time.sleep(1)
+            time.sleep(3)
         #NOTE: cirros or cinder work strange and sometimes attach volume not to specified device,
         #  so additional check for it
         if not self.device:
@@ -170,7 +182,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
         if not self.device:
             LOG.error("Failed to attach test volume")
             self.cleanup()
-            raise e
+            raise RuntimeError
         LOG.debug('Mounting volume to test VM')
         res = self.run_ssh_cmd('/usr/sbin/mkfs.ext4 %s' % self.device)
         res = self.run_ssh_cmd('mkdir -p /mnt/testvolume')
@@ -179,7 +191,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Volume successfully created')
 
     def measure_write(self):
-        count = 1024 * float(self.size)
+        count = 1000 * float(self.size)
         start_time = time.time()
 
         res = self.run_ssh_cmd('dd conv=notrunc if=/dev/urandom of=/mnt/testvolume/testimage.ss.img bs=1M count=%d' % count)
@@ -187,7 +199,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
         return time.time() - start_time
 
     def measure_read(self):
-        count = 1024 * float(self.size)
+        count = 1000 * float(self.size)
         start_time = time.time()
 
         res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=1M count=%d' % count)
@@ -226,7 +238,6 @@ class BlockStorageSpeed(BaseStorageSpeed):
         except Exception:
             LOG.error('Deleting test volume failed')
         LOG.debug('Cleanup finished')
-
 
 
 class ObjectStorageSpeed(BaseStorageSpeed):
