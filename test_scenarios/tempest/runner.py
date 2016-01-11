@@ -71,13 +71,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')
         subprocess.Popen(["sudo", "chmod", "a+r",
-                          "/etc/toolbox/rally/cirros-0.3.4-x86_64-disk.img"],
+                          "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img"],
                          stdout=subprocess.PIPE).stdout.read()
         cmd = "docker exec -it %(container)s mkdir /home/rally/.rally/tempest/data" %\
               {"container": self.container_id}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         subprocess.Popen(["sudo", "cp",
-                          "/etc/toolbox/rally/cirros-0.3.4-x86_64-disk.img",
+                          "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img",
                           "/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/data"\
                           % {"id": self.long_id, }],\
                           stdout=subprocess.PIPE).stdout.read()
