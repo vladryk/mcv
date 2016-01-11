@@ -55,7 +55,7 @@ class SpeedTestRunner(run.Runner):
                 break
         return res
 
-    def _prepare_vm(self):
+    def get_preparer(self):
         tenant = self.accessor.access_data['os_tenant_name']
         auth_url = self.config.get('basic', 'auth_protocol') + "://"
         auth_url += self.accessor.access_data["auth_endpoint_ip"]
@@ -64,10 +64,14 @@ class SpeedTestRunner(run.Runner):
                               passwd=self.accessor.access_data['os_password'],
                               tenant=tenant,
                               auth_url=auth_url)
+        return myPreparer
+
+    def _prepare_vm(self):
+        myPreparer = self.get_preparer()
         return myPreparer.prepare_instance()
 
     def _remove_vm(self):
-        myPreparer = Preparer()
+        myPreparer = self.get_preparer()
         myPreparer.delete_instance()
 
     def run_batch(self, tasks, *args, **kwargs):
