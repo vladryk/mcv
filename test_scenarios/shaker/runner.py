@@ -248,7 +248,11 @@ class ShakerOnDockerRunner(ShakerRunner):
                   {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
                    'task': task, "pth": self.path}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        self.clear_shaker_image()
+
+        # Network speed test includes three scenario, function 'clear_image'
+        # will run after completing all of scenarios
+        if not (task in self.list_speed_tests):
+            self.clear_shaker_image()
         return result
 
     def clear_shaker_image(self):
@@ -340,6 +344,17 @@ class ShakerOnDockerRunner(ShakerRunner):
             to_gb = i / 1024
             speed += '%.2f' % to_gb + ', '
         speed = speed[:-2]
+
+        line = '-' * 40
+        LOG.info('\n%s' % line)
+        LOG.info('Average speed is %s Gb/s' % speed)
+        if (success):
+            LOG.info('This scenario: SUCCESS')
+        else:
+            LOG.info('This scenario: FAILED')
+            LOG.info('Average speed is less than threshold')
+        LOG.info('%s\n' % line)
+
         node = ''
         for i in nodes:
             node += i + ', '
@@ -376,6 +391,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
             try:
                 threshold = self.config.get('network_speed', 'threshold')
+                LOG.info('Threshold is %s Gb/s' % threshold)
             except ConfigParser.NoOptionError:
                 LOG.info('Default threshold is 7 Gb/s')
                 threshold = 7
@@ -390,6 +406,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 output += row
                 success &= report_status
             self._generate_report_network_speed(threshold, task, output)
+            self.clear_shaker_image()
 
             if success:
                 return True
