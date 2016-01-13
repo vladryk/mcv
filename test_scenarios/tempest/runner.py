@@ -99,8 +99,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 self.copy_tempest_image()
 
         LOG.info("Starting verification")
-        cmd = "docker exec -it %(container)s rally verify start" %\
-              {"container": self.container_id}
+        cmd = "docker exec -it %(container)s rally verify start --set %(set)s" %\
+              {"container": self.container_id,
+               "set": task}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %(container)s rally verify list" %\
               {"container": self.container_id}
@@ -115,44 +116,52 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         LOG.info('Generating html report')
-        cmd = "docker exec -it %(container)s rally verify results --html --out=%(task)s.html" % {"container": self.container_id, "task": task}
+        cmd = "docker exec -it %(container)s rally verify results --html --out=%(task)s.html" %\
+              {"container": self.container_id, "task": task}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" %\
+              {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = "docker exec -it %(container)s rally verify results --json" % {"container": self.container_id}
+        cmd = "docker exec -it %(container)s rally verify results --json" %\
+              {"container": self.container_id}
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         return p
 
     def _patch_rally(self):
         pass
 
-    def parse_results(self, res):
+    def parse_results(self, res, task):
         LOG.info("Parsing results")
         if res == '':
+            LOG.info("Results of test set '%s': FAILURE" % task)
             self.failure_indicator = 83
             return False
-        self.tasks = json.loads(res)
-        failures = self.tasks.get('failures')
-        errors = self.tasks.get('errors')
-        for (name, case) in self.tasks['test_cases'].iteritems():
+        self.task = json.loads(res)
+        failures = self.task.get('failures')
+        success = self.task.get('success')
+        LOG. info("Results of test set '%s': SUCCESS: %d FAILURES: %d" % (task, success, failures))
+        for (name, case) in self.task['test_cases'].iteritems():
             if case['status'] == 'success':
                 self.test_success.append(case['name'])
-        if failures or errors:
-            for (name, case) in self.tasks['test_cases'].iteritems():
+        if failures:
+            for (name, case) in self.task['test_cases'].iteritems():
                 if case['status'] == 'fail':
                     self.test_failures.append(case['name'])
                     self.failure_indicator = 81
             return False
         return True
 
-    def run_batch(self, *args, **kwargs):
+    def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally_on_docker()
-        self.run_individual_task('tempest', *args,  **kwargs)
-        tasks = self.tasks['test_cases'].keys()
-        self.total_checks = len(tasks)
-        LOG.info("Running full tempest suite ")
+        t = []
+        for task in tasks:
+            task = task.replace(' ', '')
+            LOG.info('Running %s tempest set' % task)
+            self.run_individual_task(task, *args,  **kwargs)
+            t.append(self.task['test_cases'].keys())
+        self.total_checks = len(t)
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found}
@@ -160,7 +169,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
 
-        self.parse_results(results)
+        self.parse_results(results, task)
         if not self.test_failures:
             return True
         return False
