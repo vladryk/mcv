@@ -104,14 +104,46 @@ class Runner(object):
              LOG.error("Looks like not a single test will be run for group %s" % self.identity)
         LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
+
+    def get_error_code(tool_name):
+
+        codes = {'rally': 59,
+                 'shaker': 49,
+                 'resources': 39,
+                 'speed': 29,
+                 'ostf': 69,
+                 'dummy': 79,
+                 'tempest': 89}
+
+        return codes.get(tool_name, 11)
+
+
     def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
+
+        config = kwargs["config"]
+        tool_name = kwargs["tool_name"]
+        try:
+            max_failed_tests = int(config.get(tool_name, 'max_failed_tests'))
+        except ConfigParser.NoOptionError:
+            max_failed_tests = int(config.get('basic', 'max_failed_tests'))
+
         self.check_task_list(tasks)
         self.total_checks = len(tasks)
+
+        failures = 0
         for task in tasks:
             LOG.info("Running "+ task)
             if self.run_individual_task(task, *args, **kwargs):
                 self.test_success.append(task)
+            else:
+                failures += 1
+
+            if failures >= max_failed_tests:
+                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                self.failure_indicator = self.get_error_code(tool_name)
+                break
+
         return {"test_failures": self.test_failures, 
                 "test_success": self.test_success, 
                 "test_not_found": self.test_not_found}

@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 from test_scenarios import runner
+from ConfigParser import NoOptionError
 try:
     import json
 except:
@@ -141,8 +142,20 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
+
+        try:
+            max_failed_tests = int(self.config.get('ostf', 'max_failed_tests'))
+        except NoOptionError:
+            max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
+
         for task in tasks:
-            self.run_individual_task(task, *args, **kwargs)
+	    self.run_individual_task(task, *args, **kwargs)
+
+            if len(self.failures) >= max_failed_tests:
+		self.failure_indicator = 69
+                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+	        break
+
         LOG.info("Succeeded tests: %s" % str(self.success))
         LOG.info("Failed tests: %s" % str(self.failures))
         LOG.info("Not found tests: %s" % str(self.not_found))

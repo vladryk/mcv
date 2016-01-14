@@ -179,6 +179,8 @@ class Consoler(object):
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
                                                     concurrency=self.concurrency,
+                                                    config=self.config,
+                                                    tool_name=key,
                                                     gre_enabled=self.gre_enabled,
                                                     vlan_amount=self.vlan_amount,
                                                     test_group=kwargs.get('testgroup'))
