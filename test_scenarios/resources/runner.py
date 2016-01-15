@@ -42,7 +42,8 @@ class ResourceReportRunner(run.Runner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
-        return super(ResourceReportRunner, self).run_batch(tasks)
+        return super(ResourceReportRunner, self).run_batch(tasks, *args,
+                                                           **kwargs)
 
     def generate_report(self, html, task):
         # Append last run to existing file for now. Not sure how to fix this properly
