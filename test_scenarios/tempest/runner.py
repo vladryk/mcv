@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+import ConfigParser
 import logging
 import subprocess
 from test_scenarios.rally import runner as rrunner
@@ -154,6 +154,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
+        try:
+            max_failed_tests = int(self.config.get('tempest', 'max_failed_tests'))
+        except ConfigParser.NoOptionError:
+            max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
+
         self._setup_rally_on_docker()
         t = []
         for task in tasks:
@@ -161,6 +166,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.info('Running %s tempest set' % task)
             self.run_individual_task(task, *args,  **kwargs)
             t.append(self.task['test_cases'].keys())
+            if len(self.test_failures)>max_failed_tests:
+                self.total_checks = len(t)
+                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                self.failure_indicator = 89
+                break
         self.total_checks = len(t)
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
@@ -170,6 +180,4 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
 
         self.parse_results(results, task)
-        if not self.test_failures:
-            return True
-        return False
+        return True
