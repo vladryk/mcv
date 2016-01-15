@@ -105,7 +105,7 @@ class Runner(object):
         LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
 
-    def get_error_code(tool_name):
+    def get_error_code(self, tool_name):
 
         codes = {'rally': 59,
                  'shaker': 49,
