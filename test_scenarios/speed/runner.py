@@ -76,7 +76,7 @@ class SpeedTestRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._prepare_vm()
-        res = super(SpeedTestRunner, self).run_batch(tasks)
+        res = super(SpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
         self._remove_vm()
         return res
 
