@@ -55,13 +55,23 @@ class ShakerRunner(runner.Runner):
 
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
-        if resulting_dict.get('error', '') == '':
+        status = True
+        errors = ''
+        for i in resulting_dict['records']:
+            try:
+                if resulting_dict['records'][i]['status'] == 'error':
+                    status = False
+                    errors += '\n' + resulting_dict['records'][i]['stderr']
+            except KeyError:
+                pass
+
+        if status:
             LOG.info("Task %s has completed successfully." % task)
         else:
             LOG.warning("Task %s has failed with the following error: %s" % \
-                        (task,resulting_dict['error']))
-            return False
-        return True
+                        (task, errors))
+            return status
+        return status
 
     def _get_task_path(self, task):
         # a quick and dirty way to find a task
@@ -401,6 +411,14 @@ class ShakerOnDockerRunner(ShakerRunner):
 
             for internal_task in self.list_speed_tests:
                 task_result = self._run_shaker_on_docker(internal_task)
+
+                check = self._evaluate_task_result(task, task_result)
+                if not check:
+                    self.clear_shaker_image()
+                    self.test_failures.append(task)
+                    LOG.debug("Task %s has failed with %s" % (task, task_result))
+                    return False
+
                 row, report_status = self._generate_one_row_report(task_result,
                     internal_task, threshold)
                 output += row
@@ -421,6 +439,6 @@ class ShakerOnDockerRunner(ShakerRunner):
                 self._evaluate_task_result(task, task_result):
             return True
         else:
-            LOG.warning("Task %s has failed with %s" % (task, task_result))
+            LOG.debug("Task %s has failed with %s" % (task, task_result))
             self.test_failures.append(task)
             return False
