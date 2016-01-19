@@ -11,12 +11,14 @@ LOG = logging
 
 class Preparer(object):
     def __init__(self, uname=None, passwd=None,
-                 auth_url=None, tenant=None):
+                 auth_url=None, tenant=None,
+                 region_name=None):
         self.server = None
         self.uname = uname
         self.passwd = passwd
         self.auth_url = auth_url
         self.tenant = tenant
+        self.region_name=region_name
         self.ip = ''
         super(Preparer, self).__init__()
 
@@ -38,10 +40,11 @@ class Preparer(object):
         )
         self.nova = nova.Client(
             '2',
-            self.uname,
-            self.passwd,
-            self.tenant,
-            self.auth_url,
+            username=self.uname,
+            api_key=self.passwd,
+            project_id=self.tenant,
+            auth_url=self.auth_url,
+            region_name=self.region_name,
             insecure=True
         )
 

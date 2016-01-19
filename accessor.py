@@ -61,6 +61,7 @@ class AccessSteward(object):
                             "os_password": None,
                             "auth_endpoint_ip": None,
                             "nailgun_host": None,
+                            "region_name": None,
                             "cluster_id": None,
                             "auth_fqdn": None,}
         self.config = config
@@ -154,6 +155,7 @@ class AccessSteward(object):
                          ":5000/v2.0/",
                 api_key=self.access_data["os_password"],
                 project_id=self.access_data["os_tenant_name"],
+                region_name=self.access_data["region_name"],
                 insecure=True,
             )
             self.novaclient = client

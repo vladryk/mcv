@@ -80,7 +80,7 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
             "-e", "NAILGUN_PORT=8000",
             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
-            "-e", "OS_REGION_NAME=RegionOne",
+            "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-it", cname], stdout=subprocess.PIPE).stdout.read()
 
     def _verify_ostf_container_is_up(self):

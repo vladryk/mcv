@@ -59,6 +59,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
+            "-e", "OS_REGION_NAME" + self.accessor.access_data["region_name"],
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",

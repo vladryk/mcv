@@ -63,7 +63,8 @@ class SpeedTestRunner(run.Runner):
         myPreparer = Preparer(uname=self.accessor.access_data['os_username'],
                               passwd=self.accessor.access_data['os_password'],
                               tenant=tenant,
-                              auth_url=auth_url)
+                              auth_url=auth_url,
+                              region_name=self.accessor.access_data['region_name'])
         return myPreparer
 
     def _prepare_vm(self):

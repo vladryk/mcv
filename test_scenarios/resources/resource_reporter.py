@@ -129,6 +129,7 @@ class ResourceSearch(object):
             auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             api_key=access_data['os_password'],
             project_id=access_data['os_tenant_name'],
+            region_name=access_data['region_name'],
             insecure=True)
 
         self.cinderclient = cinder.Client(

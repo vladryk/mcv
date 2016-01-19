@@ -40,7 +40,7 @@ LOG = logging
 rally_json_template = """{
 "type": "ExistingCloud",
 "auth_url": "%(auth_protocol)s://%(ip_address)s:5000/v2.0/",
-"region_name": "RegionOne",
+"region_name": "%(region)s",
 "endpoint_type": "public",
 "admin": {
     "username": "%(uname)s",
@@ -177,6 +177,7 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
         self._verify_rally_container_is_up()
         # Since noone is actually giving a number two to how this is done
@@ -224,6 +225,7 @@ class RallyOnDockerRunner(RallyRunner):
     def create_rally_json(self):
         auth_protocol = self.config.get("basic", "auth_protocol")
         credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
+                       "region": self.accessor.access_data["region_name"],
                        "uname": self.accessor.access_data["os_username"],
                        "upass": self.accessor.access_data["os_password"],
                        "uten": self.accessor.access_data["os_tenant_name"],
