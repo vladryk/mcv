@@ -105,7 +105,7 @@ class SpeedTestRunner(run.Runner):
         except AttributeError:
             LOG.error('Incorrect task')
             return False
-        reporter = speed_class(self.accessor.access_data, image_size=i_s, volume_size=v_s, config=self.config, *args, **kwargs)
+        reporter = speed_class(self.accessor.access_data, image_size=i_s, volume_size=v_s, *args, **kwargs)
         try:
             res, r_average, w_average = reporter.measure_speed()
         except RuntimeError:

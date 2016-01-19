@@ -3,6 +3,7 @@ import time
 
 import glanceclient as glance
 from novaclient import client as nova
+from novaclient import exceptions
 from keystoneclient.v2_0 import client as keystone_v2
 
 LOG = logging
@@ -78,7 +79,10 @@ class Preparer(object):
     def _launch_instance(self):
         LOG.info('Launch instance from cirros-image')
         image = self.nova.images.find(name="cirros-image")
-        flavor = self.nova.flavors.find(name="m1.nano")
+        try:
+            flavor = self.nova.flavors.find(ram=64)
+        except exceptions.NotFound:
+            flavor = self.nova.flavors.list()[0]
         network = self.nova.networks.find(label="net04")
         self.server = self.nova.servers.create(name="speed-test",
                                                image=image.id,
