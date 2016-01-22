@@ -14,6 +14,8 @@
 
 
 import ConfigParser
+import datetime
+import json
 import subprocess
 import logging
 import os
@@ -117,12 +119,32 @@ class Runner(object):
 
         return codes.get(tool_name, 11)
 
+    def seconds_to_time(self, s):
+        s = int(round(s))
+        h = s // 3600
+        m = (s // 60) % 60
+        sec = s % 60
+
+        if m < 10:
+            m = str('0' + str(m))
+        else:
+            m = str(m)
+        if sec < 10:
+            m = str(m)
+        if sec < 10:
+            sec = str('0' + str(sec))
+        else:
+            sec = str(sec)
+
+        return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
 
     def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
 
         config = kwargs["config"]
         tool_name = kwargs["tool_name"]
+        all_time = kwargs["all_time"]
+        elapsed_time = kwargs["elapsed_time"]
         try:
             max_failed_tests = int(config.get(tool_name, 'max_failed_tests'))
         except ConfigParser.NoOptionError:
@@ -132,17 +154,70 @@ class Runner(object):
         self.total_checks = len(tasks)
 
         failures = 0
+
+        # Note: the database execution time of each test. In the first run
+        # for each test tool calculate the multiplier, which shows the
+        # difference of execution time between testing on our cloud and
+        # the current cloud.
+        db = kwargs.get('db')
+        first_run = True
+        multiplier = 1.0
+        current_time = 0
+
         for task in tasks:
-            LOG.info("Running "+ task)
+
+            time_start = datetime.datetime.utcnow()
+            LOG.info("Running " + task)
+            LOG.info("Time start: %s UTC" % str(time_start))
+            if self.config.get('times', 'update') == 'False':
+                try:
+                    current_time = db[tool_name][task]
+                except KeyError:
+                    current_time = 0
+                LOG.info("Expected time to complete %s: %s" %
+                         (task,
+                          self.seconds_to_time(current_time * multiplier)))
+
             if self.run_individual_task(task, *args, **kwargs):
                 self.test_success.append(task)
             else:
                 failures += 1
 
+            time_end = datetime.datetime.utcnow()
+            time = time_end - time_start
+            LOG.info("Time end: %s UTC" % str(time_end))
+
+            if self.config.get('times', 'update') == 'True':
+                if tool_name in db.keys():
+                    db[tool_name].update({task: time.seconds})
+                else:
+                    db.update({tool_name: {task: time.seconds}})
+            else:
+                if first_run:
+                    first_run = False
+                    if current_time:
+                        multiplier = float(time.seconds) / float(current_time)
+                all_time -= (current_time + elapsed_time)
+                persent = 1.0
+                if kwargs["all_time"]:
+                    persent -= float(all_time) / float(kwargs["all_time"])
+                persent = int(persent * 100)
+
+                line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
+                line += ' %s' % persent + '% '
+                line += '%s ETA\n' % self.seconds_to_time(all_time * multiplier)
+
+                LOG.info(line)
+
             if failures >= max_failed_tests:
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 self.failure_indicator = self.get_error_code(tool_name)
                 break
+
+        if self.config.get('times', 'update') == 'True':
+            f = file("/opt/mcv-consoler/times.json", "w")
+            f.write(json.dumps(db))
+            f.close()
 
         return {"test_failures": self.test_failures, 
                 "test_success": self.test_success, 

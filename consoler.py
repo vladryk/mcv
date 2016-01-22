@@ -20,6 +20,7 @@ import inspect
 import ConfigParser
 import logging
 import imp
+import json
 import reporter
 import subprocess
 import os
@@ -36,6 +37,7 @@ class Consoler(object):
         self.default_config_file = "/etc/mcv/mcv.conf"
         self.parser = parser
         self.args = args
+        self.all_time = 0
         self.plugin_dir = "test_scenarios"
         self.failure_indicator = 0
         self.config_config()
@@ -147,11 +149,55 @@ class Consoler(object):
             per_component[k] = ",".join(v)
         return dict(per_component)
 
+    def seconds_to_time(self, s):
+        h = s // 3600
+        m = (s // 60) % 60
+        sec = s % 60
+
+        if m < 10:
+            m = str('0' + str(m))
+        else:
+            m = str(m)
+        if sec < 10:
+            sec = str('0' + str(sec))
+        else:
+            sec = str(sec)
+
+        return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
+
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
         self.results_vault = "/tmp/mcv_run_" + str(datetime.datetime.utcnow()).replace(" ","_")
         os.mkdir(self.results_vault)
+
+        f = open(os.path.join(os.path.dirname(__file__), 'times.json'), 'r')
+        db = json.loads(f.read())
+        elapsed_time_by_group = dict()
+        f.close()
+
+        if self.config.get('times', 'update') == 'False':
+            for key in test_dict.keys():
+                batch = test_dict[key].split(',')
+                batch = map(lambda x: x.strip('\n'), batch)
+                elapsed_time_by_group[key] = self.all_time
+                for test in batch:
+                    try:
+                        self.all_time += db[key][test]
+                    except KeyError:
+                        LOG.info("You must update the database time tests. "\
+                                 "There is no time for %s" % test)
+
+            LOG.info("\nExpected time to complete all the tests: %s\n" %
+                     self.seconds_to_time(self.all_time))
+
         for key in test_dict.keys():
+            if self.config.get('times', 'update') == 'True':
+                elapsed_time_by_group[key] = 0
+                f = open(os.path.join(os.path.dirname(__file__),
+                         'times.json'), 'r')
+                db = json.loads(f.read())
+                f.close()
+
             dispatch_result[key] = {}
             try:
                 spawn_point = os.path.dirname(__file__)
@@ -181,6 +227,9 @@ class Consoler(object):
                                                     concurrency=self.concurrency,
                                                     config=self.config,
                                                     tool_name=key,
+                                                    db=db,
+                                                    all_time=self.all_time,
+                                                    elapsed_time=elapsed_time_by_group[key],
                                                     gre_enabled=self.gre_enabled,
                                                     vlan_amount=self.vlan_amount,
                                                     test_group=kwargs.get('testgroup'))

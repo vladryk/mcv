@@ -18,6 +18,7 @@ import os
 import subprocess
 import sys
 from test_scenarios import runner
+import time
 try:
     import json
 except:
@@ -237,6 +238,8 @@ class ShakerOnDockerRunner(ShakerRunner):
          "%s.json" % (self.container, self.accessor.access_data["instance_ip"],
                      task, task, task)
         p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
+        time.sleep(60)
+
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         container_id = p.rstrip('\n')
