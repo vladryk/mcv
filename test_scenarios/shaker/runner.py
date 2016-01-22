@@ -27,6 +27,8 @@ except:
 import glanceclient as glance
 from keystoneclient.v2_0 import client as keystone_v2
 
+import utils
+
 nevermind = None
 
 config = ConfigParser.ConfigParser()
@@ -89,7 +91,9 @@ class ShakerRunner(runner.Runner):
         # important: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         # here out is in fact a command which can be run to obtain task results
         # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
@@ -101,12 +105,13 @@ class ShakerRunner(runner.Runner):
         # is left as is for now, but will be moved in future.
         # if asked kindly rally just spits resulting json directly to stdout
         p = subprocess.check_output(task_id, shell=True,
-                                    stderr=subprocess.STDOUT)
+                                    stderr=subprocess.STDOUT,
+                                    preexec_fn=utils.ignore_sigint)
         res = json.loads(p)[0]  # actual test result as a dictionary
         return res
 
     def run_batch(self, tasks, *args, **kwargs):
-        return super(ShakerRunner, self).run_batch(tasks, *args, **kwargs)
+        return super(ShakerRunner, self).run_batch(tasks, *args,  **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
@@ -178,7 +183,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.container_id,
                                 "shaker-image-builder --image-name shaker-image" + insecure],
-                                stdout=subprocess.PIPE).stdout.read()
+                                stdout=subprocess.PIPE,
+                                preexec_fn=utils.ignore_sigint).stdout.read()
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
@@ -196,13 +202,15 @@ class ShakerOnDockerRunner(ShakerRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-it", "mcv-shaker"], stdout=subprocess.PIPE).stdout.read()
+            "-it", "mcv-shaker"], stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _setup_shaker_on_docker(self):
         self.verify_container_is_up("shaker")
         self._check_shaker_setup()
         p = subprocess.check_output("docker ps", shell=True,
-                                    stderr=subprocess.STDOUT)
+                                    stderr=subprocess.STDOUT,
+                                    preexec_fn=utils.ignore_sigint)
         p = p.split('\n')
         for line in p:
             elements = line.split()
@@ -213,14 +221,18 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _create_task_in_docker(self, task):
         cmd = "docker inspect -f '{{.Id}}' %s" % self.container
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
         LOG.info("Preparing to task %s" % task)
         cmd = r"cp " + test_location +\
               " /var/lib/docker/aufs/mnt/%s/usr/local/lib/python2.7/"\
               "dist-packages/shaker/scenarios/networking/" %\
               p.rstrip('\n')
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         LOG.info("Successfully prepared to task %s" % task)
 
 
@@ -233,7 +245,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = "docker exec -it %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
 
-        p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd + insecure, shell=True,
+                stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
         if (task in self.list_speed_tests):
             self._create_task_in_docker(task)
@@ -250,7 +265,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         proc = subprocess.Popen(shlex.split(cmd + insecure),
                                 stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
+                                stderr=subprocess.STDOUT,
+                                preexec_fn=utils.ignore_sigint)
         proc.communicate()
         # Note: TIMEOUT_RETCODE = 124
         if proc.returncode == 124:
@@ -260,17 +276,23 @@ class ShakerOnDockerRunner(ShakerRunner):
             return []
 
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         container_id = p.rstrip('\n')
 
         cmd = "docker exec -it %s shaker-report --input %s.out --report " \
          "%s.html" % (self.container, task, task)
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
         cmd = "sudo cp %(pref)s/%(id)s/%(task)s.json %(pth)s" % \
                   {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
                    'task': task, "pth": self.path}
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
         temp = open('%s/%s.json' % (self.path, task), 'r')
         p = temp.read()
@@ -280,7 +302,9 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = "sudo cp %(pref)s/%(id)s/%(task)s.html %(pth)s" % \
                   {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
                    'task': task, "pth": self.path}
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
         # Network speed test includes three scenario, function 'clear_image'
         # will run after completing all of scenarios
@@ -299,7 +323,9 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container, task_id)
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         if task_id.find("detailed") == -1:
             res = json.loads(p)[0]  # actual test result as a dictionary
             return res

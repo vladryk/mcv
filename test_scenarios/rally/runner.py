@@ -14,7 +14,6 @@
 
 import ConfigParser
 import logging
-import os
 import re
 import subprocess
 import sys
@@ -24,6 +23,8 @@ try:
     import json
 except:
     import simplejson as json
+
+import utils
 
 # Needed for Rally. Whoever finds this after Rally is fixed please don't
 # hesitate to remove
@@ -112,7 +113,9 @@ class RallyRunner(runner.Runner):
         # important: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
@@ -124,15 +127,16 @@ class RallyRunner(runner.Runner):
         # is left as is for now, but will be moved in future.
         # if asked kindly rally just spits resulting json directly to stdout
         p = subprocess.check_output(task_id, shell=True,
-                                    stderr=subprocess.STDOUT)
+                                    stderr=subprocess.STDOUT,
+                                    preexec_fn=utils.ignore_sigint)
         res = json.loads(p)[0]  # actual test result as a dictionary
         return res
 
-    def run_batch(self, tasks):
+    def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally()
-        return super(RallyRunner, self).run_batch(tasks)
+        return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
 
-    def run_individual_task(self, task):
+    def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
         task_id = self._run_rally(task)
         task_result = self._get_task_result(task_id)
@@ -178,30 +182,36 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-it", "mcv-rally"], stdout=subprocess.PIPE).stdout.read()
+            "-it", "mcv-rally"], stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
         # Since noone is actually giving a number two to how this is done
         # and some people actively deny the logic arrangement I'll do it this
         # dumb way.
         cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
-        long_id = subprocess.check_output(cmd, shell=True,
-                                          stderr=subprocess.STDOUT).rstrip('\n')
+        long_id = subprocess.check_output(
+                cmd, shell=True,
+                stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint).rstrip('\n')
         subprocess.Popen(["sudo", "cp", "-r",
                           "/etc/toolbox/rally/mcv/scenarios.consoler",
                           "/var/lib/docker/aufs/mnt/%(id)s/%(place)s"\
                           % {"id": long_id,
                           "place": self.test_storage_place}],\
-                          stdout=subprocess.PIPE).stdout.read()
+                          stdout=subprocess.PIPE,
+                          preexec_fn=utils.ignore_sigint).stdout.read()
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
                           "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img"],
-                         stdout=subprocess.PIPE).stdout.read()
+                         stdout=subprocess.PIPE,
+                         preexec_fn=utils.ignore_sigint).stdout.read()
 
         subprocess.Popen(["sudo", "cp",
                           "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img",
                           "/var/lib/docker/aufs/mnt/%(id)s/home/rally"\
                           % {"id": long_id, }],\
-                          stdout=subprocess.PIPE).stdout.read()
+                          stdout=subprocess.PIPE,
+                          preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
@@ -241,7 +251,9 @@ class RallyOnDockerRunner(RallyRunner):
         # things. Not the best way to go, yet I hope that this won't be needed
         # very very soon.
         cmd = "docker exec -it %s sudo sed -i '282s/.*/)#            **self._get_auth_info(project_name_key=\"tenant_name\"))/' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
-        res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        res = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         return
 
     def _rally_deployment_check(self):
@@ -251,12 +263,15 @@ class RallyOnDockerRunner(RallyRunner):
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.container_id,
                                 "rally", "deployment", "check"],
-                               stdout=subprocess.PIPE).stdout.read()
+                               stdout=subprocess.PIPE,
+                               preexec_fn=utils.ignore_sigint).stdout.read()
         if res.startswith("There is no"):
             LOG.debug("It is not. Trying to set up rally deployment.")
             cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
-            long_id = subprocess.check_output(cmd, shell=True,
-                                        stderr=subprocess.STDOUT)
+            long_id = subprocess.check_output(
+                    cmd, shell=True,
+                    stderr=subprocess.STDOUT,
+                    preexec_fn=utils.ignore_sigint)
             self.create_rally_json()
             rally_config_json_location = "existing.json"
             cmd = r"cp " + rally_config_json_location +\
@@ -264,7 +279,8 @@ class RallyOnDockerRunner(RallyRunner):
                 long_id.rstrip('\n')
             try:
                 p = subprocess.check_output(cmd, shell=True,
-                                            stderr=subprocess.STDOUT)
+                                            stderr=subprocess.STDOUT,
+                                            preexec_fn=utils.ignore_sigint)
             except:
                 LOG.warning( "Failed to copy Rally setup  json.")
                 sys.exit(1)
@@ -274,7 +290,8 @@ class RallyOnDockerRunner(RallyRunner):
                                    "--file=existing.json",
                                   # "--fromenv",
                                    "--name=existing"],
-                                   stdout=subprocess.PIPE).stdout.read()
+                                   stdout=subprocess.PIPE,
+                                   preexec_fn=utils.ignore_sigint).stdout.read()
         else:
             LOG.debug("Seems like it is present.")
 
@@ -337,7 +354,9 @@ class RallyOnDockerRunner(RallyRunner):
                    "task": task,
                    "location": self.test_storage_place}
 
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
@@ -358,12 +377,20 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
-        cmd = "docker exec -it %(container)s rally task report --out=%(task)s.html" % {"container": self.container_id, "task": task}
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        cmd = "docker exec -it %(container)s rally task report --out=%(task)s.html" \
+              % {"container": self.container_id, "task": task}
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
+        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" \
+              % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         return {'next_command': ret_val,
                 'original output': original_output,
                 'failed': failed}
@@ -371,7 +398,9 @@ class RallyOnDockerRunner(RallyRunner):
     def _get_task_result_from_docker(self, task_id):
         LOG.debug("Retrieving task results for %s" % task_id)
         cmd = "docker exec -it %s %s" % (self.container_id, task_id)
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         if task_id.find("detailed") ==-1:
             res = json.loads(p)[0]  # actual test result as a dictionary
             return res
@@ -380,7 +409,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
+        return super(RallyRunner, self).run_batch(tasks, *args,  **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         # here be the fix for running rally in a docker container.

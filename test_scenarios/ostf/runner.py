@@ -25,6 +25,8 @@ try:
 except:
     import simplejson as json
 
+import utils
+
 nevermind = None
 
 default_config = "etc/mcv.conf"
@@ -54,7 +56,8 @@ class OSTFOnDockerRunner(runner.Runner):
                                 self.container_id,
                                 "ostf-config-extractor", "-o",
                                 "/tmp/ostfcfg.conf"],
-                               stdout=subprocess.PIPE).stdout.read()
+                               stdout=subprocess.PIPE,
+                               preexec_fn=utils.ignore_sigint).stdout.read()
         LOG.debug("Config extraction resulted in: " + res)
 
     def start_ostf_container(self):
@@ -81,7 +84,8 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "NAILGUN_PORT=8000",
             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-it", cname], stdout=subprocess.PIPE).stdout.read()
+            "-it", cname], stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _verify_ostf_container_is_up(self):
         self.verify_container_is_up("ostf")
@@ -91,7 +95,8 @@ class OSTFOnDockerRunner(runner.Runner):
         self._verify_ostf_container_is_up()
         self._do_config_extraction()
         p = subprocess.check_output("docker ps", shell=True,
-                                    stderr=subprocess.STDOUT)
+                                    stderr=subprocess.STDOUT,
+                                    preexec_fn=utils.ignore_sigint)
         p = p.split('\n')
         for line in p:
             elements = line.split()
@@ -104,7 +109,9 @@ class OSTFOnDockerRunner(runner.Runner):
         cmd = "docker exec -it %s cloudvalidation-cli cloud-health-check "\
               "list_plugin_suites --validation-plugin fuel_health" %\
               self.container
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         result = p.split("\n")
         for line in result:
             if line.find(task) != -1:
@@ -123,7 +130,9 @@ class OSTFOnDockerRunner(runner.Runner):
               " --validation-plugin-name fuel_health --suite %s" %\
               (self.container, task)
         try:
-            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            p = subprocess.check_output(
+                    cmd, shell=True, stderr=subprocess.STDOUT,
+                    preexec_fn=utils.ignore_sigint)
         except subprocess.CalledProcessError:
             LOG.error("Task %s has failed with: " % task, exc_info=True)
             self.failures.append(task)
@@ -149,12 +158,12 @@ class OSTFOnDockerRunner(runner.Runner):
             max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
 
         for task in tasks:
-	    self.run_individual_task(task, *args, **kwargs)
+            self.run_individual_task(task, *args, **kwargs)
 
             if len(self.failures) >= max_failed_tests:
-		self.failure_indicator = 69
+                self.failure_indicator = 69
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-	        break
+                break
 
         LOG.info("Succeeded tests: %s" % str(self.success))
         LOG.info("Failed tests: %s" % str(self.failures))

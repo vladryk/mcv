@@ -13,17 +13,13 @@
 #    under the License.
 
 
-import accessor
 import argparse
-import inspect
 import consoler
 import ConfigParser
 import logging
-from logging import handlers
-import imp
-import subprocess
 import os
 import sys
+import threading
 import fcntl
 
 
@@ -64,7 +60,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument(
     "--run",
-    nargs = '+',
+    nargs='+',
     help="""Run one of specified test suits : full, custom, single or
     short.""")
 
@@ -96,10 +92,22 @@ def main():
     # handler substitution.
     logging.getLogger("paramiko").setLevel(logging.WARNING)
     consolerr = consoler.Consoler(parser=parser, args=args)
+    e = threading.Event()
+    res = None
+    t = threading.Thread(target=consolerr.console_user, args=[e, res])
     try:
-        return consolerr.console_user()
+        t.start()
+        t.join()
+        return res
+    except KeyboardInterrupt:
+        logging.info("Consoler will be interrupted after finish of current task. "
+                     "Results of it will be lost")
+        e.set()
+        return 1
     except Exception as e:
-        logging.error("Something unforseen has just happened. The consoler is no more. You can get an insight from /var/log/mcvconsoler.log", exc_info=True)
+        logging.error("Something unforseen has just happened. "
+                      "The consoler is no more. You can get an insight from "
+                      "/var/log/mcvconsoler.log", exc_info=True)
         return 1
 
 

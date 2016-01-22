@@ -26,6 +26,8 @@ import subprocess
 import os
 import sys
 
+import utils
+
 LOG = logging
 
 
@@ -192,6 +194,9 @@ class Consoler(object):
                      self.seconds_to_time(self.all_time))
 
         for key in test_dict.keys():
+            if self.event.is_set():
+                LOG.info("Catch Keyboard interrupt. No more tests will be launched")
+                break
             if self.config.get('times', 'update') == 'True':
                 elapsed_time_by_group[key] = 0
                 f = open(os.path.join(os.path.dirname(__file__),
@@ -225,6 +230,7 @@ class Consoler(object):
                 LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
+                                                    event=self.event,
                                                     concurrency=self.concurrency,
                                                     config=self.config,
                                                     tool_name=key,
@@ -250,8 +256,13 @@ class Consoler(object):
                     run_failures = test_dict[key].split(',')
                     self.failure_indicator = 11
                     raise e
-                dispatch_result[key]['results'] = run_failures
-                dispatch_result[key]['batch'] = batch
+                if self.event.is_set():
+                    dispatch_result.pop(key)
+                else:
+                    dispatch_result[key]['results'] = run_failures
+                    dispatch_result[key]['batch'] = batch
+
+
         return dispatch_result
 
     def do_full(self):
@@ -365,8 +376,9 @@ class Consoler(object):
             sys.exit(1)
         return retval
 
-    def console_user(self):
+    def console_user(self, event, result):
         # TODO: split this god's abomination.
+        self.event = event
         def do_finalization(run_results):
             r_helper = {"timestamp" : "xxx", "location": "xxx"}
             if run_results is not None:
@@ -380,9 +392,13 @@ class Consoler(object):
                 r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
                             "location": self.results_vault}
                 cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
-                p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+                p = subprocess.check_output(
+                        cmd, shell=True, stderr=subprocess.STDOUT,
+                        preexec_fn=utils.ignore_sigint)
                 cmd = "rm -rf %(location)s" % {"location": self.results_vault}
-                p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+                p = subprocess.check_output(
+                        cmd, shell=True, stderr=subprocess.STDOUT,
+                        preexec_fn=utils.ignore_sigint)
                 LOG.debug("Done with report generation.")
             else:
                 LOG.warning("For some reason test tools have returned nothing.")
@@ -423,7 +439,9 @@ class Consoler(object):
                 self.failure_indicator = 13
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
-            subprocess.call('/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh "({0})"'.format(arguments), shell=True)
+            subprocess.call(
+                    '/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh "({0})"'.format(arguments),
+                    shell=True, preexec_fn=utils.ignore_sigint)
             return 1
         r_helper = do_finalization(run_results)
         self.access_helper.stop_forwarding()
@@ -436,5 +454,5 @@ class Consoler(object):
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
-        return self.failure_indicator
+        result = self.failure_indicator
 

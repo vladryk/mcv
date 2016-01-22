@@ -23,6 +23,8 @@ import glanceclient as glance
 from keystoneclient.v2_0 import client as keystone_v2
 import novaclient.client as nova
 
+import utils
+
 LOG = logging
 
 
@@ -253,7 +255,10 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         self.of = os.path.join(os.getcwd(), filename)
         if not os.path.exists(self.of):
             count = 1024 * float(self.size)
-            subprocess.call(['dd', 'if=/dev/urandom', 'of=' + self.of, 'bs=1M', 'count=%d' % count])
+            subprocess.call(
+                    ['dd', 'if=/dev/urandom', 'of=' + self.of,
+                     'bs=1M', 'count=%d' % count],
+                     preexec_fn=utils.ignore_sigint)
         LOG.debug('Test image successfully generated')
 
     def measure_write(self):

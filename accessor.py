@@ -26,6 +26,7 @@ from paramiko import client
 from novaclient import client as nova
 from novaclient import exceptions as nexc
 
+import utils
 
 image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
 
@@ -77,8 +78,10 @@ class AccessSteward(object):
         return match is not None
 
     def _address_is_reachable(self, address):
-        responce = subprocess.Popen(["/bin/ping", "-c1", "-w30", address],
-                                    stdout=subprocess.PIPE)
+        responce = subprocess.Popen(
+                ["/bin/ping", "-c1", "-w30", address],
+                stdout=subprocess.PIPE,
+                preexec_fn=utils.ignore_sigint)
         responce.communicate()[0]
         if responce.returncode == 0:
             return True
@@ -222,8 +225,10 @@ class AccessSteward(object):
             return self.check_and_fix_floating_ips()
 
     def check_docker_images(self):
-        res = subprocess.Popen(["docker", "images"],
-            stdout=subprocess.PIPE).stdout.read()
+        res = subprocess.Popen(
+                ["docker", "images"],
+                stdout=subprocess.PIPE,
+                preexec_fn=utils.ignore_sigint).stdout.read()
         flags = map(lambda x: re.search(x, res) is not None, image_names)
         if reduce(operator.mul, flags):
             LOG.debug( "All images seem to be in place")
@@ -314,7 +319,8 @@ class AccessSteward(object):
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L -n", ],
                                 shell=False, stdout=subprocess.PIPE,
                                 stdin=subprocess.PIPE,
-                                stderr=subprocess.PIPE).stdout.read()
+                                stderr=subprocess.PIPE,
+                                preexec_fn=utils.ignore_sigint).stdout.read()
         if re.search("DNAT.*7654\n", res) is not None:
             # leave slowly, don't wake it up
             LOG.debug("Local iptables rule is set.")
@@ -324,7 +330,8 @@ class AccessSteward(object):
                                 "tcp", "--dport", "35357", "-j", "DNAT",
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
-                                stdout=subprocess.PIPE).stdout.read()
+                                stdout=subprocess.PIPE,
+                                preexec_fn=utils.ignore_sigint).stdout.read()
         LOG.debug("Now local iptables rule is set.")
 
     def stop_forwarding(self):

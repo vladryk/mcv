@@ -49,8 +49,8 @@ class DummyRunner(runner.Runner):
     def _it_ends_well(self, something):
         return True
 
-    def run_batch(self, tasks):
-        return super(DummyRunner, self).run_batch(tasks)
+    def run_batch(self, event, tasks):
+        return super(DummyRunner, self).run_batch(event, tasks)
 
     def run_individual_task(self, task):
         time.sleep(2)

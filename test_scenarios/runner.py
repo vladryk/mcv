@@ -23,6 +23,8 @@ import re
 import sys
 import time
 
+import utils
+
 # Base class for runners should be placed here.
 
 nevermind = None
@@ -76,8 +78,10 @@ class Runner(object):
     def verify_container_is_up(self, container_name):
         # container_name == rally, shaker, ostf
         LOG.debug("Checking %s container..." % container_name)
-        res = subprocess.Popen(["docker", "ps"],
-            stdout=subprocess.PIPE).stdout.read()
+        res = subprocess.Popen(
+            ["docker", "ps"],
+            stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
         detector = re.compile("mcv-" + container_name)
         if re.search(detector, res) is not None:
             # This does not relly belongs here, better be moved someplace
@@ -165,7 +169,9 @@ class Runner(object):
         current_time = 0
 
         for task in tasks:
-
+            if kwargs.get('event').is_set():
+                LOG.info("Caught keyboard interrupt. Task %s won't start" % task)
+                break
             time_start = datetime.datetime.utcnow()
             LOG.info("Running " + task)
             LOG.info("Time start: %s UTC" % str(time_start))
