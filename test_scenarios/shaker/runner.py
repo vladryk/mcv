@@ -226,6 +226,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.endpoint = self.accessor.access_data['auth_endpoint_ip']
         cmd = "docker exec -it %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
+
         p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
 
         if (task in self.list_speed_tests):
@@ -237,6 +238,7 @@ class ShakerOnDockerRunner(ShakerRunner):
          " --debug --output %s.out --report-template json --report " \
          "%s.json" % (self.container, self.accessor.access_data["instance_ip"],
                      task, task, task)
+
         p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
         time.sleep(60)
 
@@ -414,7 +416,10 @@ class ShakerOnDockerRunner(ShakerRunner):
             success = True
 
             for internal_task in self.list_speed_tests:
-                task_result = self._run_shaker_on_docker(internal_task)
+                try:
+                    task_result = self._run_shaker_on_docker(internal_task)
+                except subprocess.CalledProcessError:
+                    LOG.error("Task %s failed with: " % task, exc_info=True)
 
                 check = self._evaluate_task_result(task, task_result)
                 if not check:
@@ -438,7 +443,11 @@ class ShakerOnDockerRunner(ShakerRunner):
                 self.test_failures.append(task)
                 return False
 
-        task_result = self._run_shaker_on_docker(task)
+        try:
+            task_result = self._run_shaker_on_docker(task)
+        except subprocess.CalledProcessError:
+            task_result = False
+
         if type(task_result) == dict and\
                 self._evaluate_task_result(task, task_result):
             return True

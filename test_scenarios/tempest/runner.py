@@ -106,14 +106,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         cmd = "docker exec -it %(container)s rally verify list" %\
               {"container": self.container_id}
-        p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        try:
+            p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError:
+            LOG.error("Task %s failed with: " % task, exc_info=True)
+            return ''
+
         # get the last run results. This should be done in a more robust and
         # sane manner at some point.
         run = p.split('\n')[-3].split('|')[8]
         if run == 'failed':
             LOG.error('Verification failed, unable to generate report')
             return ''
+
         run = p.split('\n')[-3].split('|')[1]
+
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         LOG.info('Generating html report')

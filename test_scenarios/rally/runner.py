@@ -385,16 +385,21 @@ class RallyOnDockerRunner(RallyRunner):
     def run_individual_task(self, task, *args, **kwargs):
         # here be the fix for running rally in a docker container.
         # apparently we'll need something to set up rally inside docker.
-        task_id = self._run_rally_on_docker(task, *args, **kwargs)
-        if task_id['failed'] and len(task_id.keys()) == 1:
-            LOG.warning("Task %s has failed for some instrumental issues" % (task))
-            self.test_failures.append(task)
+        try:
+            task_id = self._run_rally_on_docker(task, *args, **kwargs)
+            if task_id['failed'] and len(task_id.keys()) == 1:
+                LOG.warning("Task %s has failed for some instrumental issues" % (task))
+                self.test_failures.append(task)
+                return False
+        except subprocess.CalledProcessError:
+            LOG.error("Task %s has failed with: " % task, exc_info=True)
             return False
-        task_result = self._get_task_result_from_docker(task_id['next_command'])
-
-        if type(task_result) == dict and\
-                self._evaluate_task_result(task, task_result):
-            return True
         else:
-            LOG.warning("Task %s has failed with %s" % (task, task_result))
-            self.test_failures.append(task)
+            task_result = self._get_task_result_from_docker(task_id['next_command'])
+
+            if type(task_result) == dict and\
+                    self._evaluate_task_result(task, task_result):
+                return True
+            else:
+                LOG.warning("Task %s has failed with %s" % (task, task_result))
+                self.test_failures.append(task)
