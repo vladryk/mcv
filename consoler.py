@@ -346,7 +346,8 @@ class Consoler(object):
         elif to_check[0] == 'single':
             if len(to_check) < 3:
 
-                LOG.error( "Too few arguments for option single. You must specify test group and test name")
+                LOG.error( "Too few arguments for option single. You must
+                        specify test type and test name")
                 sys.exit(1)
             if len(to_check) > 3:
                 LOG.warning( "Ignoring arguments: "+ ", ".join(to_check[3:]))
