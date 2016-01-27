@@ -4,3 +4,10 @@
 *.htm
 *.html
 *.pyc
+*.egg-info
+*.egg[s]
+*.log
+*.py[co]
+.testrepository
+.tox
+.venv

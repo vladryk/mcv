@@ -15,9 +15,7 @@
 import setuptools
 
 setuptools.setup(
-    packages=setuptools.find_packages(exclude=['tests']),
-    py_modules=['consoler', 'logger', 'accessor', 'reporter', 'main'],
-    setup_requires=['pbr>=1.3'],
+    setup_requires=['pbr>=1.8'],
     pbr=True,
 
 )
