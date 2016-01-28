@@ -16,9 +16,9 @@ import ConfigParser
 import logging
 import os
 import subprocess
+import shlex
 import sys
 from test_scenarios import runner
-import time
 try:
     import json
 except:
@@ -233,14 +233,25 @@ class ShakerOnDockerRunner(ShakerRunner):
             self._create_task_in_docker(task)
 
         # Note: make port configurable
-        cmd = "docker exec -it %s shaker --server-endpoint %s:5999 --scenario " \
-         "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
-         " --debug --output %s.out --report-template json --report " \
-         "%s.json" % (self.container, self.accessor.access_data["instance_ip"],
-                     task, task, task)
+        timeout = self.config.get("shaker", "timeout")
+        cmd = "docker exec -it %s timeout %s shaker --server-endpoint " \
+              "%s:5999 --scenario " \
+              "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
+              " --debug --output %s.out --report-template json --report " \
+              "%s.json" % (self.container, timeout,
+                           self.accessor.access_data["instance_ip"],
+                           task, task, task)
 
-        p = subprocess.check_output(cmd + insecure, shell=True, stderr=subprocess.STDOUT)
-        time.sleep(60)
+        proc = subprocess.Popen(shlex.split(cmd + insecure),
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        proc.communicate()
+        # Note: TIMEOUT_RETCODE = 124
+        if proc.returncode == 124:
+            self.failure_indicator = 41
+            LOG.info('Process #%d killed after %s seconds' % (proc.pid, timeout))
+            LOG.debug('Timeout error occurred trying to execute shaker')
+            return []
 
         cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
         p = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
