@@ -83,7 +83,7 @@ class Preparer(object):
         LOG.info('Launch instance from cirros-image')
         image = self.nova.images.find(name="cirros-image")
         try:
-            flavor = self.nova.flavors.find(ram=64)
+            flavor = self.nova.flavors.findall(ram=64)[0]
         except exceptions.NotFound:
             flavor = self.nova.flavors.list()[0]
         network = self.nova.networks.find(label="net04")
