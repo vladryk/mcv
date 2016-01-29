@@ -69,6 +69,12 @@ parser.add_argument(
     short.""")
 
 parser.add_argument(
+    "--test",
+    nargs='+',
+    dest='test',
+    help="""testing mcv test groups""")
+
+parser.add_argument(
     "--config",
     help="""Provide custom config file instead of the default one""")
 

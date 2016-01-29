@@ -420,6 +420,10 @@ class Consoler(object):
                       " refer to logs to find out what"
                 LOG.error("The following error has terminated the consoler:", exc_info=True)
                 self.failure_indicator = 13
+        elif self.args.test is not None:
+            arguments = ' '.join(i for i in self.args.test)
+            subprocess.call('/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh "({0})"'.format(arguments), shell=True)
+            return 1
         r_helper = do_finalization(run_results)
         self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
