@@ -17,7 +17,7 @@ import unittest
 import accessor
 import test_scenarios.speed.speed_tester as st
 import test_scenarios.speed.runner as runner
-
+import ConfigParser
 
 class FakeReporter():
     html = 'fake-html'
@@ -39,21 +39,32 @@ class BaseTestCase(unittest.TestCase):
                                 }
 
     def setUp(self):
-        self.accessor = accessor.AccessSteward('fake-config')
+        self.accessor = accessor.AccessSteward({'qwe':'fake'})
         self.accessor.access_data = self.fake_access_data_template
         self.accessor.novaclient = mock.Mock()
 
-
 class TestSpeedRunner(BaseTestCase):
 
+    def test_scenario_fine(self):
+        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config='qwe')
+        run.scenario_is_fine('fake')
+
+    def test_it_ends_well(self):
+        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config='qwe')
+        run._it_ends_well('fake')
+
     def test_evaluate_result_pass(self):
-        run = runner.SpeedTestRunner(self.accessor, 'fake-path')
-        res = run._evaluate_task_results([80, 80])
-        self.assertTrue(res)
+        fake_config=ConfigParser.ConfigParser()
+        fake_config.add_section('speed')
+        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)
+        run._evaluate_task_results([80])
 
     def test_evaluate_result_fail(self):
-        run = runner.SpeedTestRunner(self.accessor, 'fake-path')
-        res = run._evaluate_task_results([10, 80])
+        fake_config=ConfigParser.ConfigParser()
+        fake_config.add_section('speed')
+        fake_config.set('speed', 'threshold', '11')
+        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)
+        res = run._evaluate_task_results([10])
         self.assertFalse(res)
 
     def test_wrong_task(self):
