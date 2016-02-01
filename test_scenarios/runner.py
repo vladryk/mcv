@@ -203,9 +203,9 @@ class Runner(object):
                     persent -= float(all_time) / float(kwargs["all_time"])
                 persent = int(persent * 100)
 
-                line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
-                line += ' %s' % persent + '% '
-                line += '%s ETA\n' % self.seconds_to_time(all_time * multiplier)
+                #line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
+                line = '\nCompleted %s' % persent + '% and remaining time '
+                line += '%s\n' % self.seconds_to_time(all_time * multiplier)
 
                 LOG.info(line)
 

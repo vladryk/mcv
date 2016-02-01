@@ -181,6 +181,7 @@ class Consoler(object):
                 batch = map(lambda x: x.strip('\n'), batch)
                 elapsed_time_by_group[key] = self.all_time
                 for test in batch:
+                    test = test.replace(' ', '')
                     try:
                         self.all_time += db[key][test]
                     except KeyError:

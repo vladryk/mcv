@@ -13,6 +13,7 @@
 #    under the License.
 
 import ConfigParser
+import datetime
 import logging
 import subprocess
 from test_scenarios.rally import runner as rrunner
@@ -162,6 +163,19 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
+        tool_name = kwargs["tool_name"]
+        all_time = kwargs["all_time"]
+        elapsed_time = kwargs["elapsed_time"]
+
+        # Note: the database execution time of each test. In the first run
+        # for each test tool calculate the multiplier, which shows the
+        # difference of execution time between testing on our cloud and
+        # the current cloud.
+        db = kwargs.get('db')
+        first_run = True
+        multiplier = 1.0
+        current_time = 0
+
         try:
             max_failed_tests = int(self.config.get('tempest', 'max_failed_tests'))
         except ConfigParser.NoOptionError:
@@ -171,14 +185,59 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         t = []
         for task in tasks:
             task = task.replace(' ', '')
+            time_start = datetime.datetime.utcnow()
             LOG.info('Running %s tempest set' % task)
+
+            LOG.info("Time start: %s UTC" % str(time_start))
+            if self.config.get('times', 'update') == 'False':
+                try:
+                    current_time = db[tool_name][task]
+                except KeyError:
+                    current_time = 0
+                LOG.info("Expected time to complete %s: %s" %
+                         (task,
+                          self.seconds_to_time(current_time * multiplier)))
+
             self.run_individual_task(task, *args,  **kwargs)
+
+            time_end = datetime.datetime.utcnow()
+            time = time_end - time_start
+            LOG.info("Time end: %s UTC" % str(time_end))
+
+            if self.config.get('times', 'update') == 'True':
+                if tool_name in db.keys():
+                    db[tool_name].update({task: time.seconds})
+                else:
+                    db.update({tool_name: {task: time.seconds}})
+            else:
+                if first_run:
+                    first_run = False
+                    if current_time:
+                        multiplier = float(time.seconds) / float(current_time)
+                all_time -= (current_time + elapsed_time)
+                persent = 1.0
+                if kwargs["all_time"]:
+                    persent -= float(all_time) / float(kwargs["all_time"])
+                persent = int(persent * 100)
+
+                #line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
+                line = '\nCompleted %s' % persent + '% and remaining time '
+                line += '%s\n' % self.seconds_to_time(all_time * multiplier)
+
+                LOG.info(line)
+
             t.append(self.task['test_cases'].keys())
             if len(self.test_failures)>max_failed_tests:
                 self.total_checks = len(t)
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 self.failure_indicator = 89
                 break
+
+        if self.config.get('times', 'update') == 'True':
+            f = file("/opt/mcv-consoler/times.json", "w")
+            f.write(json.dumps(db))
+            f.close()
+
         self.total_checks = len(t)
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
