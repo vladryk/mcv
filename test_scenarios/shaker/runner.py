@@ -58,6 +58,12 @@ class ShakerRunner(runner.Runner):
         # logs both success and problems in an uniformely manner.
         status = True
         errors = ''
+        if resulting_dict == []:
+            errors = 'Timeout Error with shaker. Process was killed.'
+            LOG.warning("Task %s has failed with the following error: %s" % \
+                        (task, errors))
+            return False
+
         for i in resulting_dict['records']:
             try:
                 if resulting_dict['records'][i]['status'] == 'error':
