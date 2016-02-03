@@ -319,9 +319,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         speeds = []
         for i in report['records']:
             try:
-                if report['records'][i]['chart'][1][0] == "Mean TCP download":
-                    speeds = report['records'][i]['chart'][1]
-                    speeds.pop(0)
+                speed = report['records'][i]['stats']['tcp_download']['mean']
+                speeds.append(speed)
             except KeyError:
                 pass
 
@@ -330,7 +329,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         for i in report['agents']:
             nodes.add(report['agents'][i]['node'])
 
-        success = True & len(speeds)
+        success = True & (len(speeds) > 0)
+
         for i in speeds:
             if (i < float(threshold) * 1024):
                 success = False
@@ -372,11 +372,11 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         test_case, speeds, nodes, success, status = self._parse_shaker_report(
             task, threshold)
+
         speed = ''
-        for i in speeds:
-            to_gb = i / 1024
-            speed += '%.2f' % to_gb + ', '
-        speed = speed[:-2]
+        if len(speeds):
+            to_gb = min(speeds) / 1024.0
+            speed = '%.2f' % to_gb
 
         line = '-' * 40
         LOG.info('\n%s' % line)
