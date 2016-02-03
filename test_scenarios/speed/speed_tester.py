@@ -88,7 +88,7 @@ class BaseStorageSpeed(object):
                                w_average=w_average), r_average, w_average
 
     def get_test_vm(self):
-        vm = self.novaclient.servers.find(name='speed-test')
+        vm = self.novaclient.servers.findall(name='speed-test')[0]
         addr  = vm.addresses.values()[0]
         for a in addr:
             if a['OS-EXT-IPS:type'] == 'floating':
