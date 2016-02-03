@@ -237,18 +237,6 @@ class AccessSteward(object):
             time.sleep(300)
             self.check_docker_images()
 
-
-    def _fake_creds(self):
-        self.access_data = {"controller_ip": '172.16.57.37',
-                            "instance_ip": '172.16.57.42',
-                            "os_username": 'admin',
-                            "os_tenant_name": 'admin',
-                            "os_password": 'admin',
-                            "auth_endpoint_ip": '172.16.57.35',
-                            "nailgun_host": '172.16.57.34',
-                            "cluster_id": "2",
-                           }
-
     def _check_and_fix_iptables_rule(self):
         # Since this is needed for both Rally and Shaker it is better to keep
         # it in accessor.
@@ -277,19 +265,8 @@ class AccessSteward(object):
             LOG.critical("SSH authorization credentials are not defined in the config")
             sys.exit(1)
         except paramiko.ssh_exception.AuthenticationException:
-            LOG.critical("Can not access controller via ssh with pro vided credentials!")
+            LOG.critical("Can not access controller via ssh with provided credentials!")
             sys.exit(1)
-            pwd = raw_input("Please enter password for root@%(controller_ip)s"\
-                            % self.access_data)
-            # TODO: do this in a smart way
-            try:
-                ssh.connect(hostname="%(controller_ip)s" % self.access_data,
-                            username="root", password=pwd)
-                # TODO: add check for allowed methods
-            except:
-                LOG.error("Oh noes! Contoller authentication failure! Out of"\
-                          " this Universe!")
-                sys.exit(1)
 
         stdin, stdout, stderr = ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
         # TODO: ok, this should not be done by sleeping
