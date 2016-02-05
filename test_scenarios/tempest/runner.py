@@ -166,9 +166,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 preexec_fn=utils.ignore_sigint)
         return p
 
-    def _patch_rally(self):
-        pass
-
     def parse_results(self, res, task):
         LOG.info("Parsing results")
         if res == '':

@@ -245,21 +245,8 @@ class RallyOnDockerRunner(RallyRunner):
         f.write(rally_json_template % credentials)
         f.close()
 
-    def _patch_rally(self):
-        # Currently there is a bug in rally which prevents it from doing good
-        # things sometimes. Yes, that's the reason we have too few good
-        # things. Not the best way to go, yet I hope that this won't be needed
-        # very very soon.
-        cmd = "docker exec -it %s sudo sed -i '282s/.*/)#            **self._get_auth_info(project_name_key=\"tenant_name\"))/' /usr/local/lib/python2.7/dist-packages/rally/osclients.py" % self.container_id
-        res = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-        return
-
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
-        if self.config.get("basic", "auth_protocol") == "https":
-            self._patch_rally()
         res = subprocess.Popen(["docker", "exec", "-it",
                                 self.container_id,
                                 "rally", "deployment", "check"],
