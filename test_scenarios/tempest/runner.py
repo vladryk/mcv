@@ -67,7 +67,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-it", "mcv-tempest"], stdout=subprocess.PIPE,
+            "-t", "mcv-tempest"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
         # here we fix glance image issues
@@ -82,7 +82,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                           "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img"],
                           stdout=subprocess.PIPE,
                           preexec_fn=utils.ignore_sigint).stdout.read()
-        cmd = "docker exec -it %(container)s mkdir /home/rally/.rally/tempest/data" %\
+        cmd = "docker exec -t %(container)s mkdir /home/rally/.rally/tempest/data" %\
               {"container": self.container_id}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
@@ -104,7 +104,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         install = glob.glob('/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/for-deployment-*'% {"id": self.long_id})
         if not install:
             LOG.info("No installation found. Installing tempest")
-            cmd = "docker exec -it %(container)s rally verify install --deployment existing --source /tempest"%\
+            cmd = "docker exec -t %(container)s rally verify install --deployment existing --source /tempest"%\
              {"container": self.container_id}
 
             p = subprocess.check_output(
@@ -115,13 +115,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 self.copy_tempest_image()
 
         LOG.info("Starting verification")
-        cmd = "docker exec -it %(container)s rally verify start --set %(set)s" %\
+        cmd = "docker exec -t %(container)s rally verify start --set %(set)s" %\
               {"container": self.container_id,
                "set": task}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "docker exec -it %(container)s rally verify list" %\
+        cmd = "docker exec -t %(container)s rally verify list" %\
               {"container": self.container_id}
         try:
             p = subprocess.check_output(
@@ -145,7 +145,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
         LOG.info('Generating html report')
-        cmd = "docker exec -it %(container)s rally verify results --html --out=%(task)s.html" %\
+        cmd = "docker exec -t %(container)s rally verify results --html --out=%(task)s.html" %\
               {"container": self.container_id, "task": task}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
@@ -159,7 +159,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "docker exec -it %(container)s rally verify results --json" %\
+        cmd = "docker exec -t %(container)s rally verify results --json" %\
               {"container": self.container_id}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,

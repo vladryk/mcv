@@ -180,7 +180,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         else:
             LOG.debug("Shaker image exists")
         LOG.debug("Run shaker-image-builder")
-        res = subprocess.Popen(["docker", "exec", "-it",
+        res = subprocess.Popen(["docker", "exec", "-t",
                                 self.container_id,
                                 "shaker-image-builder --image-name shaker-image" + insecure],
                                 stdout=subprocess.PIPE,
@@ -202,7 +202,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-it", "mcv-shaker"], stdout=subprocess.PIPE,
+            "-t", "mcv-shaker"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _setup_shaker_on_docker(self):
@@ -242,7 +242,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         if self.config.get("basic", "auth_protocol") == "https":
             insecure = " --os-insecure"
         self.endpoint = self.accessor.access_data['auth_endpoint_ip']
-        cmd = "docker exec -it %s shaker-image-builder --image-name " \
+        cmd = "docker exec -t %s shaker-image-builder --image-name " \
               "shaker-image" % self.container
 
         p = subprocess.check_output(
@@ -255,7 +255,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         # Note: make port configurable
         timeout = self.config.get("shaker", "timeout")
-        cmd = "docker exec -it %s timeout %s shaker --server-endpoint " \
+        cmd = "docker exec -t %s timeout %s shaker --server-endpoint " \
               "%s:5999 --scenario " \
               "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
               " --debug --output %s.out --report-template json --report " \
@@ -281,7 +281,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 preexec_fn=utils.ignore_sigint)
         container_id = p.rstrip('\n')
 
-        cmd = "docker exec -it %s shaker-report --input %s.out --report " \
+        cmd = "docker exec -t %s shaker-report --input %s.out --report " \
          "%s.html" % (self.container, task, task)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
@@ -322,7 +322,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
-        cmd = "docker exec -it %s %s" % (self.container, task_id)
+        cmd = "docker exec -t %s %s" % (self.container, task_id)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)

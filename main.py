@@ -19,6 +19,7 @@ import ConfigParser
 import logging
 import os
 import sys
+import time
 import threading
 import fcntl
 
@@ -97,7 +98,8 @@ def main():
     t = threading.Thread(target=consolerr.console_user, args=[e, res])
     try:
         t.start()
-        t.join()
+        while t.is_alive():
+            time.sleep(60)
         return res
     except KeyboardInterrupt:
         logging.info("Consoler will be interrupted after finish of current task. "
