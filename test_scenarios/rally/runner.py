@@ -182,7 +182,7 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-it", "mcv-rally"], stdout=subprocess.PIPE,
+            "-t", "mcv-rally"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
         # Since noone is actually giving a number two to how this is done
@@ -247,7 +247,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
-        res = subprocess.Popen(["docker", "exec", "-it",
+        res = subprocess.Popen(["docker", "exec", "-t",
                                 self.container_id,
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE,
@@ -271,7 +271,7 @@ class RallyOnDockerRunner(RallyRunner):
             except:
                 LOG.warning( "Failed to copy Rally setup  json.")
                 sys.exit(1)
-            res = subprocess.Popen(["docker", "exec", "-it",
+            res = subprocess.Popen(["docker", "exec", "-t",
                                    self.container_id, "rally",
                                    "deployment", "create",
                                    "--file=existing.json",
@@ -320,7 +320,7 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info("Starting Rally Certification Task")
             task_args = self._prepare_certification_task_args()
 
-            cmd = ("docker exec -it {container} rally task start"
+            cmd = ("docker exec -t {container} rally task start"
                   " {location}/certification/openstack/task.yaml"
                   " --task-args '{task_args}'").format(
                       container = self.container_id,
@@ -328,7 +328,7 @@ class RallyOnDockerRunner(RallyRunner):
                       task_args = json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
-            cmd = "docker exec -it %(container)s rally task start"\
+            cmd = "docker exec -t %(container)s rally task start"\
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
                   "%(compute)s, \"concurrency\":%(concurrency)s,"\
                  "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
@@ -364,7 +364,7 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
-        cmd = "docker exec -it %(container)s rally task report --out=%(task)s.html" \
+        cmd = "docker exec -t %(container)s rally task report --out=%(task)s.html" \
               % {"container": self.container_id, "task": task}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
@@ -384,7 +384,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _get_task_result_from_docker(self, task_id):
         LOG.debug("Retrieving task results for %s" % task_id)
-        cmd = "docker exec -it %s %s" % (self.container_id, task_id)
+        cmd = "docker exec -t %s %s" % (self.container_id, task_id)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)

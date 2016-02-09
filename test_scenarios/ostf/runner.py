@@ -52,7 +52,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def _do_config_extraction(self):
         LOG.info( "Preparing OSTF")
-        res = subprocess.Popen(["docker", "exec", "-it",
+        res = subprocess.Popen(["docker", "exec", "-t",
                                 self.container_id,
                                 "ostf-config-extractor", "-o",
                                 "/tmp/ostfcfg.conf"],
@@ -84,7 +84,7 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "NAILGUN_PORT=8000",
             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-it", cname], stdout=subprocess.PIPE,
+            "-t", cname], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _verify_ostf_container_is_up(self):
@@ -106,7 +106,7 @@ class OSTFOnDockerRunner(runner.Runner):
                 break
 
     def check_task(self, task):
-        cmd = "docker exec -it %s cloudvalidation-cli cloud-health-check "\
+        cmd = "docker exec -t %s cloudvalidation-cli cloud-health-check "\
               "list_plugin_suites --validation-plugin fuel_health" %\
               self.container
         p = subprocess.check_output(
@@ -125,7 +125,7 @@ class OSTFOnDockerRunner(runner.Runner):
         task = self.check_task(task)
         if task is None:
             self.not_found.append(task)
-        cmd = "docker exec -it %s cloudvalidation-cli "\
+        cmd = "docker exec -t %s cloudvalidation-cli "\
               "--config-file=/tmp/ostfcfg.conf cloud-health-check run_suite"\
               " --validation-plugin-name fuel_health --suite %s" %\
               (self.container, task)
