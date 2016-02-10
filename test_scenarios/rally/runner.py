@@ -409,6 +409,7 @@ class RallyOnDockerRunner(RallyRunner):
                 return False
         except subprocess.CalledProcessError:
             LOG.error("Task %s has failed with: " % task, exc_info=True)
+            self.test_failures.append(task)
             return False
         else:
             task_result = self._get_task_result_from_docker(task_id['next_command'])
