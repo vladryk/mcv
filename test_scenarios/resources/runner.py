@@ -22,12 +22,13 @@ LOG = logging
 
 class ResourceReportRunner(run.Runner):
 
-    def __init__(self, accessor, *args, **kwargs):
+    def __init__(self, accessor, path, *args, **kwargs):
         # Need accessor for access data
         self.config = kwargs.get("config")
         self.accessor = accessor
         self.identity = "resources"
         self.config_section = "resources"
+        self.path = path
         self.test_failures = []
         super(ResourceReportRunner, self).__init__()
         self.failure_indicator = 30
@@ -48,7 +49,7 @@ class ResourceReportRunner(run.Runner):
     def generate_report(self, html, task):
         # Append last run to existing file for now. Not sure how to fix this properly
         LOG.debug('Generating report in resources.html file')
-        report = file('%s.html' % task, 'w')
+        report = file('%s/%s.html' % (self.path, task), 'w')
         report.write(html)
         report.close()
 
