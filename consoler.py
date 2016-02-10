@@ -256,8 +256,6 @@ class Consoler(object):
                     run_failures = test_dict[key].split(',')
                     self.failure_indicator = 11
                     raise e
-                if self.event.is_set():
-                    dispatch_result.pop(key)
                 else:
                     dispatch_result[key]['results'] = run_failures
                     dispatch_result[key]['batch'] = batch
