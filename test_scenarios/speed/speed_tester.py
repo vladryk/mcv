@@ -66,7 +66,7 @@ class BaseStorageSpeed(object):
             insecure=True)
         LOG.debug('Authentication ends well')
 
-    def generate_report(self, storage, r_res, w_res):
+    def generate_report(self, storage, compute_name, r_res, w_res):
         path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
         temp = open(path, 'r')
         template = temp.read()
@@ -85,13 +85,14 @@ class BaseStorageSpeed(object):
             write +='<tr><td>{} attempt:</td><td align="right">Speed {} MB/s</td><tr>\n'.format(i, round(w_res[i], 2))
         return template.format(read=read,
                                storage=storage,
+                               compute=compute_name,
                                write=write,
                                r_average=r_average,
                                w_average=w_average), r_average, w_average
 
-    def get_test_vm(self):
-        vm = self.novaclient.servers.findall(name='speed-test')[0]
-        addr  = vm.addresses.values()[0]
+    def get_test_vm(self, node_id):
+        vm = self.novaclient.servers.find(id=node_id)
+        addr = vm.addresses.values()[0]
         for a in addr:
             if a['OS-EXT-IPS:type'] == 'floating':
                 floating_ip = a['addr']
@@ -149,9 +150,9 @@ class BlockStorageSpeed(BaseStorageSpeed):
         self.size = kwargs.get('volume_size')
         self.device = None
 
-    def create_test_volume(self):
+    def create_test_volume(self, node_id):
         LOG.debug('Creating test volume')
-        (self.test_vm, test_vm_ip) = self.get_test_vm()
+        (self.test_vm, test_vm_ip) = self.get_test_vm(node_id)
         self.set_ssh_connection(test_vm_ip)
         self.vol = self.cinderclient.volumes.create(int(math.ceil(self.size)))
 
@@ -174,7 +175,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
                 break
 
             time.sleep(3)
-        #NOTE: cirros or cinder work strange and sometimes attach volume not to specified device,
+        # NOTE: cirros or cinder work strange and sometimes attach volume not to specified device,
         #  so additional check for it
         if not self.device:
             cmd = "test -e %s && echo 1" % '/dev/vdc'
@@ -184,7 +185,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
         if not self.device:
             LOG.error("Failed to attach test volume")
-            self.cleanup()
+            self.cleanup(node_id)
             raise RuntimeError
         LOG.debug('Mounting volume to test VM')
         res = self.run_ssh_cmd('/usr/sbin/mkfs.ext4 %s' % self.device)
@@ -192,6 +193,93 @@ class BlockStorageSpeed(BaseStorageSpeed):
         res = self.run_ssh_cmd('mount %s /mnt/testvolume' % self.device)
 
         LOG.debug('Volume successfully created')
+
+    def generate_report(self, storage, compute_name, r_res, w_res, r_res_thr,
+                        w_res_thr, r_res_iop, w_res_iop):
+        path = os.path.join(os.path.dirname(__file__),
+                            'block_speed_template.html')
+        temp = open(path, 'r')
+        template = temp.read()
+        temp.close()
+
+        # 1M x 1000
+        r_res = [(1024 * float(self.size)) / i for i in r_res]
+        r_res.insert(0, 0)
+        r_average = round(sum(r_res) / 3.0, 2)
+        read = ''
+        for i in range(1, 4):
+            read += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
+                     'MB/s</td><tr>\n').format(i, round(r_res[i], 2))
+        w_res = [(1024 * float(self.size)) / i for i in w_res]
+        w_res.insert(0, 0)
+        w_average = round(sum(w_res) / 3.0, 2)
+        write = ''
+        for i in range(1, 4):
+            write += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
+                      'MB/s</td><tr>\n').format(i, round(w_res[i], 2))
+
+        # 1G x 1
+        r_res_thr = [(1024 * float(self.size)) / i for i in r_res_thr]
+        r_res_thr.insert(0, 0)
+        r_average_thr = round(sum(r_res_thr) / 3.0, 2)
+        read_thr = ''
+        for i in range(1, 4):
+            read_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
+                         ' MB/s</td><tr>\n').format(i, round(r_res_thr[i], 2))
+        w_res_thr = [(1024 * float(self.size)) / i for i in w_res_thr]
+        w_res_thr.insert(0, 0)
+        w_average_thr = round(sum(w_res_thr) / 3.0, 2)
+        write_thr = ''
+        for i in range(1, 4):
+            write_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
+                          'MB/s</td><tr>\n').format(i, round(w_res_thr[i], 2))
+
+        # 4K x 250000
+        r_res_iop = [(1024 * float(self.size)) / i for i in r_res_iop]
+        r_res_iop.insert(0, 0)
+        r_average_iop = round(sum(r_res_iop) / 3.0, 2)
+        read_iop = ''
+        for i in range(1, 4):
+            read_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
+                         ' MB/s</td><tr>\n').format(i, round(r_res_iop[i], 2))
+        w_res_iop = [(1024 * float(self.size)) / i for i in w_res_iop]
+        w_res_iop.insert(0, 0)
+        w_average_iop = round(sum(w_res_iop) / 3.0, 2)
+        write_iop = ''
+        for i in range(1, 4):
+            write_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
+                          ' MB/s</td><tr>\n').format(i, round(w_res_iop[i], 2))
+
+        # Average
+        r_res_all = r_res + r_res_thr + r_res_iop
+        w_res_all = w_res + w_res_thr + w_res_iop
+        r_av_all = round(sum(r_res_all) / len(r_res_all), 2)
+        w_av_all = round(sum(w_res_all) / len(w_res_all), 2)
+
+        LOG.info("Compute %s average results:" % compute_name)
+        LOG.info("Read %s MB/s" % r_av_all)
+        LOG.info("Write %s MB/s\n" % w_av_all)
+
+        return template.format(read=read,
+                               storage=storage,
+                               compute=compute_name,
+                               write=write,
+                               r_average=r_average,
+                               w_average=w_average,
+                               read_thr=read_thr,
+                               write_thr=write_thr,
+                               r_average_thr=r_average_thr,
+                               w_average_thr=w_average_thr,
+                               read_iop=read_iop,
+                               write_iop=write_iop,
+                               r_average_iop=r_average_iop,
+                               w_average_iop=w_average_iop,
+                               r_av_all=r_av_all,
+                               w_av_all=w_av_all), r_av_all, w_av_all
+
+    def remove_file(self):
+        LOG.debug('Removing file')
+        self.run_ssh_cmd('rm /mnt/testvolume/testimage.ss.img')
 
     def measure_write(self):
         count = 1000 * float(self.size)
@@ -209,20 +297,66 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
         return time.time() - start_time
 
-    def measure_speed(self):
-        self.create_test_volume()
+    def measure_write_throughput(self):
+        count = 1
+        start_time = time.time()
+
+        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/zero of=/mnt/testvolume/testimage.ss.img bs=1G count=%d' % count)
+
+        return time.time() - start_time
+
+    def measure_read_throughput(self):
+        count = 1
+        start_time = time.time()
+
+        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=1G count=%d' % count)
+
+        return time.time() - start_time
+
+    def measure_write_iop(self):
+        count = 250000
+        start_time = time.time()
+
+        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/zero of=/mnt/testvolume/testimage.ss.img bs=4K count=%d' % count)
+
+        return time.time() - start_time
+
+    def measure_read_iop(self):
+        count = 250000
+        start_time = time.time()
+
+        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=4K count=%d' % count)
+
+        return time.time() - start_time
+
+    def measure_speed(self, node_id):
+        self.create_test_volume(node_id)
+        compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
         r_res = []
         w_res = []
-        LOG.debug('Starting measurind r/w speed')
+        r_res_thr = []
+        w_res_thr = []
+        r_res_iop = []
+        w_res_iop = []
+        LOG.debug('Starting measuring r/w speed')
         for i in range(0, 3):
             w_res.append(self.measure_write())
             r_res.append(self.measure_read())
-        self.cleanup()
-        return self.generate_report('Block', r_res, w_res)
+            self.remove_file()
 
-    def cleanup(self):
+            w_res_thr.append(self.measure_write_throughput())
+            r_res_thr.append(self.measure_read_throughput())
+            self.remove_file()
+
+            w_res_iop.append(self.measure_write_iop())
+            r_res_iop.append(self.measure_read_iop())
+        self.cleanup(node_id)
+        return self.generate_report('Block', compute_name, r_res, w_res,
+                                    r_res_thr, w_res_thr, r_res_iop, w_res_iop)
+
+    def cleanup(self, node_id):
         LOG.debug('Start cleanup resources')
-        vm, ip = self.get_test_vm()
+        vm, ip = self.get_test_vm(node_id)
         try:
             res = self.run_ssh_cmd('umount /mnt/testvolume')
             res = self.run_ssh_cmd('rm -rf /mnt/testvolume')

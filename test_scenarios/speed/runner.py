@@ -34,6 +34,7 @@ class SpeedTestRunner(run.Runner):
         self.path = path
         super(SpeedTestRunner, self).__init__()
         self.failure_indicator = 20
+        self.node_ids = []
 
     def scenario_is_fine(self, scenario):
         return True
@@ -67,18 +68,18 @@ class SpeedTestRunner(run.Runner):
                               region_name=self.accessor.access_data['region_name'])
         return myPreparer
 
-    def _prepare_vm(self):
+    def _prepare_vms(self):
         myPreparer = self.get_preparer()
-        return myPreparer.prepare_instance()
+        return myPreparer.prepare_instances()
 
-    def _remove_vm(self):
+    def _remove_vms(self):
         myPreparer = self.get_preparer()
-        myPreparer.delete_instance()
+        myPreparer.delete_instances()
 
     def run_batch(self, tasks, *args, **kwargs):
-        self._prepare_vm()
+        self.node_ids = self._prepare_vms()
         res = super(SpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
-        self._remove_vm()
+        self._remove_vms()
         return res
 
     def generate_report(self, html, task):
@@ -93,12 +94,12 @@ class SpeedTestRunner(run.Runner):
         try:
             i_s = self.config.get('speed', 'image_size')
         except ConfigParser.NoOptionError:
-            LOG.info('Use default image sise 1Gb')
+            LOG.info('Use default image size 1Gb')
             i_s = 1
         try:
             v_s = self.config.get('speed', 'volume_size')
         except ConfigParser.NoOptionError:
-            LOG.info('Use default volume sise 1Gb')
+            LOG.info('Use default volume size 1Gb')
             v_s = 1
         LOG.debug('Start generating %s' %task)
         try:
@@ -107,14 +108,36 @@ class SpeedTestRunner(run.Runner):
             LOG.error('Incorrect task')
             return False
         reporter = speed_class(self.accessor.access_data, image_size=i_s, volume_size=v_s, *args, **kwargs)
-        try:
-            res, r_average, w_average = reporter.measure_speed()
-        except RuntimeError:
-            LOG.error('Failed to measure speed')
-            self.test_failures.append(task)
-            return False
-        self.generate_report(res, task)
-        if self._evaluate_task_results([r_average, w_average]):
+        res_all = ("<!DOCTYPE html>\n"
+                   "<html lang=\"en\">\n"
+                   "<head>\n"
+                   "    <meta charset=\"UTF-8\">\n"
+                   "    <title></title>\n"
+                   "</head>\n"
+                   "<body>\n")
+
+        r_average_all = []
+        w_average_all = []
+
+        for node_id in self.node_ids:
+            LOG.info("Measuring speed on node %s" % node_id)
+            try:
+                res, r_average, w_average = reporter.measure_speed(node_id)
+                res_all += res
+                r_average_all.append(r_average)
+                w_average_all.append(w_average)
+            except RuntimeError:
+                LOG.error('Failed to measure speed')
+                self.test_failures.append(task)
+                return False
+
+        r_av = round(sum(r_average_all) / len(r_average_all), 2)
+        w_av = round(sum(w_average_all) / len(w_average_all), 2)
+        res_all += ('<br><h4> Overall average results: read - {} MB/s, '
+                    'write - {} MB/s:</h4>').format(r_av, w_av)
+        res_all += "</body>\n</html>"
+        self.generate_report(res_all, task)
+        if self._evaluate_task_results([r_av, w_av]):
             return True
         else:
             self.test_failures.append(task)

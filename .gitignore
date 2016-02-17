@@ -11,3 +11,4 @@
 .testrepository
 .tox
 .venv
+.idea

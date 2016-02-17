@@ -1,5 +1,6 @@
 import logging
 import time
+from threading import Thread
 
 import glanceclient as glance
 from novaclient import client as nova
@@ -13,13 +14,13 @@ class Preparer(object):
     def __init__(self, uname=None, passwd=None,
                  auth_url=None, tenant=None,
                  region_name=None):
-        self.server = None
+        self.servers = []
         self.uname = uname
         self.passwd = passwd
         self.auth_url = auth_url
         self.tenant = tenant
         self.region_name=region_name
-        self.ip = ''
+        self.ip_list = []
         super(Preparer, self).__init__()
 
     def _get_clients(self):
@@ -65,21 +66,42 @@ class Preparer(object):
         else:
             LOG.info('Cirros-image exists')
 
-    def _check_instance(self):
+    def _check_instance(self, i):
         # Update instance information
-        self.server = self.nova.servers.find(id=self.server.id)
+        self.servers[i] = self.nova.servers.find(
+            id=self.servers[i].id)
+        server = self.servers[i]
 
-        print 'Status insance is %s' % self.server.status
-        if self.server.status == 'BUILD':
-            time.sleep(60)
-            self._check_instance()
-        if self.server.status == 'ERROR':
-            LOG.debug("Something went wrong with the command, please"\
+        while server.status == 'BUILD':
+            print 'Status instance id %s is %s' % (server.id, server.status)
+            time.sleep(10)
+            server = self.nova.servers.find(
+                id=self.servers[i].id)
+
+        if server.status == 'ERROR':
+            LOG.warning("Server id %s is failed to start" % server.id)
+            LOG.warning("Compute node %s skips test" % getattr(
+                server, 'OS-EXT-SRV-ATTR:host'))
+            LOG.debug("Something went wrong with the command, please"
                       " refer to nova logs to find out what")
-            return False
-        return True
+            self.servers.remove(server)
+            return
 
-    def _launch_instance(self):
+        LOG.info('Instance id %s is running' % server.id)
+
+    def _check_instances(self):
+        check_threads = []
+        for i in range(len(self.servers)):
+            thread = Thread(target=self._check_instance, args=(i,))
+            thread.start()
+            check_threads.append(thread)
+
+        while len(check_threads):
+            check_threads = [thread for thread in check_threads if
+                             thread.isAlive()]
+            time.sleep(1)
+
+    def _launch_instances(self):
         LOG.info('Launch instance from cirros-image')
         image = self.nova.images.find(name="cirros-image")
         try:
@@ -87,41 +109,58 @@ class Preparer(object):
         except exceptions.NotFound:
             flavor = self.nova.flavors.list()[0]
         network = self.nova.networks.find(label="net04")
-        self.server = self.nova.servers.create(name="speed-test",
-                                               image=image.id,
-                                               flavor=flavor.id,
-                                               nics=[{'net-id': network.id}])
-        success = self._check_instance()
-        if success:
-            LOG.info('Instance is running')
+
+        compute_hosts = [host for host in self.nova.hosts.list(
+            zone='nova') if host.service == 'compute']
+
+        for compute_host in compute_hosts:
+            zone = 'nova:%s' % compute_host.host_name
+            self.servers.append(
+                self.nova.servers.create(name="speed-test",
+                                         image=image.id,
+                                         flavor=flavor.id,
+                                         availability_zone=zone,
+                                         nics=[{'net-id': network.id}]))
+        self._check_instances()
+        if len(self.servers):
+            LOG.info('%s instances is running' % len(self.servers))
         else:
             return False
 
         # Note: make network name configurable
-        floating_ip = self.nova.floating_ips.create(
-            self.nova.floating_ip_pools.list()[0].name)
+        for server in self.servers:
+            floating_ip = self.nova.floating_ips.create(
+                self.nova.floating_ip_pools.list()[0].name)
 
-        self.server.add_floating_ip(floating_ip)
-        self.ip = floating_ip.ip
-        # Update instance information
-        self.server = self.nova.servers.find(id=self.server.id)
+            server.add_floating_ip(floating_ip)
+            self.ip_list.append(floating_ip)
         return True
 
-    def delete_instance(self):
+    def delete_instances(self):
         self._get_clients()
-        LOG.info('Removing instance')
-        i_list = self.nova.servers.list()
-        for vm in i_list:
-            if vm.name == 'speed-test':
-                self.server = vm
+        LOG.info('Removing instances')
+        self.servers = [server for server in self.nova.servers.list() if
+                        server.name == 'speed-test']
+        self.ip_list = [[ip['addr'] for ip in server.addresses.values()[0] if
+                         ip['OS-EXT-IPS:type'] == 'floating'][0] for server in
+                        self.servers]
 
-        if self.server:
-            self.server.delete()
+        [server.delete() for server in self.servers]
+        self.servers = [server for server in self.nova.servers.list() if
+                        server.name == 'speed-test']
+        while len(self.servers):
+            LOG.info('Waiting for removing instances')
+            self.servers = [server for server in self.nova.servers.list() if
+                            server.name == 'speed-test']
+            time.sleep(5)
+        floating_ips = [self.nova.floating_ips.find(ip=ip) for ip in
+                        self.ip_list]
+        [floating_ip.delete() for floating_ip in floating_ips]
 
-    def prepare_instance(self):
+    def prepare_instances(self):
         self._check_image()
-        if not self._launch_instance():
+        if not self._launch_instances():
             return None
         else:
-            return self.ip
+            return [server.id for server in self.servers]
 
