@@ -19,6 +19,11 @@ import subprocess
 import sys
 import time
 from test_scenarios import runner
+
+import glanceclient as glance
+from keystoneclient.v2_0 import client as keystone_v2
+from neutronclient.neutron import client as neutron
+
 try:
     import json
 except:
@@ -165,6 +170,48 @@ class RallyOnDockerRunner(RallyRunner):
         # chance.
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
         self.failure_indicator = 50
+
+    def init_clients(self, access_data):
+        key_client = keystone_v2.Client(
+            username=access_data['os_username'],
+            auth_url='https://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            password=access_data['os_password'],
+            tenant_name=access_data['os_tenant_name'],
+            insecure=True)
+        image_api_url = key_client.service_catalog.url_for(
+                service_type="image")
+        glanceclient = glance.Client(
+            '1',
+            endpoint=image_api_url,
+            token=key_client.auth_token,
+            insecure=True)
+        network_api_url =key_client.service_catalog.url_for(
+            service_type="network")
+        neutronclient = neutron.Client(
+            '2.0', token=key_client.auth_token,
+            endpoint_url=network_api_url,
+            auth_url='https://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            insecure=True)
+        return (glanceclient, neutronclient)
+
+    def create_fedora_image(self, glc):
+        # Note: made path to image configurable
+        path = '/etc/toolbox/rally/Fedora-Cloud-Base-23-20151030.x86_64.qcow2'
+        i_list = glc.images.list()
+        image = False
+        for im in i_list:
+            if im.name == 'fedora':
+                image = True
+        if not image:
+            glc.images.create(name='fedora', disk_format="qcow2",
+                                      container_format="bare", data=open(path))
+
+    def get_network_router_id(self, neuc):
+        networks = neuc.list_networks(**{'router:external': True})['networks']
+        net_id = networks[0].get('id')
+        routers = neuc.list_routers()['routers']
+        rou_id = routers[0].get('id')
+        print (net_id, rou_id)
 
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
@@ -313,6 +360,21 @@ class RallyOnDockerRunner(RallyRunner):
                                               ).split(',')
         return args
 
+    def prepare_workload_task(self):
+        glc, neuc = self.init_clients(self.accessor.access_data)
+        self.create_fedora_image(glc)
+        net, rou = self.get_network_router_id(neuc)
+        concurrency = self.config.get('workload', 'concurrency')
+        instance_count = self.config.get('workload', 'instance_count')
+        task_args = {
+            'network_id': net,
+            'router_id': rou,
+            'concurrency': concurrency,
+            'instance_count': instance_count
+        }
+
+
+        return task_args
 
     def _run_rally_on_docker(self, task, *args, **kwargs):
         if task == 'certification':
@@ -326,6 +388,15 @@ class RallyOnDockerRunner(RallyRunner):
                       container = self.container_id,
                       location = self.test_storage_place,
                       task_args = json.dumps(task_args))
+        elif task == 'workload.yaml':
+            task_args = self.prepare_workload_task()
+
+            cmd = ("docker exec -t {container} rally task start"
+                   " {location}/workload.yaml"
+                   " --task-args '{task_args}'").format(
+                      container=self.container_id,
+                      location=self.test_storage_place,
+                      task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
             cmd = "docker exec -t %(container)s rally task start"\
