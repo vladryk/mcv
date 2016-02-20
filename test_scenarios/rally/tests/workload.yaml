@@ -6,9 +6,9 @@
         workload:
           resource: ["rally.plugins.workload", "siege.py"]
           username: "fedora"
-        template: "{{ current_path }}/templates/wordpress_heat_template.yaml"
+        template: "/tmp/rally_tests/templates/wordpress_heat_template.yaml"
         files:
-            wp-instances.yaml: "{{ current_path }}/templates/wp_instances.yaml"
+            wp-instances.yaml: "/tmp/rally_tests/templates/wp_instances.yaml"
         parameters:
           wp_instances_count: 2
           wp_instance_type: gig

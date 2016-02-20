@@ -100,7 +100,8 @@ class Consoler(object):
         # destruction and relies solely on group name. It is not bulletproof as
         # anyone could create loading group with a wrong name and easily break
         # everything up.
-        if test_group.find('load') != -1:
+
+        if test_group.find('load') != -1 and test_group.find('workload') == -1:
             if self.config.get('rally', 'rally_load') != 'True':
                 print "WARNING! Load test suit contains rally load tests. These tests may"
                 print "break your cloud. So, please set rally_load=True manually in mcv.conf "
