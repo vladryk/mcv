@@ -220,16 +220,14 @@ class ShakerOnDockerRunner(ShakerRunner):
                 break
 
     def _create_task_in_docker(self, task):
-        cmd = "docker inspect -f '{{.Id}}' %s" % self.container
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
         test_location = os.path.join(os.path.dirname(__file__), "tests", task)
+        shaker_test_locations = '/usr/local/lib/python2.7/dist-packages' \
+                                '/shaker/scenarios/networking/'
+
         LOG.info("Preparing to task %s" % task)
-        cmd = r"cp " + test_location +\
-              " /var/lib/docker/aufs/mnt/%s/usr/local/lib/python2.7/"\
-              "dist-packages/shaker/scenarios/networking/" %\
-              p.rstrip('\n')
+        cmd = r"docker cp %s %s:%s" % (test_location,
+                                       self.container,
+                                       shaker_test_locations)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
@@ -256,7 +254,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         # Note: make port configurable
         timeout = self.config.get("shaker", "timeout")
         cmd = "docker exec -t %s timeout %s shaker --server-endpoint " \
-              "%s:5999 --scenario " \
+              "%s:5999 --agent-join-timeout 3600 --scenario " \
               "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
               " --debug --output %s.out --report-template json --report " \
               "%s.json" % (self.container, timeout,
@@ -275,21 +273,15 @@ class ShakerOnDockerRunner(ShakerRunner):
             LOG.debug('Timeout error occurred trying to execute shaker')
             return []
 
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-        container_id = p.rstrip('\n')
-
         cmd = "docker exec -t %s shaker-report --input %s.out --report " \
          "%s.html" % (self.container, task, task)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = "sudo cp %(pref)s/%(id)s/%(task)s.json %(pth)s" % \
-                  {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
-                   'task': task, "pth": self.path}
+        cmd = "sudo docker cp %s:/%s.json %s" % (self.container,
+                                                 task,
+                                                 self.path)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
@@ -299,9 +291,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         temp.close()
         result = json.loads(p)
 
-        cmd = "sudo cp %(pref)s/%(id)s/%(task)s.html %(pth)s" % \
-                  {"pref": "/var/lib/docker/aufs/mnt", "id": container_id,
-                   'task': task, "pth": self.path}
+        cmd = "sudo docker cp %s:/%s.html %s" % (self.container,
+                                                 task,
+                                                 self.path)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)

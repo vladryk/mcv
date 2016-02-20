@@ -3,7 +3,7 @@ description:
 
 deployment:
   template: l2.hot
-  accommodation: [pair, double_room, compute_nodes: 1]
+  accommodation: [pair, double_room]
 
 execution:
   progression: quadratic
