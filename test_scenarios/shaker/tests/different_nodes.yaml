@@ -6,7 +6,7 @@ deployment:
   accommodation: [pair, single_room]
 
 execution:
-  progression: linear
+  progression: quadratic
   tests:
   -
     title: TCP download

@@ -335,18 +335,31 @@ class ShakerOnDockerRunner(ShakerRunner):
         for i in report['scenarios']:
             test_case += report['scenarios'][i]['description']
 
+        speeds_dict = {}
         speeds = []
         for i in report['records']:
             try:
                 speed = report['records'][i]['stats']['tcp_download']['mean']
                 speeds.append(speed)
+                speeds_dict[report['records'][i]['node']] = speed
             except KeyError:
                 pass
 
         nodes = set()
+        agents = []
 
         for i in report['agents']:
-            nodes.add(report['agents'][i]['node'])
+
+            if 'master' in i:
+                tmp = set()
+
+                master_node = report['agents'][i]['node']
+                slave_node = report['agents'][i]['slave']['node']
+                tmp.add(master_node)
+                tmp.add(slave_node)
+                spd = speeds_dict[master_node] / 1024.0
+
+                agents.append({ "speed": spd, "node": tmp })
 
         success = True & (len(speeds) > 0)
 
@@ -373,7 +386,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         else:
             status = error
 
-        return test_case, speeds, nodes, success, status
+        return test_case, speeds, agents, success, status
 
     def _generate_one_row_report(self, result, task, threshold):
         template = """
@@ -389,7 +402,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         </tr>
         """
 
-        test_case, speeds, nodes, success, status = self._parse_shaker_report(
+        test_case, speeds, agents, success, status = self._parse_shaker_report(
             task, threshold)
 
         speed = ''
@@ -407,10 +420,15 @@ class ShakerOnDockerRunner(ShakerRunner):
             LOG.info('Average speed is less than threshold')
         LOG.info('%s\n' % line)
 
+        speed = ''
         node = ''
-        for i in nodes:
-            node += i + ', '
-        node = node[:-2]
+
+        for agent in agents:
+            speed += '%.2f<br>' % agent['speed']
+            for n in agent['node']:
+                node += n + ', '
+            node = node[:-2]
+            node += '<br>'
 
         return template.format(test_case=test_case,
                                scenario=task,

@@ -208,6 +208,7 @@ class Runner(object):
                 if kwargs["all_time"]:
                     persent -= float(all_time) / float(kwargs["all_time"])
                 persent = int(persent * 100)
+                persent = 100 if persent > 100 else persent
 
                 #line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
                 line = '\nCompleted %s' % persent + '% and remaining time '
