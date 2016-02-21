@@ -15,6 +15,7 @@
 import ConfigParser
 import logging
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -235,30 +236,25 @@ class RallyOnDockerRunner(RallyRunner):
         # Since noone is actually giving a number two to how this is done
         # and some people actively deny the logic arrangement I'll do it this
         # dumb way.
-        cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
-        long_id = subprocess.check_output(
-                cmd, shell=True,
-                stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint).rstrip('\n')
-        subprocess.Popen(["sudo", "cp", "-r",
-                          "/etc/toolbox/rally/mcv/scenarios.consoler",
-                          "/var/lib/docker/aufs/mnt/%(id)s/%(place)s"\
-                          % {"id": long_id,
-                          "place": self.test_storage_place}],\
-                          stdout=subprocess.PIPE,
-                          preexec_fn=utils.ignore_sigint).stdout.read()
+        cmd = 'sudo docker cp /etc/toolbox/rally/mcv/scenarios.consoler ' \
+              '%s:%s' % (self.container_id, self.test_storage_place)
+        cmd = shlex.split(cmd)
+
+        subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                         preexec_fn=utils.ignore_sigint).stdout.read()
+
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
                           "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img"],
                          stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
-        subprocess.Popen(["sudo", "cp",
-                          "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img",
-                          "/var/lib/docker/aufs/mnt/%(id)s/home/rally"\
-                          % {"id": long_id, }],\
-                          stdout=subprocess.PIPE,
-                          preexec_fn=utils.ignore_sigint).stdout.read()
+        cmd = 'sudo docker cp /etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img ' \
+              '%s:/home/rally' % self.container_id
+        cmd = shlex.split(cmd)
+
+        subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                         preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
@@ -301,16 +297,11 @@ class RallyOnDockerRunner(RallyRunner):
                                preexec_fn=utils.ignore_sigint).stdout.read()
         if res.startswith("There is no"):
             LOG.debug("It is not. Trying to set up rally deployment.")
-            cmd = "docker inspect -f '{{.Id}}' %s" % self.container_id
-            long_id = subprocess.check_output(
-                    cmd, shell=True,
-                    stderr=subprocess.STDOUT,
-                    preexec_fn=utils.ignore_sigint)
             self.create_rally_json()
             rally_config_json_location = "existing.json"
-            cmd = r"cp " + rally_config_json_location +\
-                " /var/lib/docker/aufs/mnt/%s/home/rally" %\
-                long_id.rstrip('\n')
+            cmd = 'sudo docker cp %s %s:/home/rally' % (
+                rally_config_json_location, self.container_id)
+
             try:
                 p = subprocess.check_output(cmd, shell=True,
                                             stderr=subprocess.STDOUT,
@@ -440,12 +431,8 @@ class RallyOnDockerRunner(RallyRunner):
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" \
-              % {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+        cmd = "sudo docker cp %(id)s:/home/rally/%(task)s.html %(pth)s" \
+              % {"id": self.container_id, 'task': task, "pth": self.path}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
