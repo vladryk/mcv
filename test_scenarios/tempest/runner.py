@@ -15,6 +15,7 @@
 import ConfigParser
 import datetime
 import logging
+import shlex
 import subprocess
 from test_scenarios.rally import runner as rrunner
 import json
@@ -67,50 +68,43 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-v", '/home/mcv/toolbox/tempest:/home/rally/.rally/tempest',
             "-t", "mcv-tempest"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
-        # here we fix glance image issues
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        self.long_id = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint).rstrip('\n')
 
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')
+        # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
                           "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img"],
                           stdout=subprocess.PIPE,
                           preexec_fn=utils.ignore_sigint).stdout.read()
-        cmd = "docker exec -t %(container)s mkdir /home/rally/.rally/tempest/data" %\
-              {"container": self.container_id}
+        cmd = "mkdir /home/mcv/toolbox/tempest/data"
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        subprocess.Popen(["sudo", "cp",
-                          "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img",
-                          "/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/data"\
-                          % {"id": self.long_id, }],
-                          stdout=subprocess.PIPE,
+
+        cmd = "sudo cp /etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img " \
+              "/home/mcv/toolbox/tempest/data"
+        cmd = shlex.split(cmd)
+
+        subprocess.Popen(cmd, stdout=subprocess.PIPE,
                           preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         LOG.info("Searching for installed tempest")
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        self.long_id = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint).rstrip('\n')
 
-        install = glob.glob('/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/for-deployment-*'% {"id": self.long_id})
+        install = glob.glob('/home/mcv/toolbox/tempest/for-deployment-*')
         if not install:
             LOG.info("No installation found. Installing tempest")
-            cmd = "docker exec -t %(container)s rally verify install --deployment existing --source /tempest"%\
+            cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest"%\
              {"container": self.container_id}
 
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
                     preexec_fn=utils.ignore_sigint)
-            cirros = glob.glob('/var/lib/docker/aufs/mnt/%(id)s/home/rally/.rally/tempest/data/cirros-*'% {"id": self.long_id})
+            cirros = glob.glob('/home/mcv/toolbox/tempest/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
 
@@ -140,25 +134,25 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         run = p.split('\n')[-3].split('|')[1]
 
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
         LOG.info('Generating html report')
         cmd = "docker exec -t %(container)s rally verify results --html --out=%(task)s.html" %\
               {"container": self.container_id, "task": task}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "docker inspect -f   '{{.Id}}' %s" % self.container_id
+
+        cmd = 'docker exec -it %s sudo cp /home/rally/%s.html ' \
+              '/home/rally/.rally/tempest' % (self.container_id, task)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "sudo cp /var/lib/docker/aufs/mnt/%(id)s/home/rally/%(task)s.html %(pth)s" %\
-              {"id": p.rstrip('\n'), 'task': task, "pth": self.path}
+
+        cmd = "sudo cp /home/mcv/toolbox/tempest/%(task)s.html %(pth)s" %\
+              {'task': task, "pth": self.path}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
+
         cmd = "docker exec -t %(container)s rally verify results --json" %\
               {"container": self.container_id}
         p = subprocess.check_output(
