@@ -70,7 +70,15 @@ class OSTFOnDockerRunner(runner.Runner):
         else:
             LOG.error("Unsupported MOS version: " + mos_version)
             sys.exit(33)
+
+        add_host = ""
+        if self.config.get("basic", "auth_fqdn") != '':
+            add_host = "--add-host=" +
+                       self.config.get("basic", "auth_fqdn") +
+                       ":" + self.accessor.access_data["auth_endpoint_ip"]
+
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+            [add_host]*(add_host != "") +
             "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
             #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
