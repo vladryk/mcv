@@ -175,7 +175,8 @@ class RallyOnDockerRunner(RallyRunner):
     def init_clients(self, access_data):
         key_client = keystone_v2.Client(
             username=access_data['os_username'],
-            auth_url='https://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            auth_url=self.config.get('basic', 'auth_protocol') + '://'
+                     + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             password=access_data['os_password'],
             tenant_name=access_data['os_tenant_name'],
             insecure=True)
@@ -191,7 +192,8 @@ class RallyOnDockerRunner(RallyRunner):
         neutronclient = neutron.Client(
             '2.0', token=key_client.auth_token,
             endpoint_url=network_api_url,
-            auth_url='https://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
+            auth_url=self.config.get('basic', 'auth_protocol') + '://'
+                     + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
             insecure=True)
         return (glanceclient, neutronclient)
 
@@ -204,7 +206,7 @@ class RallyOnDockerRunner(RallyRunner):
             if im.name == 'fedora':
                 image = True
         if not image:
-            glc.images.create(name='fedora', disk_format="qcow2",
+            glc.images.create(name='fedora', disk_format="qcow2", is_public=True,
                                       container_format="bare", data=open(path))
 
     def get_network_router_id(self, neuc):
@@ -212,7 +214,7 @@ class RallyOnDockerRunner(RallyRunner):
         net_id = networks[0].get('id')
         routers = neuc.list_routers()['routers']
         rou_id = routers[0].get('id')
-        print (net_id, rou_id)
+        return (net_id, rou_id)
 
     def start_rally_container(self):
         LOG.debug( "Bringing up Rally container with credentials")
