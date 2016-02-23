@@ -73,9 +73,9 @@ class OSTFOnDockerRunner(runner.Runner):
 
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host=" +
-                       self.config.get("basic", "auth_fqdn") +
-                       ":" + self.accessor.access_data["auth_endpoint_ip"]
+            add_host = "--add-host={fqdn}:{endpoint}".format(
+                       fqdn=self.config.get("basic", "auth_fqdn"),
+                       endpoint=self.accessor.access_data["auth_endpoint_ip"])
 
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",
             [add_host]*(add_host != "") +
