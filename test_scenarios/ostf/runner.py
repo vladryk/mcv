@@ -77,9 +77,9 @@ class OSTFOnDockerRunner(runner.Runner):
                        fqdn=self.config.get("basic", "auth_fqdn"),
                        endpoint=self.accessor.access_data["auth_endpoint_ip"])
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
             [add_host]*(add_host != "") +
-            "-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
+            ["-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
             #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
             "-e", "OS_TENANT_NAME=" +
             self.accessor.access_data["os_tenant_name"],
