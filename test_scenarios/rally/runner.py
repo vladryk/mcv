@@ -257,6 +257,23 @@ class RallyOnDockerRunner(RallyRunner):
 
         subprocess.Popen(cmd, stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
+        self._patch_rally()
+
+    def _patch_rally(self):
+        # Fix hardcoded timeout and siege regex
+        #TODO: Remove it with newest rally version
+        rally_path = '/usr/local/lib/python2.7/dist-packages/rally/plugins/openstack/services/heat/main.py'
+        cmd = "docker exec -t %s sudo sed -i '53s/.*/            timeout=10000,/' %s" % (self.container_id, rally_path)
+        res = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
+        siege_path = '/usr/local/lib/python2.7/dist-packages/rally/plugins/workload/siege.py'
+        cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
+              % (self.container_id, siege_path)
+        res = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
+        return
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
@@ -411,6 +428,18 @@ class RallyOnDockerRunner(RallyRunner):
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
+        if task == 'workload.yaml':
+            cmd = "docker exec -t %(container)s rally task results" \
+              % {"container": self.container_id}
+            p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
+            res = json.loads(p)
+            a = res[0]['result'][0]['output']['complete'][0]['data']['rows']
+            LOG.info('Workload results:')
+            for row in a:
+                LOG.info("%s: %s" % (row[0], row[1]))
+        p = original_output
         out = p.split('\n')[-3].lstrip('\t')
         result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
                              'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
