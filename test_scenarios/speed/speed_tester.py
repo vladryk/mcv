@@ -418,7 +418,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
             w_res.append(self.measure_write())
             r_res.append(self.measure_read())
             self.cleanup()
-        return self.generate_report('Object', r_res, w_res)
+        return self.generate_report('Object', 'Compute1', r_res, w_res)
 
     def cleanup(self):
         self.img.delete()

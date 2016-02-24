@@ -116,25 +116,38 @@ class SpeedTestRunner(run.Runner):
                    "</head>\n"
                    "<body>\n")
 
-        r_average_all = []
-        w_average_all = []
+        # Temporary solution for running both Block and Object speed tests
+        r_av = 0
+        w_av = 0
+        if task == 'BlockStorageSpeed':
+            r_average_all = []
+            w_average_all = []
 
-        for node_id in self.node_ids:
-            LOG.info("Measuring speed on node %s" % node_id)
+            for node_id in self.node_ids:
+                LOG.info("Measuring speed on node %s" % node_id)
+                try:
+                    res, r_average, w_average = reporter.measure_speed(node_id)
+                    res_all += res
+                    r_average_all.append(r_average)
+                    w_average_all.append(w_average)
+                except RuntimeError:
+                    LOG.error('Failed to measure speed')
+                    self.test_failures.append(task)
+                    return False
+
+            r_av = round(sum(r_average_all) / len(r_average_all), 2)
+            w_av = round(sum(w_average_all) / len(w_average_all), 2)
+            res_all += ('<br><h4> Overall average results: read - {} MB/s, '
+                    'write - {} MB/s:</h4>').format(r_av, w_av)
+        else:
             try:
-                res, r_average, w_average = reporter.measure_speed(node_id)
+                res,r_av, w_av = reporter.measure_speed()
                 res_all += res
-                r_average_all.append(r_average)
-                w_average_all.append(w_average)
             except RuntimeError:
                 LOG.error('Failed to measure speed')
                 self.test_failures.append(task)
                 return False
 
-        r_av = round(sum(r_average_all) / len(r_average_all), 2)
-        w_av = round(sum(w_average_all) / len(w_average_all), 2)
-        res_all += ('<br><h4> Overall average results: read - {} MB/s, '
-                    'write - {} MB/s:</h4>').format(r_av, w_av)
         res_all += "</body>\n</html>"
         self.generate_report(res_all, task)
         if self._evaluate_task_results([r_av, w_av]):
