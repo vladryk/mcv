@@ -16,7 +16,7 @@ parameters:
   timeout:
     type: number
     description: Timeout for WaitCondition, seconds
-    default: 1000
+    default: 10000
 
   router_id:
     type: string

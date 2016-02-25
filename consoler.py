@@ -454,4 +454,5 @@ class Consoler(object):
         print captain_logs
         print
         result = self.failure_indicator
+        return
 

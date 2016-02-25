@@ -103,6 +103,9 @@ class RallyRunner(runner.Runner):
 
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
+        if not resulting_dict['sla']:
+            LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
+            return False
         if resulting_dict['sla'][0]['success'] == True:
             LOG.info("Task %s has completed successfully." % task)
         else:
@@ -270,9 +273,10 @@ class RallyOnDockerRunner(RallyRunner):
         siege_path = '/usr/local/lib/python2.7/dist-packages/rally/plugins/workload/siege.py'
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
-        res = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        # TODO: Found out how to pass re through sed
+        #res = subprocess.check_output(
+        #        cmd, shell=True, stderr=subprocess.STDOUT,
+        #        preexec_fn=utils.ignore_sigint)
         return
 
     def _verify_rally_container_is_up(self):
@@ -428,6 +432,7 @@ class RallyOnDockerRunner(RallyRunner):
         original_output = p
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
+        failed = False
         if task == 'workload.yaml':
             cmd = "docker exec -t %(container)s rally task results" \
               % {"container": self.container_id}
@@ -435,16 +440,21 @@ class RallyOnDockerRunner(RallyRunner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
             res = json.loads(p)
-            a = res[0]['result'][0]['output']['complete'][0]['data']['rows']
-            LOG.info('Workload results:')
-            for row in a:
-                LOG.info("%s: %s" % (row[0], row[1]))
+
+            if not res[0]['result'][0]['output']['complete']:
+                LOG.info('Workload test failed')
+                failed = True
+            else:
+                a = res[0]['result'][0]['output']['complete'][0]['data']['rows']
+                LOG.info('Workload results:')
+                for row in a:
+                    LOG.info("%s: %s" % (row[0], row[1]))
         p = original_output
         out = p.split('\n')[-3].lstrip('\t')
         result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
                              'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
         ret_val = None
-        failed = False
+
         # ok, this has to be recosidered to make it less ugly
         for candidate in result_candidates:
             m = re.search(candidate, p)
