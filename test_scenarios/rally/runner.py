@@ -326,7 +326,7 @@ class RallyOnDockerRunner(RallyRunner):
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE,
                                preexec_fn=utils.ignore_sigint).stdout.read()
-        if res.startswith("There is no"):
+        if res.startswith("There is no") or res.startswith('Deployment'):
             LOG.debug("It is not. Trying to set up rally deployment.")
             self.create_rally_json()
             rally_config_json_location = "existing.json"

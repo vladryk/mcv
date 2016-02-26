@@ -94,7 +94,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         LOG.info("Searching for installed tempest")
-
+        super(TempestOnDockerRunner, self)._rally_deployment_check()
+        cmd = "docker exec -t %(container)s sudo rally deployment use existing" %\
+              {"container": self.container_id}
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         install = glob.glob('/home/mcv/toolbox/tempest/for-deployment-*')
         if not install:
             LOG.info("No installation found. Installing tempest")
@@ -107,9 +112,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cirros = glob.glob('/home/mcv/toolbox/tempest/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
-
         LOG.info("Starting verification")
-        cmd = "docker exec -t %(container)s rally verify start --set %(set)s" %\
+        cmd = "docker exec -t %(container)s sudo rally verify start --set %(set)s" %\
               {"container": self.container_id,
                "set": task}
         p = subprocess.check_output(
