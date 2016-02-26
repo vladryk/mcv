@@ -104,8 +104,11 @@ class RallyRunner(runner.Runner):
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
         if not resulting_dict['sla']:
-            LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
-            return False
+            err = resulting_dict['result'][0]['error']
+            if err:
+                LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
+                return False
+            return True
         if resulting_dict['sla'][0]['success'] == True:
             LOG.info("Task %s has completed successfully." % task)
         else:
@@ -260,7 +263,6 @@ class RallyOnDockerRunner(RallyRunner):
 
         subprocess.Popen(cmd, stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
-        self._patch_rally()
 
     def _patch_rally(self):
         # Fix hardcoded timeout and siege regex
@@ -274,9 +276,15 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
         # TODO: Found out how to pass re through sed
-        #res = subprocess.check_output(
-        #        cmd, shell=True, stderr=subprocess.STDOUT,
-        #        preexec_fn=utils.ignore_sigint)
+        template_path = '/tmp/rally_tests/templates/wp_instances'
+        cmd = "docker exec -t %s sudo sed -i '61s/.*/            sudo sh -c 'echo %s %s >> /etc/hosts'/' %s" % \
+              (self.container_id,
+               self.config.get("basic", 'auth_endpoint_ip'),
+               self.config.get("basic", 'auth_fqdn'),
+               template_path)
+        res = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
         return
 
     def _verify_rally_container_is_up(self):
@@ -375,6 +383,7 @@ class RallyOnDockerRunner(RallyRunner):
         return args
 
     def prepare_workload_task(self):
+        self._patch_rally()
         glc, neuc = self.init_clients(self.accessor.access_data)
         self.create_fedora_image(glc)
         net, rou = self.get_network_router_id(neuc)
