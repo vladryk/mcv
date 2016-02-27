@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import re
 import logging
 import os
@@ -114,9 +113,14 @@ class OSTFOnDockerRunner(runner.Runner):
                 break
 
     def check_task(self, task):
+        if ':' in task:
+            _cmd = 'list_plugin_tests'
+        else:
+            _cmd = 'list_plugin_suites'
         cmd = "docker exec -t %s cloudvalidation-cli cloud-health-check "\
-              "list_plugin_suites --validation-plugin fuel_health" %\
-              self.container
+              "%s --validation-plugin fuel_health" %\
+              (self.container, _cmd)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
@@ -129,33 +133,53 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def _run_ostf_on_docker(self, task):
         LOG.debug("Starting task %s" % task)
-        # --show-full-report
         task = self.check_task(task)
         if task is None:
             self.not_found.append(task)
-        cmd = "docker exec -t %s cloudvalidation-cli "\
-              "--config-file=/tmp/ostfcfg.conf cloud-health-check run_suite"\
-              " --validation-plugin-name fuel_health --suite %s" %\
-              (self.container, task)
+            return
+
+        # The task can be either a test or suite
+        if ':' in task:
+            _cmd = 'run_test'
+            _arg = '--test'
+        else:
+            _cmd = 'run_suite'
+            _arg = '--suite'
+
+        cmd = "docker exec -t {container} cloudvalidation-cli "\
+              "--raw --output-file=/tmp/ostf_report.json "\
+              "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
+              "--validation-plugin-name fuel_health {arg} {task}".format(
+              container=self.container,
+              cmd=_cmd,
+              arg=_arg,
+              task=task)
+
         try:
+            cmd = "sudo docker cp %(id)s:/tmp/ostf_report.json /tmp/ostf_report.json" \
+                  % {"id": self.container}
+
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
                     preexec_fn=utils.ignore_sigint)
+
+            results = []
+            with open('/tmp/ostf_report.json', 'r') as fp:
+                results = json.loads(fp.read())
+
+            # Remove file to prevent funny 'haha's
+            # @TODO(albartash): Remove ostf_report.json from container!!!
+            os.remove('/tmp/ostf_report.json')
+            for result in results:
+                if result['result'] == 'Passed':
+                    self.success.append(result['suite'])
+                elif result['result'] == 'Failed':
+                    self.failures.append(result['suite'])
+
         except subprocess.CalledProcessError:
             LOG.error("Task %s has failed with: " % task, exc_info=True)
             self.failures.append(task)
             return
-        original_output = p
-        result = p.split("\n")
-        failures = []
-        successes = []
-        for line, nline in zip(result[:-1], result[1:]):
-            if line.find("Passed") != -1:
-                name = nline.split("|")[2]
-                self.success.append(name)
-            elif line.find("Failed") != -1:
-                name = nline.split("|")[2]
-                self.failures.append(name)
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
