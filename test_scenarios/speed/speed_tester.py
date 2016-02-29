@@ -11,19 +11,15 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import json
 import logging
 import math
 import os
 import paramiko
-import subprocess
 import time
 
 import cinderclient.client as cinder
-import glanceclient as glance
-from keystoneclient.v2_0 import client as keystone_v2
 import novaclient.client as nova
-
-import utils
 
 LOG = logging
 
@@ -32,9 +28,10 @@ class BaseStorageSpeed(object):
 
     def __init__(self, access_data, *args, **kwargs):
         self.config = kwargs.get('config')
+        self.access_data = access_data
         self.init_clients(access_data)
-        self.size = None
         self.timeout = 0
+        self.test_vm = None
 
     def init_clients(self, access_data):
         LOG.debug("Trying to obtain authenticated OS clients")
@@ -51,19 +48,6 @@ class BaseStorageSpeed(object):
             project_id=access_data['os_tenant_name'],
             region_name=access_data['region_name'],
             insecure=True)
-        self.key_client = keystone_v2.Client(
-            username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            password=access_data['os_password'],
-            tenant_name=access_data['os_tenant_name'],
-            insecure=True)
-        image_api_url = self.key_client.service_catalog.url_for(
-            service_type="image")
-        self.glanceclient = glance.Client(
-            '1',
-            endpoint=image_api_url,
-            token=self.key_client.auth_token,
-            insecure=True)
         LOG.debug('Authentication ends well')
 
     def generate_report(self, storage, compute_name, r_res, w_res):
@@ -71,18 +55,22 @@ class BaseStorageSpeed(object):
         temp = open(path, 'r')
         template = temp.read()
         temp.close()
-        r_res = [(1024 * float(self.size))/i for i in r_res]
-        r_res.insert(0, 0)
-        r_average = round(sum(r_res) / 3.0, 2)
+        r_res = [float(self.size) / i for i in r_res]
+        r_average = round(sum(r_res) / float(len(r_res)), 2)
         read = ''
-        for i in range(1, 4):
-            read +='<tr><td>{} attempt:</td><td align="right">Speed {} MB/s</td><tr>\n'.format(i, round(r_res[i],2))
-        w_res = [(1024 * float(self.size))/i for i in w_res]
-        w_res.insert(0, 0)
-        w_average = round(sum(w_res) / 3.0, 2)
+        for i in range(len(r_res)):
+            read += ('<tr><td>{} attempt:</td><td align="right">Speed '
+                     '{} MB/s</td><tr>\n').format(i + 1, round(r_res[i], 2))
+        w_res = [float(self.size) / i for i in w_res]
+        w_average = round(sum(w_res) / float(len(w_res)), 2)
         write = ''
-        for i in range(1, 4):
-            write +='<tr><td>{} attempt:</td><td align="right">Speed {} MB/s</td><tr>\n'.format(i, round(w_res[i], 2))
+        for i in range(len(w_res)):
+            write +=('<tr><td>{} attempt:</td><td align="right">Speed '
+                     '{} MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
+
+        LOG.info("Compute %s average results:" % compute_name)
+        LOG.info("Read %s MB/s" % r_average)
+        LOG.info("Write %s MB/s\n" % w_average)
         return template.format(read=read,
                                storage=storage,
                                compute=compute_name,
@@ -92,11 +80,8 @@ class BaseStorageSpeed(object):
 
     def get_test_vm(self, node_id):
         vm = self.novaclient.servers.find(id=node_id)
-        addr = vm.addresses.values()[0]
-        for a in addr:
-            if a['OS-EXT-IPS:type'] == 'floating':
-                floating_ip = a['addr']
-
+        floating_ip = [ip['addr'] for ip in vm.addresses.values()[0] if
+                       ip['OS-EXT-IPS:type'] == 'floating'][0]
         return vm, floating_ip
 
     def set_ssh_connection(self, ip):
@@ -122,39 +107,83 @@ class BaseStorageSpeed(object):
 
     def run_ssh_cmd(self, cmd):
         command = 'sudo ' + cmd
+        buff_size = 4096
         stdout_data = []
         stderr_data = []
         session = self.client.open_channel(kind='session')
         session.exec_command(command)
         while True:
             if session.recv_ready():
-                stdout_data.append(session.recv(1024))
+                stdout_data.append(session.recv(buff_size))
             if session.recv_stderr_ready():
-                stderr_data.append(session.recv_stderr(1024))
+                stderr_data.append(session.recv_stderr(buff_size))
             if session.exit_status_ready():
                 break
 
         status = session.recv_exit_status()
-        if status != 0:
-            LOG.info('Command "%s" finished with non-zero exit code'% cmd)
+        while session.recv_ready():
+            stdout_data.append(session.recv(buff_size))
+        while session.recv_stderr_ready():
+            stderr_data.append(session.recv_stderr(buff_size))
+
         out = ''.join(stdout_data)
         err = ''.join(stderr_data)
         session.close()
-        return out
+        if status != 0:
+            LOG.info('Command "%s" finished with exit code %d' % (cmd, status))
+        else:
+            LOG.debug('Command "%s" finished with exit code %d' % (cmd, status))
+        LOG.debug('Stdout: %s' % out)
+        LOG.debug('Stderr: %s' % err)
+        return {'ret': status, 'out': out, 'err': err}
 
+    def prepare_size(self, str_size):
+        size = ''.join(i for i in str_size if i.isdigit())
+        if str_size.endswith('G') or str_size.endswith('Gb'):
+            size = int(size) * 1024
+            LOG.info("Type size %s" % type(size))
+        elif str_size.endswith('M') or str_size.endswith('Mb'):
+            size = int(size)
+        else:
+            size = 1024
+        return size
+
+def block_measure_dec(measure):
+    def wrapper(self, m_type='default'):
+        if m_type == 'thr':
+            bs = str(self.max_thr) + 'M'
+            count = self.thr_count
+        elif m_type == 'iop':
+            bs = '4K'
+            count = int(self.size * 256)
+        else:
+            bs = '1M'
+            count = int(self.size)
+        self.drop_cache()
+        start_time = time.time()
+        ret = measure(self, bs, count)
+        return time.time() - start_time if not ret else 0
+    return wrapper
 
 class BlockStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size = kwargs.get('volume_size')
+        self.size_str = kwargs.get('volume_size')
+        self.size = 0
         self.device = None
+        self.vol = None
+        self.max_thr = 1
+        self.thr_size = 0
+        self.thr_count = 0
+        self.image_name = '/mnt/testvolume/testimage.ss.img'
 
     def create_test_volume(self, node_id):
         LOG.debug('Creating test volume')
-        (self.test_vm, test_vm_ip) = self.get_test_vm(node_id)
+        self.test_vm, test_vm_ip = self.get_test_vm(node_id)
         self.set_ssh_connection(test_vm_ip)
-        self.vol = self.cinderclient.volumes.create(int(math.ceil(self.size)))
+        self.vol = self.cinderclient.volumes.create(
+            int(math.ceil((self.size + 100.0) / 1024.0)))
 
         if not self.test_vm:
             LOG.error('Creation of test vm failed')
@@ -165,21 +194,24 @@ class BlockStorageSpeed(BaseStorageSpeed):
                 break
             time.sleep(3)
 
-        attach = self.novaclient.volumes.create_server_volume(self.test_vm.id, self.vol.id, device='/dev/vdb')
+        attach = self.novaclient.volumes.create_server_volume(self.test_vm.id,
+                                                              self.vol.id,
+                                                              device='/dev/vdb')
         path = '/dev/vdb'
         cmd = "test -e %s && echo 1" % path
         for i in range(0, 20):
-            res = self.run_ssh_cmd(cmd)
+            res = self.run_ssh_cmd(cmd)['out']
             if res:
                 self.device = path
                 break
 
             time.sleep(3)
-        # NOTE: cirros or cinder work strange and sometimes attach volume not to specified device,
-        #  so additional check for it
+
+        # NOTE: cirros or cinder work strange and sometimes attach volume
+        # not to specified device, so additional check for it
         if not self.device:
             cmd = "test -e %s && echo 1" % '/dev/vdc'
-            res = self.run_ssh_cmd(cmd)
+            res = self.run_ssh_cmd(cmd)['out']
             if res:
                 self.device = '/dev/vdc'
 
@@ -187,6 +219,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
             LOG.error("Failed to attach test volume")
             self.cleanup(node_id)
             raise RuntimeError
+
         LOG.debug('Mounting volume to test VM')
         res = self.run_ssh_cmd('/usr/sbin/mkfs.ext4 %s' % self.device)
         res = self.run_ssh_cmd('mkdir -p /mnt/testvolume')
@@ -202,53 +235,47 @@ class BlockStorageSpeed(BaseStorageSpeed):
         template = temp.read()
         temp.close()
 
-        # 1M x 1000
-        r_res = [(1024 * float(self.size)) / i for i in r_res]
-        r_res.insert(0, 0)
-        r_average = round(sum(r_res) / 3.0, 2)
+        # Default
+        r_res = [float(self.size) / i for i in r_res]
+        r_average = round(sum(r_res) / float(len(r_res)), 2)
         read = ''
-        for i in range(1, 4):
+        for i in range(len(r_res)):
             read += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                     'MB/s</td><tr>\n').format(i, round(r_res[i], 2))
-        w_res = [(1024 * float(self.size)) / i for i in w_res]
-        w_res.insert(0, 0)
-        w_average = round(sum(w_res) / 3.0, 2)
+                     'MB/s</td><tr>\n').format(i+1, round(r_res[i], 2))
+        w_res = [float(self.size) / i for i in w_res]
+        w_average = round(sum(w_res) / float(len(w_res)), 2)
         write = ''
-        for i in range(1, 4):
+        for i in range(len(w_res)):
             write += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                      'MB/s</td><tr>\n').format(i, round(w_res[i], 2))
+                      'MB/s</td><tr>\n').format(i+1, round(w_res[i], 2))
 
-        # 1G x 1
-        r_res_thr = [(1024 * float(self.size)) / i for i in r_res_thr]
-        r_res_thr.insert(0, 0)
-        r_average_thr = round(sum(r_res_thr) / 3.0, 2)
+        # Throughput
+        r_res_thr = [float(self.thr_size) / i for i in r_res_thr]
+        r_average_thr = round(sum(r_res_thr) / float(len(r_res_thr)), 2)
         read_thr = ''
-        for i in range(1, 4):
+        for i in range(len(r_res_thr)):
             read_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i, round(r_res_thr[i], 2))
-        w_res_thr = [(1024 * float(self.size)) / i for i in w_res_thr]
-        w_res_thr.insert(0, 0)
-        w_average_thr = round(sum(w_res_thr) / 3.0, 2)
+                         ' MB/s</td><tr>\n').format(i+1, round(r_res_thr[i], 2))
+        w_res_thr = [float(self.thr_size) / i for i in w_res_thr]
+        w_average_thr = round(sum(w_res_thr) / float(len(w_res_thr)), 2)
         write_thr = ''
-        for i in range(1, 4):
+        for i in range(len(w_res_thr)):
             write_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                          'MB/s</td><tr>\n').format(i, round(w_res_thr[i], 2))
+                          'MB/s</td><tr>\n').format(i+1, round(w_res_thr[i], 2))
 
-        # 4K x 250000
-        r_res_iop = [(1024 * float(self.size)) / i for i in r_res_iop]
-        r_res_iop.insert(0, 0)
-        r_average_iop = round(sum(r_res_iop) / 3.0, 2)
+        # IOPs
+        r_res_iop = [float(self.size) / i for i in r_res_iop]
+        r_average_iop = round(sum(r_res_iop) / float(len(r_res_iop)), 2)
         read_iop = ''
-        for i in range(1, 4):
+        for i in range(len(r_res_iop)):
             read_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i, round(r_res_iop[i], 2))
-        w_res_iop = [(1024 * float(self.size)) / i for i in w_res_iop]
-        w_res_iop.insert(0, 0)
-        w_average_iop = round(sum(w_res_iop) / 3.0, 2)
+                         ' MB/s</td><tr>\n').format(i+1, round(r_res_iop[i], 2))
+        w_res_iop = [float(self.size) / i for i in w_res_iop]
+        w_average_iop = round(sum(w_res_iop) / float(len(w_res_iop)), 2)
         write_iop = ''
-        for i in range(1, 4):
+        for i in range(len(w_res_iop)):
             write_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                          ' MB/s</td><tr>\n').format(i, round(w_res_iop[i], 2))
+                          ' MB/s</td><tr>\n').format(i+1, round(w_res_iop[i], 2))
 
         # Average
         r_res_all = r_res + r_res_thr + r_res_iop
@@ -277,60 +304,43 @@ class BlockStorageSpeed(BaseStorageSpeed):
                                r_av_all=r_av_all,
                                w_av_all=w_av_all), r_av_all, w_av_all
 
+    def drop_cache(self):
+        self.run_ssh_cmd('sync; sudo /sbin/sysctl -w vm.drop_caches=3')
+
+    def get_max_throughput(self):
+        max_mem = int(
+            self.run_ssh_cmd("free -m | awk 'FNR == 3 {print $4}'")['out']) - 1
+        if max_mem < self.size:
+            self.max_thr = max_mem
+            self.thr_count = int(math.ceil(float(self.size) / float(self.max_thr)))
+            self.thr_size = int(self.max_thr * self.thr_count)
+        else:
+            self.max_thr = self.size
+            self.thr_count = 1
+            self.thr_size = int(self.max_thr * self.thr_count)
+
     def remove_file(self):
         LOG.debug('Removing file')
         self.run_ssh_cmd('rm /mnt/testvolume/testimage.ss.img')
 
-    def measure_write(self):
-        count = 1000 * float(self.size)
-        start_time = time.time()
+    @block_measure_dec
+    def measure_write(self, bs, count):
+        LOG.info('Measuring write speed')
+        return self.run_ssh_cmd('dd if=/dev/zero of=%s bs=%s count=%d '
+                                'conv=notrunc,fsync' % (
+                                    self.image_name, bs, count))['ret']
 
-        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/urandom of=/mnt/testvolume/testimage.ss.img bs=1M count=%d' % count)
-
-        return time.time() - start_time
-
-    def measure_read(self):
-        count = 1000 * float(self.size)
-        start_time = time.time()
-
-        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=1M count=%d' % count)
-
-        return time.time() - start_time
-
-    def measure_write_throughput(self):
-        count = 1
-        start_time = time.time()
-
-        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/zero of=/mnt/testvolume/testimage.ss.img bs=1G count=%d' % count)
-
-        return time.time() - start_time
-
-    def measure_read_throughput(self):
-        count = 1
-        start_time = time.time()
-
-        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=1G count=%d' % count)
-
-        return time.time() - start_time
-
-    def measure_write_iop(self):
-        count = 250000
-        start_time = time.time()
-
-        res = self.run_ssh_cmd('dd conv=notrunc if=/dev/zero of=/mnt/testvolume/testimage.ss.img bs=4K count=%d' % count)
-
-        return time.time() - start_time
-
-    def measure_read_iop(self):
-        count = 250000
-        start_time = time.time()
-
-        res = self.run_ssh_cmd('dd if=/mnt/testvolume/testimage.ss.img of=/dev/zero bs=4K count=%d' % count)
-
-        return time.time() - start_time
+    @block_measure_dec
+    def measure_read(self, bs, count):
+        LOG.info('Measuring read speed')
+        return self.run_ssh_cmd('dd if=%s of=/dev/null bs=%s count=%d' % (
+            self.image_name, bs, count))['ret']
 
     def measure_speed(self, node_id):
+        self.size = self.prepare_size(self.size_str)
         self.create_test_volume(node_id)
+        self.drop_cache()
+        self.get_max_throughput()
         compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
         r_res = []
         w_res = []
@@ -338,18 +348,19 @@ class BlockStorageSpeed(BaseStorageSpeed):
         w_res_thr = []
         r_res_iop = []
         w_res_iop = []
-        LOG.debug('Starting measuring r/w speed')
+        LOG.info('Starting measuring block storage r/w speed')
         for i in range(0, 3):
             w_res.append(self.measure_write())
             r_res.append(self.measure_read())
             self.remove_file()
 
-            w_res_thr.append(self.measure_write_throughput())
-            r_res_thr.append(self.measure_read_throughput())
+            w_res_thr.append(self.measure_write(m_type='thr'))
+            r_res_thr.append(self.measure_read(m_type='thr'))
             self.remove_file()
 
-            w_res_iop.append(self.measure_write_iop())
-            r_res_iop.append(self.measure_read_iop())
+            w_res_iop.append(self.measure_write(m_type='iop'))
+            r_res_iop.append(self.measure_read(m_type='iop'))
+            self.remove_file()
         self.cleanup(node_id)
         return self.generate_report('Block', compute_name, r_res, w_res,
                                     r_res_thr, w_res_thr, r_res_iop, w_res_iop)
@@ -376,49 +387,182 @@ class BlockStorageSpeed(BaseStorageSpeed):
             LOG.error('Deleting test volume failed')
         LOG.debug('Cleanup finished')
 
+def object_measure_dec(measure):
+    def wrapper(self, image_id=None, token=None):
+        if image_id is None:
+            return 0
+        if token is None:
+            token = self.get_token()
+        else:
+            token = self.get_token() if self.is_expired() else token
+        start_time = time.time()
+        measure(self, image_id, token)
+        return time.time() - start_time
+    return wrapper
 
 class ObjectStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size = kwargs.get('image_size')
+        self.size_str = kwargs.get('volume_size')
+        self.size = 0
+        self.start_time = 0
 
-    def generate_image(self):
-        LOG.debug('Generating image')
-        filename = 'testglancespeed.ss.img'
-        self.of = os.path.join(os.getcwd(), filename)
-        if not os.path.exists(self.of):
-            count = 1024 * float(self.size)
-            subprocess.call(
-                    ['dd', 'if=/dev/urandom', 'of=' + self.of,
-                     'bs=1M', 'count=%d' % count],
-                     preexec_fn=utils.ignore_sigint)
-        LOG.debug('Test image successfully generated')
+    def is_expired(self):
+        if time.time() - self.start_time > 3600:
+            return True
+        else:
+            return False
 
-    def measure_write(self):
-        start_time = time.time()
-        LOG.debug('Uploading image')
-        self.img = self.glanceclient.images.create(
-            name='mcv-test-speed', data=open(self.of, 'rb'),
-            disk_format='raw', container_format='bare')
-        return time.time() - start_time
+    def separate_out(self, out):
+        res = out.split('---')
+        try:
+            data = res[0]
+            code = int(res[1])
+            LOG.debug("Http code - %d, data - %s" % (code, data))
+            return code, data
+        except KeyError:
+            LOG.error('Parsing out failed')
+            raise RuntimeError
 
-    def measure_read(self):
-        start_time = time.time()
-        LOG.debug('Downloading image')
-        data = self.glanceclient.images.data(self.img.id)
-        return time.time() - start_time
+    def get_token(self):
+        self.start_time = time.time()
+        cmd = ('curl -k -s -w "---%%{http_code}" '
+               '-d \'{"auth":{"tenantName": "%s", '
+               '"passwordCredentials": {"username": "%s", '
+               '"password": "%s"}}}\' -H "Content-type: application/json" '
+               '%s://%s:5000/v2.0/tokens') % (
+            self.access_data['os_tenant_name'],
+            self.access_data['os_username'],
+            self.access_data['os_password'],
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'])
+        res = self.run_ssh_cmd(cmd)
+        out = res['out']
+        ret = res['ret']
+        if not out:
+            LOG.warning('Token has not received, retrying')
+            return self.get_token()
+        code, data = self.separate_out(out)
+        if ret or code != 200:
+            LOG.error('Get token error, exit code - %s, '
+                      'http code - %s' % (ret, code))
+            raise RuntimeError
+        else:
+            try:
+                token_id = json.loads(data)['access']['token']['id']
+                return token_id
+            except KeyError:
+                LOG.error('Invalid token data received')
+                raise RuntimeError
 
-    def measure_speed(self):
-        self.generate_image()
+    def create_image(self, token):
+        cmd = ('curl -k -s -w "---%%{http_code}" '
+               '-X POST -H \'X-Auth-Token: %s\' '
+               '-H \'Content-Type: application/json\' '
+               '-d \'{"name": "speedtest", "container_format": "bare", '
+               '"disk_format": "raw"}\' '
+               '%s://%s:9292/v2/images') % (
+            token,
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'])
+        res = self.run_ssh_cmd(cmd)
+        out = res['out']
+        ret = res['ret']
+        if not out:
+            LOG.warning('Creating failed, retrying')
+            return self.create_image(token)
+        code, data = self.separate_out(out)
+        if ret or code != 201:
+            LOG.error('Create image error, exit code - %s, '
+                      'http code - %s' % (ret, code))
+            raise RuntimeError
+        else:
+            try:
+                image_id = json.loads(data)['id']
+                return image_id
+            except KeyError:
+                LOG.error('Invalid image data received')
+                raise RuntimeError
+
+    @object_measure_dec
+    def upload_image(self, image_id, token):
+        LOG.info('Uploading image')
+        cmd = ('dd if=/dev/zero bs=32k count=%d | '
+               'curl -k -s -w "---%%{http_code}" -X PUT -H '
+               '\'X-Auth-Token: %s\' '
+               '-H \'Content-Type: application/octet-stream\' '
+               '--data-binary @-  %s://%s:9292/v2/images/%s/file') % (
+            int(self.size * 32),
+            token,
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'],
+            image_id)
+        res = self.run_ssh_cmd(cmd)
+        out = res['out']
+        ret = res['ret']
+        code = self.separate_out(out)[0]
+        if ret or code != 204:
+            LOG.error('Upload image error, exit code - %s, '
+                      'http code - %s' % (ret, code))
+            raise RuntimeError
+
+    @object_measure_dec
+    def download_image(self, image_id, token):
+        LOG.info('Downloading image')
+        cmd = ('curl -k -s -w "---%%{http_code}" '
+               '-X GET -H \'X-Auth-Token: %s\' '
+               '%s://%s:9292/v2/images/%s/file -o /dev/null') % (
+            token,
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'],
+            image_id)
+        res = self.run_ssh_cmd(cmd)
+        out = res['out']
+        ret = res['ret']
+        code = self.separate_out(out)[0]
+        if ret or code != 200:
+            LOG.error('Download image error, exit code - %s, '
+                      'http code - %s' % (ret, code))
+            raise RuntimeError
+
+    def delete_image(self, image_id, token):
+        cmd = ('curl -k -s -w "---%%{http_code}" '
+               '-X DELETE -H \'X-Auth-Token: %s\' '
+               '%s://%s:9292/v2/images/%s') % (
+            token,
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'],
+            image_id)
+        res = self.run_ssh_cmd(cmd)
+        out = res['out']
+        ret = res['ret']
+        code = self.separate_out(out)[0]
+        if ret or code != 204:
+            LOG.error('Delete image error, exit code - %s, '
+                      'http code - %s' % (ret, code))
+            raise RuntimeError
+
+    def measure_speed(self, node_id):
+        self.size = self.prepare_size(self.size_str)
+        self.test_vm, test_vm_ip = self.get_test_vm(node_id)
+        self.set_ssh_connection(test_vm_ip)
+        compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
         r_res = []
         w_res = []
-        LOG.debug('Start measuring r/w speed')
+        LOG.info('Start measuring object storage r/w speed')
+        token = self.get_token()
         for i in range(0, 3):
-            w_res.append(self.measure_write())
-            r_res.append(self.measure_read())
-            self.cleanup()
-        return self.generate_report('Object', 'Compute1', r_res, w_res)
+            image_id = self.create_image(
+                self.get_token() if self.is_expired() else token)
+            w_res.append(self.upload_image(image_id=image_id, token=token))
+            r_res.append(self.download_image(image_id=image_id, token=token))
+            self.delete_image(image_id,
+                              self.get_token() if self.is_expired() else token)
+            time.sleep(1)
+        self.cleanup(node_id)
+        return self.generate_report('Object', compute_name, r_res, w_res)
 
-    def cleanup(self):
-        self.img.delete()
+    def cleanup(self, node_id):
+        images = self.novaclient.images.findall(name='speedtest')
+        [image.delete() for image in images]

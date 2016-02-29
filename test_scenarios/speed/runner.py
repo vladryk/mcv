@@ -23,7 +23,6 @@ LOG = logging
 
 
 class SpeedTestRunner(run.Runner):
-
     def __init__(self, accessor, path, *args, **kwargs):
         # Need accessor for access data
         self.accessor = accessor
@@ -47,10 +46,10 @@ class SpeedTestRunner(run.Runner):
         try:
             threshold = self.config.get('speed', 'threshold')
         except ConfigParser.NoOptionError:
-            LOG.info('Default threshold is 50 Mb/s')
             threshold = 50
+            LOG.info('Default threshold is %s Mb/s' % threshold)
         for speed in task_results:
-            if speed < int(threshold):
+            if speed < float(threshold):
                 res = False
                 LOG.warning('Average speed is under the threshold')
                 break
@@ -61,29 +60,56 @@ class SpeedTestRunner(run.Runner):
         auth_url = self.config.get('basic', 'auth_protocol') + "://"
         auth_url += self.accessor.access_data["auth_endpoint_ip"]
         auth_url += ":5000/v2.0/"
-        myPreparer = Preparer(uname=self.accessor.access_data['os_username'],
-                              passwd=self.accessor.access_data['os_password'],
-                              tenant=tenant,
-                              auth_url=auth_url,
-                              region_name=self.accessor.access_data['region_name'])
-        return myPreparer
+        preparer = Preparer(uname=self.accessor.access_data['os_username'],
+                            passwd=self.accessor.access_data['os_password'],
+                            tenant=tenant,
+                            auth_url=auth_url,
+                            region_name=self.accessor.access_data[
+                                'region_name'])
+        return preparer
 
     def _prepare_vms(self):
-        myPreparer = self.get_preparer()
-        return myPreparer.prepare_instances()
+        preparer = self.get_preparer()
+        try:
+            image_path = self.config.get('speed', 'cirros_image_path')
+        except ConfigParser.NoOptionError:
+            LOG.info('Use default image path')
+            image_path = '/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img'
+        try:
+            flavor_req = self.config.get('speed', 'flavor_req')
+        except ConfigParser.NoOptionError:
+            LOG.info('Use default flavor requirements')
+            flavor_req = 'ram:64,vcpus:1'
+        supported_req = ['ram', 'vcpus', 'disk']
+        flavor_req = dict((k.strip(), int(v.strip())) for k, v in
+                          (item.split(':') for item in flavor_req.split(',')) if
+                          (k and v) and (k in supported_req))
+        return preparer.prepare_instances(image_path, flavor_req)
 
     def _remove_vms(self):
-        myPreparer = self.get_preparer()
-        myPreparer.delete_instances()
+        preparer = self.get_preparer()
+        preparer.delete_instances()
 
     def run_batch(self, tasks, *args, **kwargs):
-        self.node_ids = self._prepare_vms()
-        res = super(SpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
-        self._remove_vms()
-        return res
+        try:
+            self.node_ids = self._prepare_vms()
+            res = super(SpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
+            return res
+        except Exception as unexpected_error:
+            LOG.error(
+                'Caught unexpected error: %s, exiting' % str(unexpected_error))
+            return False
+        finally:
+            try:
+                self._remove_vms()
+            except Exception as remove_error:
+                LOG.error('Something went wrong when removing VMs: %s' % str(
+                    remove_error))
+                return False
 
     def generate_report(self, html, task):
-        # Append last run to existing file for now. Not sure how to fix this properly
+        # Append last run to existing file for now.
+        # Not sure how to fix this properly
         LOG.debug('Generating report in speed.html file')
         report = file('%s/%s.html' % (self.path, task), 'w')
         report.write(html)
@@ -91,23 +117,35 @@ class SpeedTestRunner(run.Runner):
 
     def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
+        if self.node_ids is None:
+            LOG.error('Failed to measure speed - no test VMs was created')
+            self.test_failures.append(task)
+            return False
         try:
             i_s = self.config.get('speed', 'image_size')
         except ConfigParser.NoOptionError:
-            LOG.info('Use default image size 1Gb')
-            i_s = 1
+            i_s = '1G'
+            LOG.info('Use default image size %s' % i_s)
         try:
             v_s = self.config.get('speed', 'volume_size')
         except ConfigParser.NoOptionError:
-            LOG.info('Use default volume size 1Gb')
-            v_s = 1
-        LOG.debug('Start generating %s' %task)
+            v_s = '1G'
+            LOG.info('Use default volume size %s' % v_s)
+        LOG.debug('Start generating %s' % task)
         try:
             speed_class = getattr(st, task)
         except AttributeError:
             LOG.error('Incorrect task')
             return False
-        reporter = speed_class(self.accessor.access_data, image_size=i_s, volume_size=v_s, *args, **kwargs)
+        try:
+            reporter = speed_class(self.accessor.access_data, image_size=i_s,
+                                   volume_size=v_s, *args, **kwargs)
+        except Exception as creation_error:
+            LOG.error(
+                'Error creating class %s: %s' % (task, str(creation_error)))
+            self.test_failures.append(task)
+            return False
+
         res_all = ("<!DOCTYPE html>\n"
                    "<html lang=\"en\">\n"
                    "<head>\n"
@@ -116,37 +154,38 @@ class SpeedTestRunner(run.Runner):
                    "</head>\n"
                    "<body>\n")
 
-        # Temporary solution for running both Block and Object speed tests
-        r_av = 0
-        w_av = 0
-        if task == 'BlockStorageSpeed':
-            r_average_all = []
-            w_average_all = []
+        r_average_all = []
+        w_average_all = []
 
-            for node_id in self.node_ids:
-                LOG.info("Measuring speed on node %s" % node_id)
-                try:
-                    res, r_average, w_average = reporter.measure_speed(node_id)
-                    res_all += res
-                    r_average_all.append(r_average)
-                    w_average_all.append(w_average)
-                except RuntimeError:
-                    LOG.error('Failed to measure speed')
-                    self.test_failures.append(task)
-                    return False
-
-            r_av = round(sum(r_average_all) / len(r_average_all), 2)
-            w_av = round(sum(w_average_all) / len(w_average_all), 2)
-            res_all += ('<br><h4> Overall average results: read - {} MB/s, '
-                    'write - {} MB/s:</h4>').format(r_av, w_av)
-        else:
+        for node_id in self.node_ids:
+            LOG.info("Measuring speed on node %s" % node_id)
             try:
-                res,r_av, w_av = reporter.measure_speed()
+                res, r_average, w_average = reporter.measure_speed(node_id)
                 res_all += res
+                r_average_all.append(r_average)
+                w_average_all.append(w_average)
             except RuntimeError:
                 LOG.error('Failed to measure speed')
+                try:
+                    reporter.cleanup(node_id)
+                except Exception as cleanup_error:
+                    LOG.warning('Cleanup error %s' % str(cleanup_error))
                 self.test_failures.append(task)
                 return False
+            except Exception as unexpected_error:
+                LOG.error('Failed to measure speed, unexpected error: %s ',
+                          str(unexpected_error))
+                try:
+                    reporter.cleanup(node_id)
+                except Exception as cleanup_error:
+                    LOG.warning('Cleanup error %s' % str(cleanup_error))
+                self.test_failures.append(task)
+                return False
+
+        r_av = round(sum(r_average_all) / len(r_average_all), 2)
+        w_av = round(sum(w_average_all) / len(w_average_all), 2)
+        res_all += ('<br><h4> Overall average results: read - {} MB/s, '
+                    'write - {} MB/s:</h4>').format(r_av, w_av)
 
         res_all += "</body>\n</html>"
         self.generate_report(res_all, task)
