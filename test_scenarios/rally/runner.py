@@ -276,8 +276,8 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
         # TODO: Found out how to pass re through sed
-        template_path = '/tmp/rally_tests/templates/wp_instances'
-        cmd = "docker exec -t %s sudo sed -i '61s/.*/            sudo sh -c 'echo %s %s >> /etc/hosts'/' %s" % \
+        template_path = '/tmp/rally_tests/templates/wp_instances.yaml'
+        cmd = """docker exec -t %s sudo sed -i "61s/.*/            sudo sh -c 'echo %s %s >> \/etc\/hosts'/" %s""" % \
               (self.container_id,
                self.config.get("basic", 'auth_endpoint_ip'),
                self.config.get("basic", 'auth_fqdn'),
