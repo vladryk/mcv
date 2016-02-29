@@ -154,11 +154,20 @@ class OSTFOnDockerRunner(runner.Runner):
               cmd=_cmd,
               arg=_arg,
               task=task)
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
-        try:
+       try:
             cmd = "sudo docker cp %(id)s:/tmp/ostf_report.json /tmp/ostf_report.json" \
                   % {"id": self.container}
 
+            p = subprocess.check_output(
+                    cmd, shell=True, stderr=subprocess.STDOUT,
+                    preexec_fn=utils.ignore_sigint)
+
+            cmd = "docker exec -t {container} rm /tmp/ostf_report.json".format(
+                  container=self.container)
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
                     preexec_fn=utils.ignore_sigint)
@@ -167,8 +176,6 @@ class OSTFOnDockerRunner(runner.Runner):
             with open('/tmp/ostf_report.json', 'r') as fp:
                 results = json.loads(fp.read())
 
-            # Remove file to prevent funny 'haha's
-            # @TODO(albartash): Remove ostf_report.json from container!!!
             os.remove('/tmp/ostf_report.json')
             for result in results:
                 if result['result'] == 'Passed':
