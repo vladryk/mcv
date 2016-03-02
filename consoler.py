@@ -179,8 +179,7 @@ class Consoler(object):
 
         if self.config.get('times', 'update') == 'False':
             for key in test_dict.keys():
-                batch = test_dict[key].split(',')
-                batch = map(lambda x: x.strip('\n'), batch)
+                batch = [x for x in (''.join(test_dict[key].split()).split(',')) if x]
                 elapsed_time_by_group[key] = self.all_time
                 for test in batch:
                     test = test.replace(' ', '')
@@ -225,8 +224,7 @@ class Consoler(object):
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
                 runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path, config=self.config)
-                batch = test_dict[key].split(',')
-                batch = map(lambda x: x.strip('\n'), batch)
+                batch = [x for x in (''.join(test_dict[key].split()).split(',')) if x]
                 LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)
                 try:
                     run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
