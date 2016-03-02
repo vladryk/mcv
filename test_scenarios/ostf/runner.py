@@ -158,7 +158,7 @@ class OSTFOnDockerRunner(runner.Runner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-       try:
+        try:
             cmd = "sudo docker cp %(id)s:/tmp/ostf_report.json /tmp/ostf_report.json" \
                   % {"id": self.container}
 
