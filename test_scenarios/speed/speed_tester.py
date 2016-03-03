@@ -403,7 +403,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size_str = kwargs.get('volume_size')
+        self.size_str = kwargs.get('image_size')
         self.size = 0
         self.start_time = 0
 
