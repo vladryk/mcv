@@ -443,6 +443,7 @@ class Consoler(object):
         self.access_helper.stop_forwarding()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
+        result.append(self.failure_indicator)
         print
         print "-"*40
         if run_results is not None:
@@ -450,6 +451,3 @@ class Consoler(object):
         print "For extra details and possible insights please refer to",
         print captain_logs
         print
-        result = self.failure_indicator
-        return
-
