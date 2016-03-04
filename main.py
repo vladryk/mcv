@@ -94,13 +94,12 @@ def main():
     logging.getLogger("paramiko").setLevel(logging.WARNING)
     consolerr = consoler.Consoler(parser=parser, args=args)
     e = threading.Event()
-    res = None
+    res = []
     t = threading.Thread(target=consolerr.console_user, args=[e, res])
     try:
         t.start()
-        while t.is_alive():
-            time.sleep(60)
-        return res
+        while t.isAlive():
+            time.sleep(30)
     except KeyboardInterrupt:
         logging.info("Consoler will be interrupted after finish of current task. "
                      "Results of it will be lost")
@@ -111,7 +110,8 @@ def main():
                       "The consoler is no more. You can get an insight from "
                       "/var/log/mcvconsoler.log", exc_info=True)
         return 1
-
+    if res:
+        return res[0]
 
 if __name__ == "__main__":
     sys.exit(main())
