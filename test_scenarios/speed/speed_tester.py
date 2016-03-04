@@ -141,7 +141,6 @@ class BaseStorageSpeed(object):
         size = ''.join(i for i in str_size if i.isdigit())
         if str_size.endswith('G') or str_size.endswith('Gb'):
             size = int(size) * 1024
-            LOG.info("Type size %s" % type(size))
         elif str_size.endswith('M') or str_size.endswith('Mb'):
             size = int(size)
         else:
@@ -404,7 +403,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     def __init__(self, access_data, *args, **kwargs):
         super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size_str = kwargs.get('volume_size')
+        self.size_str = kwargs.get('image_size')
         self.size = 0
         self.start_time = 0
 
@@ -492,7 +491,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
                'curl -k -s -w "---%%{http_code}" -X PUT -H '
                '\'X-Auth-Token: %s\' '
                '-H \'Content-Type: application/octet-stream\' '
-               '--data-binary @-  %s://%s:9292/v2/images/%s/file') % (
+               '-T - %s://%s:9292/v2/images/%s/file') % (
             int(self.size * 32),
             token,
             self.config.get('basic', 'auth_protocol'),
