@@ -23,6 +23,8 @@ import time
 import paramiko
 from paramiko import client
 
+from keystoneclient.v2_0 import client as keystone
+
 from novaclient import client as nova
 from novaclient import exceptions as nexc
 
@@ -72,6 +74,8 @@ class AccessSteward(object):
              except ConfigParser.NoOptionError:
                  pass
         self.novaclient = None
+        self.keystoneclient = None
+        self.conf_false_values = ('none', 'no', 'false')
 
     def _validate_ip(self, ip):
         match = re.match(self.ipv4, ip)
@@ -164,6 +168,35 @@ class AccessSteward(object):
             self.novaclient = client
         return self.novaclient
 
+    def _get_keystoneclient(self):
+        # TODO: fix keystone API-version
+        if self.keystoneclient is None:
+            client = keystone.Client(
+                username=self.access_data["os_username"],
+                password=self.access_data["os_password"],
+                tenant_name=self.access_data["os_tenant_name"],
+                auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.access_data["auth_endpoint_ip"] +
+                         ":5000/v2.0/",
+                insecure=True,
+                region_name=self.access_data["region_name"],
+            )
+            self.keystoneclient = client
+        return self.keystoneclient
+
+    def _get_private_endpoint_ip(self):
+        """Try get Private endpoint-ip from conf, if it will not have succeeded -
+        get Private endpoint-ip from keystone (it is internalURL in keystone).
+        InternalURL - is always the same for any service.
+        """
+        try:
+            keystone_private_endpoint_ip = self.config.get("basic", "private_endpoint_ip").lower()
+        except ConfigParser.NoOptionError:
+            keystone_private_endpoint_ip = None
+        if keystone_private_endpoint_ip in self.conf_false_values or None:
+            full_url = self._get_keystoneclient().service_catalog.get_endpoints('identity')['identity'][0]['internalURL']
+            keystone_private_endpoint_ip = str(full_url.split('/')[2].split(':')[0])
+        return keystone_private_endpoint_ip
+
     def _make_sure_controller_name_could_be_resolved(self):
         a_fqdn = self.access_data["auth_fqdn"]
         if a_fqdn != "":
@@ -174,7 +207,6 @@ class AccessSteward(object):
                     return
             f.write(self.access_data['auth_endpoint_ip'] + ' ' + self.access_data['auth_fqdn'] +"\n")
             f.close()
-
 
     def check_and_fix_access_data(self):
         def trap():
@@ -244,7 +276,7 @@ class AccessSteward(object):
         # access to the controller. Mwa-ha-ha.
         # TODO: divide this some day
         # TODO: this might change so it is much wiser to do actual check
-        keystone_private_endpoint_ip = self.config.get("basic", "private_endpoint_ip")
+        keystone_private_endpoint_ip = self._get_private_endpoint_ip()
         port_substitution = {"cnt_ip": self.access_data["controller_ip"],
                              "kpeip": keystone_private_endpoint_ip,
                              }
@@ -303,7 +335,7 @@ class AccessSteward(object):
             LOG.debug("Local iptables rule is set.")
             return
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
-                                "PREROUTING", "1", "-d", self.config.get("basic", "private_endpoint_ip"), "-p",
+                                "PREROUTING", "1", "-d", self._get_private_endpoint_ip(), "-p",
                                 "tcp", "--dport", "35357", "-j", "DNAT",
                                 "--to-destination", "%s:7654" %\
                                 self.access_data["controller_ip"]],
