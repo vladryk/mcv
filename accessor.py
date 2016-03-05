@@ -326,14 +326,17 @@ class AccessSteward(object):
             # leave slowly, don't wake it up
             LOG.debug("Local iptables rule is set.")
             return
-        res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
-                                "PREROUTING", "1", "-d", self._get_private_endpoint_ip(), "-p",
-                                "tcp", "--dport", "35357", "-j", "DNAT",
-                                "--to-destination", "%s:7654" %\
-                                self.access_data["controller_ip"]],
-                                stdout=subprocess.PIPE,
-                                preexec_fn=utils.ignore_sigint).stdout.read()
-        LOG.debug("Now local iptables rule is set.")
+        out = subprocess.call("sudo iptables -L -n -t nat --line-numbers | grep MCV_instance", shell=True) == 1
+        if out:
+            res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
+                                    "PREROUTING", "1", "-d", self._get_private_endpoint_ip(), "-p",
+                                    "tcp", "--dport", "35357", "-j", "DNAT",
+                                    "--to-destination", "%s:7654" %\
+                                    self.access_data["controller_ip"],
+                                    "-m", "comment", "--comment", "\'MCV_instance\'"],
+                                    stdout=subprocess.PIPE,
+                                    preexec_fn=utils.ignore_sigint).stdout.read()
+            LOG.debug("Now local iptables rule is set.")
 
     def stop_forwarding(self):
         #TODO: do this in a separate method
@@ -349,6 +352,7 @@ class AccessSteward(object):
             return
         stdin, stdout, stderr = ssh.exec_command("ps aux | grep '[s]sh -o Preferred' | awk '{ print $2 }'| xargs kill")
         stdin, stdout, stderr = ssh.exec_command("iptables -L -n --line-numbers | grep MCV_tunnel | awk '{print $1}' | xargs iptables -D INPUT")
+        out = subprocess.call("sudo iptables -L -n -t nat --line-numbers | grep MCV_instance | awk '{print $1}' | tac | xargs -l sudo iptables -t nat -D PREROUTING", shell=True)
 
     def check_computes(self):
         services = self._get_novaclient().services.list()
