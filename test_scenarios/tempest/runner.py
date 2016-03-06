@@ -39,6 +39,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.path = path
         self.container = None
         self.accessor = accessor
+        self.failed_cases = 0
 
         super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
         self.failure_indicator = 80
@@ -173,17 +174,15 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.task = json.loads(res)
         failures = self.task.get('failures')
         success = self.task.get('success')
+        self.failed_cases += failures
         LOG. info("Results of test set '%s': SUCCESS: %d FAILURES: %d" % (task, success, failures))
-        for (name, case) in self.task['test_cases'].iteritems():
-            if case['status'] == 'success':
-                self.test_success.append(case['name'])
-        if failures:
-            for (name, case) in self.task['test_cases'].iteritems():
-                if case['status'] == 'fail':
-                    self.test_failures.append(case['name'])
-                    self.failure_indicator = 81
+        if not failures:
+            self.test_success.append(task)
+            return True
+        else:
+            self.test_failures.append(task)
+            self.failure_indicator = 81
             return False
-        return True
 
     def run_batch(self, tasks, *args, **kwargs):
         tool_name = kwargs["tool_name"]
@@ -253,7 +252,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 LOG.info(line)
 
             t.append(self.task['test_cases'].keys())
-            if len(self.test_failures)>max_failed_tests:
+            if self.failed_cases > max_failed_tests:
                 self.total_checks = len(t)
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 self.failure_indicator = 89
