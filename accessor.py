@@ -75,7 +75,6 @@ class AccessSteward(object):
                  pass
         self.novaclient = None
         self.keystoneclient = None
-        self.conf_false_values = ('none', 'no', 'false')
 
     def _validate_ip(self, ip):
         match = re.match(self.ipv4, ip)
@@ -184,18 +183,11 @@ class AccessSteward(object):
         return self.keystoneclient
 
     def _get_private_endpoint_ip(self):
-        """Try get Private endpoint-ip from conf, if it will not have succeeded -
-        get Private endpoint-ip from keystone (it is internalURL in keystone).
+        """Get Private endpoint-ip from keystone (it is internalURL in keystone).
         InternalURL - is always the same for any service.
         """
-        try:
-            keystone_private_endpoint_ip = self.config.get("basic", "private_endpoint_ip").lower()
-        except ConfigParser.NoOptionError:
-            keystone_private_endpoint_ip = None
-        if keystone_private_endpoint_ip in self.conf_false_values or None:
-            full_url = self._get_keystoneclient().service_catalog.get_endpoints('identity')['identity'][0]['internalURL']
-            keystone_private_endpoint_ip = str(full_url.split('/')[2].split(':')[0])
-        return keystone_private_endpoint_ip
+        full_url = self._get_keystoneclient().service_catalog.get_endpoints('identity')['identity'][0]['internalURL']
+        return str(full_url.split('/')[2].split(':')[0])
 
     def _make_sure_controller_name_could_be_resolved(self):
         a_fqdn = self.access_data["auth_fqdn"]
