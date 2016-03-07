@@ -16,12 +16,13 @@
 import argparse
 import consoler
 import ConfigParser
-import logging
-import os
 import sys
 import time
 import threading
 import fcntl
+
+from logger import LOG
+LOG = LOG.getLogger(__name__)
 
 from version import version
 
@@ -91,15 +92,9 @@ args = parser.parse_args()
 
 
 def main():
-    import logging.config
-    lc = os.path.join(os.path.dirname(__file__), 'etc/logging.conf')
-    logging.config.fileConfig(lc)
     if not acquire_lock():
-        logging.error("Thou shalt not pass! There is another instance of MCVConsoler!")
+        LOG.error("Thou shalt not pass! There is another instance of MCVConsoler!")
         sys.exit(1)
-    # This is somewhat radical way to shut up paramiko, should be replaced with
-    # handler substitution.
-    logging.getLogger("paramiko").setLevel(logging.WARNING)
     consolerr = consoler.Consoler(parser=parser, args=args)
     e = threading.Event()
     res = []
@@ -109,12 +104,12 @@ def main():
         while t.isAlive():
             time.sleep(30)
     except KeyboardInterrupt:
-        logging.info("Consoler will be interrupted after finish of current task. "
+        LOG.info("Consoler will be interrupted after finish of current task. "
                      "Results of it will be lost")
         e.set()
         return 1
     except Exception as e:
-        logging.error("Something unforseen has just happened. "
+        LOG.error("Something unforseen has just happened. "
                       "The consoler is no more. You can get an insight from "
                       "/var/log/mcvconsoler.log", exc_info=True)
         return 1

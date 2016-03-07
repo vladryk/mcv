@@ -17,7 +17,6 @@ import argparse
 import datetime
 import inspect
 import ConfigParser
-import logging
 import imp
 import json
 import reporter
@@ -27,7 +26,8 @@ import sys
 
 import utils
 
-LOG = logging
+from logger import LOG
+LOG = LOG.getLogger(__name__)
 
 
 class Consoler(object):
@@ -87,10 +87,10 @@ class Consoler(object):
         the last will be used.
         """
         def pretty_print_tests(tests):
-            print "The following amount of tests is requested per available tools:"
+            LOG.info("The following amount of tests is requested per available tools:")
             for group, test_list in tests.iteritems():
-                print group, '\t:\t', len(test_list.split(','))
-            print
+                LOG.info(" %s : %s", group, len(test_list.split(',')))
+            LOG.info('\n')
 
         if test_group == 'default':
             LOG.info("Either no group has been explicitly requested or it was group 'default'.")
@@ -102,8 +102,8 @@ class Consoler(object):
 
         if test_group.find('load') != -1 and test_group.find('workload') == -1:
             if self.config.get('rally', 'rally_load') != 'True':
-                print "WARNING! Load test suit contains rally load tests. These tests may"
-                print "break your cloud. So, please set rally_load=True manually in mcv.conf "
+                LOG.info("WARNING! Load test suit contains rally load tests. These tests may "
+                         "break your cloud. So, please set rally_load=True manually in mcv.conf ")
                 return None
         tests_to_run = self.prepare_tests(test_group)
         if tests_to_run is None:
@@ -266,27 +266,27 @@ class Consoler(object):
         LOG.info("Starting full check run.")
         LOG.warning("WARNING! Full test suite contains Rally load tests. These tests may break your cloud. It is not recommended to run these tests on production clouds.")
         if self.config.get('rally', 'rally_load') != 'True':
-            print "WARNING!Full test suite contains Rally load tests. These tests may"
-            print "break your cloud. So, please set rally_load=True manually in mcv.conf "
+            LOG.info("WARNING!Full test suite contains Rally load tests. These tests may "
+                     "break your cloud. So, please set rally_load=True manually in mcv.conf ")
             return {}
         test_dict = self.discover_test_suits()
         return self.dispatch_tests_to_runners(test_dict)
 
     def describe_results(self, results):
         """Pretty printer for results"""
-        print
-        print "-"*40
-        print "The run resulted in:"
+        LOG.info('\n')
+        LOG.info("-"*40)
+        LOG.info("The run resulted in:")
         for key in results.iterkeys():
-            print "For", key, ":",
+            LOG.info("For %s:", key)
             if results[key].get('major_crash', None) is not None:
-                print "A major tool failure has been detected"
+                LOG.info("A major tool failure has been detected")
                 continue
-            print
-            print len(results[key]['results']['test_success']),
-            print "\t\t successful tests"
-            print len(results[key]['results']['test_failures']),
-            print "\t\t failed tests"
+            LOG.info('\n')
+            LOG.info(len(results[key]['results']['test_success']))
+            LOG.info("\t\t successful tests")
+            LOG.info(len(results[key]['results']['test_failures']))
+            LOG.info("\t\t failed tests")
 
     def update_config(self, results):
         sent = False
@@ -434,8 +434,7 @@ class Consoler(object):
                 LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler", exc_info=True)
                 self.failure_indicator = 13
             except Exception as e:
-                print "Something went wrong with the command, please"\
-                      " refer to logs to find out what"
+                LOG.info("Something went wrong with the command, please refer to logs to find out what")
                 LOG.error("The following error has terminated the consoler:", exc_info=True)
                 self.failure_indicator = 13
         elif self.args.test is not None:
@@ -449,10 +448,10 @@ class Consoler(object):
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         result.append(self.failure_indicator)
-        print
-        print "-"*40
+        LOG.info('\n')
+        LOG.info("-"*40)
         if run_results is not None:
-            print "One page report could be found in /tmp/mcv_run_%(timestamp)s.tar.gz" % r_helper
-        print "For extra details and possible insights please refer to",
-        print captain_logs
-        print
+            LOG.info("One page report could be found in /tmp/mcv_run_%s.tar.gz" % r_helper)
+        LOG.info("For extra details and possible insights please refer to")
+        LOG.info(captain_logs)
+        LOG.info('\n')

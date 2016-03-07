@@ -15,7 +15,6 @@
 
 import ConfigParser
 import operator
-import logging
 import re
 import subprocess
 import sys
@@ -30,13 +29,13 @@ from novaclient import exceptions as nexc
 
 import utils
 
+from logger import LOG
+LOG = LOG.getLogger(__name__)
+
 image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
 
 erepnotf = re.compile('ERROR \(EndpointNotFound\)')
 ernotfou = re.compile('ERROR \(NotFound\)')
-
-
-LOG = logging
 
 
 class AccessSteward(object):
