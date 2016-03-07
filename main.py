@@ -23,6 +23,8 @@ import time
 import threading
 import fcntl
 
+from version import version
+
 
 def acquire_lock():
     try:
@@ -78,6 +80,12 @@ parser.add_argument(
 parser.add_argument(
     "--no-tunneling", action="store_true", default=False,
     help="""Forbids setting up automatic tunnels""")
+
+parser.add_argument(
+    "--version",
+    action="version",
+    version=version,
+    help="""Print out version of MCV Consoler and exit.""")
 
 args = parser.parse_args()
 
