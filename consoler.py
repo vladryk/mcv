@@ -412,7 +412,12 @@ class Consoler(object):
         if self.args.run is not None:
             required_containers = self.check_args_run(self.args.run)
             self.access_helper = accessor.AccessSteward(self.config)
-            self.access_helper.check_and_fix_environment(required_containers, self.args.no_tunneling)
+            res = self.access_helper.check_and_fix_environment(
+                required_containers, self.args.no_tunneling)
+            if not res:
+                result.append(14)
+                return
+
             try:
                 run_results = getattr(self, "do_" + self.args.run[0])(*self.args.run[1:])
             except TypeError as e:
