@@ -350,6 +350,11 @@ class RallyOnDockerRunner(RallyRunner):
                                    preexec_fn=utils.ignore_sigint).stdout.read()
         else:
             LOG.debug("Seems like it is present.")
+        cmd = "docker exec -t %(container)s sudo rally deployment use existing" %\
+              {"container": self.container_id}
+        p = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
     def _check_rally_setup(self):
         self._check_and_fix_flavor()
