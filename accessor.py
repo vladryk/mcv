@@ -90,64 +90,14 @@ class AccessSteward(object):
             return True
         return False
 
-    def _request_ip(self, message):
-        address = ''
-        msg = message
-        while not self._validate_ip(address):
-            address = raw_input(msg)
-            if msg[0:4] != "This":
-                msg = "This doesn't look like a valid IP address. " + msg
-        if not self._address_is_reachable(address):
-            LOG.warning("Address "+ address+ " is unreachable.")
-            return self._request_ip(message)
-        return address
-
-    def _request_instance_ip(self):
-        msg = "Please enter the IP address of MCV instance: "
-        instance_address = self._request_ip(msg)
-        self.access_data["instance_ip"] = instance_address
-
-    def _request_nailgun_host(self):
-        msg = "Please enter the IP address of nailgun host: "
-        instance_address = self._request_ip(msg)
-        self.access_data["nailgun_host"] = instance_address
-
-    def _request_controller_ip(self):
-        msg = "Please enter the IP address of cloud controller: "
-        controller_address = self._request_ip(msg)
-        self.access_data["controller_ip"] = controller_address
-
-    def _request_auth_endpoint_ip(self):
-        msg = "Please enter the IP address of auth endpoint: "
-        controller_address = self._request_ip(msg)
-        self.access_data["auth_endpoint_ip"] = controller_address
-
-    def _request_os_username(self):
-        username = raw_input("Please provide administrator username: ")
-        self.access_data["os_username"] = username
-
-    def _request_os_password(self):
-        password = raw_input("Please provide administrator password: ")
-        self.access_data["os_password"] = password
-
-    def _request_os_tenant_name(self):
-        tenant = raw_input("Please provide tenant name: ")
-        self.access_data["os_tenant_name"] = tenant
-
-    def _request_cluster_id(self):
-        cluster_id = raw_input("Please provide cluster ID [1]: ")
-        if cluster_id == "":
-            cluster_id = "1"
-        self.access_data["cluster_id"] = cluster_id
-
-    def _request_auth_fqdn(self):
-        auth_fqdn = raw_input("Please provide authentication endpoint name [None]: ")
-        self.access_data["auth_fqdn"] = auth_fqdn
-
     def _verify_access_data_is_set(self):
+        access = True
         for key, value in self.access_data.iteritems():
             if value is None:
-                getattr(self, "_request_" + key)()
+                LOG.error('Config value %s is not set, please provide '
+                          'required data in /etc/mcv/mcv.conf' % key)
+                access = False
+        return access
 
     def _verify_shaker_container_is_up(self):
         self._verify_container_is_up("shaker")
@@ -201,35 +151,27 @@ class AccessSteward(object):
             f.close()
 
     def check_and_fix_access_data(self):
-        def trap():
-            print "This doesn\'t look like a valid option."\
-                  " Let\'s try once again."
-        self._verify_access_data_is_set()
+        if not self._verify_access_data_is_set():
+            return False
 
         LOG.debug("Trying to authenticate with OpenStack using provided credentials...")
         self._make_sure_controller_name_could_be_resolved()
         try:
             res = self._get_novaclient().servers.list()
         except nexc.ConnectionRefused:
-            print "Apparently authentication endpoint address is not valid."
-            print "Curent value is", self.access_data["auth endpoint"]
-            self._request_auth_endpoint_ip()
-            return self.check_and_fix_access_data()
+            LOG.error("Apparently authentication endpoint address is not valid."
+                      "Current value is %s" % self.access_data["auth endpoint"])
+            return False
         except nexc.Unauthorized:
-            print "Apparently user credentails are incorrect."
-            print "Current os-username is:", self.access_data["os_username"]
-            print "Current os-password is:", self.access_data["os_password"]
-            print "Current os-tenant is:", self.access_data["os_tenant_name"]
-            print "Please select which one you would like to change:"
-            print "1) os-username,"
-            print "2) os-password,"
-            print "3) os-tenant."
-            decision = raw_input()
-            ddispatcher = {'1': self._request_os_username,
-                           '2': self._request_os_password,
-                           '3': self._request_os_tenant_name}
-            ddispatcher.get(decision, trap)()
-            return self.check_and_fix_access_data()
+            LOG.error("Apparently OS user credentials are incorrect.\n"
+                      "Current os-username is: %s\n"
+                      "Current os-password is: %s \n"
+                      "Current os-tenant is: %s \n"
+                      % (self.access_data["os_username"],
+                         self.access_data["os_password"],
+                         self.access_data["os_tenant_name"]
+                         ))
+            return False
         LOG.info("Access data looks valid.")
         return True
 
@@ -398,7 +340,8 @@ class AccessSteward(object):
     def check_and_fix_environment(self, required_containers, no_tunneling=False):
         self.required_containers = required_containers
         self.check_docker_images()
-        self.check_and_fix_access_data()
+        if not self.check_and_fix_access_data():
+            return False
         self.check_mcv_secgroup()
         if not no_tunneling:
             LOG.info("Port forwarding will be done automatically")
@@ -406,3 +349,4 @@ class AccessSteward(object):
         else:
             LOG.info("Port forwarding will not be done")
         self.check_and_fix_floating_ips()
+        return True
