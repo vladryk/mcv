@@ -145,12 +145,16 @@ class Preparer(object):
 
         for compute_host in compute_hosts:
             zone = 'nova:%s' % compute_host.host_name
-            server_ids.append(
-                self.nova.servers.create(name="speed-test",
-                                         image=image.id,
-                                         flavor=flavor.id,
-                                         availability_zone=zone,
-                                         nics=[{'net-id': network.id}]).id)
+            try:
+                server_ids.append(
+                    self.nova.servers.create(name="speed-test",
+                                             image=image.id,
+                                             flavor=flavor.id,
+                                             availability_zone=zone,
+                                             nics=[{'net-id': network.id}]).id)
+            except Exception:
+                LOG.error('Error - nova can not create test nodes')
+                raise RuntimeError
 
         self._check_instances(server_ids)
         if not server_ids:
