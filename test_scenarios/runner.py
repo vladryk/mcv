@@ -118,7 +118,6 @@ class Runner(object):
                  'resources': 39,
                  'speed': 29,
                  'ostf': 69,
-                 'dummy': 79,
                  'tempest': 89}
 
         return codes.get(tool_name, 11)
