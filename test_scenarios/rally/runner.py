@@ -397,7 +397,8 @@ class RallyOnDockerRunner(RallyRunner):
 
             cmd = ("docker exec -t {container} rally task start"
                   " {location}/certification/openstack/task.yaml"
-                  " --task-args '{task_args}'").format(
+                  " --task-args '{task_args}'"
+                  " --log-file /var/log/rally.log").format(
                       container = self.container_id,
                       location = self.test_storage_place,
                       task_args = json.dumps(task_args))
@@ -406,7 +407,8 @@ class RallyOnDockerRunner(RallyRunner):
 
             cmd = ("docker exec -t {container} rally task start"
                    " {location}/workload.yaml"
-                   " --task-args '{task_args}'").format(
+                   " --task-args '{task_args}'"
+                   " --log-file /var/log/rally.log").format(
                       container=self.container_id,
                       location=self.test_storage_place,
                       task_args=json.dumps(task_args))
@@ -416,7 +418,8 @@ class RallyOnDockerRunner(RallyRunner):
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
                   "%(compute)s, \"concurrency\":%(concurrency)s,"\
                  "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
-                  "\"vlan_amount\":%(vlan_amount)s}'" %\
+                  "\"vlan_amount\":%(vlan_amount)s}'" \
+                  " --log-file /var/log/rally.log" %\
                   {"container": self.container_id,
                    "compute": kwargs["compute"],
                    "concurrency": kwargs["concurrency"],
