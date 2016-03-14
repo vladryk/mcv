@@ -58,7 +58,11 @@ def fix_shaker(file_location):
             cmd, shell=True, stderr=subprocess.STDOUT,
             preexec_fn=utils.ignore_sigint)
 
-fix_dispatcher = {"rally": fix_rally, "shaker": fix_shaker}
+def fix_ostf(file_location):
+    """Just for compatibility."""
+    pass
+
+fix_dispatcher = {"rally": fix_rally, "shaker": fix_shaker, "ostf": fix_ostf}
 
 def brew_a_report(stuff, name="mcv_result.html"):
     result = ""

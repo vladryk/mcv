@@ -382,8 +382,8 @@ class Consoler(object):
                 self.update_config(run_results)
                 try:
                     reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
-                except:
-                    LOG.warning("Brewing a report has failed. Probably the tool does not support html reports generation.")
+                except Exception:
+                    LOG.warning("Brewing a report has failed.")
                     return r_helper
                 r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
                             "location": self.results_vault}

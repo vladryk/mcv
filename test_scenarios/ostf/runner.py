@@ -19,6 +19,7 @@ import subprocess
 import sys
 from test_scenarios import runner
 from ConfigParser import NoOptionError
+from test_scenarios.ostf.reporter import Reporter
 try:
     import json
 except:
@@ -32,12 +33,12 @@ default_config = "etc/mcv.conf"
 
 LOG = logging
 
-
 class OSTFOnDockerRunner(runner.Runner):
 
-    def __init__(self, accessor, *args, **kwargs):
+    def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs["config"]
         self.accessor = accessor
+        self.path = path
         self.identity = "ostf"
         self.config_section = "ostf"
         self.test_failures = []  # this object is supposed to live for one run
@@ -173,15 +174,37 @@ class OSTFOnDockerRunner(runner.Runner):
                     preexec_fn=utils.ignore_sigint)
 
             results = []
-            with open('/tmp/ostf_report.json', 'r') as fp:
+            try:
+                fp = open('/tmp/ostf_report.json', 'r')
                 results = json.loads(fp.read())
+                fp.close()
+                os.remove('/tmp/ostf_report.json')
+            except IOError as e:
+                LOG.error('Error while extracting report from OSTF container: {err_msg}'.format(
+                    err_msg=str(e)))
+            except OSError as e:
+                LOG.error('Error while removing report file from container: {err_msg}'.format(
+                    err_msg=str(e)))
 
-            os.remove('/tmp/ostf_report.json')
             for result in results:
                 if result['result'] == 'Passed':
                     self.success.append(result['suite'])
                 elif result['result'] == 'Failed':
                     self.failures.append(result['suite'])
+
+
+            def fix_suite(result):
+                result['suite'] = result['suite'].split(':')[1]
+                return result
+
+            map(fix_suite, results)
+
+            #@TODO(albartash): Replace path to folder when we have a single
+            # place for templates!
+	    folder = os.path.dirname(__file__)
+            reporter = Reporter(folder)
+            reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
+                                 'ostf_template.html', {'reports': results})
 
         except subprocess.CalledProcessError:
             LOG.error("Task %s has failed with: " % task, exc_info=True)
