@@ -395,31 +395,34 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info("Starting Rally Certification Task")
             task_args = self._prepare_certification_task_args()
 
-            cmd = ("docker exec -t {container} rally task start"
-                  " {location}/certification/openstack/task.yaml"
-                  " --task-args '{task_args}'"
-                  " --log-file /var/log/rally.log").format(
+            cmd = ("docker exec -t {container} sudo rally"
+                   " --log-file /var/log/rally.log --rally-debug"
+                   " task start"
+                   " {location}/certification/openstack/task.yaml"
+                   " --task-args '{task_args}'").format(
                       container = self.container_id,
                       location = self.test_storage_place,
                       task_args = json.dumps(task_args))
         elif task == 'workload.yaml':
             task_args = self.prepare_workload_task()
 
-            cmd = ("docker exec -t {container} rally task start"
+            cmd = ("docker exec -t {container} sudo rally"
+                   " --log-file /var/log/rally.log --rally-debug"
+                   " task start"
                    " {location}/workload.yaml"
-                   " --task-args '{task_args}'"
-                   " --log-file /var/log/rally.log").format(
+                   " --task-args '{task_args}'").format(
                       container=self.container_id,
                       location=self.test_storage_place,
                       task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
-            cmd = "docker exec -t %(container)s rally task start"\
+            cmd = "docker exec -t %(container)s sudo rally" \
+                  " --log-file /var/log/rally.log --rally-debug"\
+                  " task start"\
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
                   "%(compute)s, \"concurrency\":%(concurrency)s,"\
-                 "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
-                  "\"vlan_amount\":%(vlan_amount)s}'" \
-                  " --log-file /var/log/rally.log" %\
+                  "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
+                  "\"vlan_amount\":%(vlan_amount)s}'" %\
                   {"container": self.container_id,
                    "compute": kwargs["compute"],
                    "concurrency": kwargs["concurrency"],
