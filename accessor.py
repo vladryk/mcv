@@ -13,7 +13,9 @@
 #    under the License.
 
 
-import ConfigParser
+from ConfigParser import NoOptionError
+from common.config import DEBUG
+from common import clients as Clients
 import operator
 import re
 import subprocess
@@ -22,9 +24,6 @@ import time
 import paramiko
 from paramiko import client
 
-from keystoneclient.v2_0 import client as keystone
-
-from novaclient import client as nova
 from novaclient import exceptions as nexc
 
 import utils
@@ -66,14 +65,33 @@ class AccessSteward(object):
                             "region_name": None,
                             "cluster_id": None,
                             "auth_fqdn": None,}
+
         self.config = config
         for key in self.access_data.keys():
              try:
                  self.access_data[key] = self.config.get('basic', key)
-             except ConfigParser.NoOptionError:
-                 pass
+             except NoOptionError:
+                 LOG.warning('Option {opt} missed in config file. It may be dangerous'.format(
+                     opt=key))
+
         self.novaclient = None
         self.keystoneclient = None
+
+        #@albartash: hard hack
+        self.os_data = {'username': self.access_data['os_username'],
+                        'password': self.access_data['os_password'],
+                        'tenant_name': self.access_data['os_tenant_name'],
+                        'auth_url': self.config.get('basic', 'auth_protocol') +
+                                    "://" +
+                                    str(self.access_data['auth_endpoint_ip']) +
+                                    ":5000/v2.0",
+                        'insecure': True,
+                        'region_name': self.access_data['region_name'],
+                        'project_id': self.access_data['os_tenant_name'], # nova tenant
+                        'api_key': self.access_data['os_password'] , # nova and cinder passwd
+                        'debug': DEBUG
+                       }
+
 
     def _validate_ip(self, ip):
         match = re.match(self.ipv4, ip)
@@ -102,33 +120,13 @@ class AccessSteward(object):
         self._verify_container_is_up("shaker")
 
     def _get_novaclient(self):
-        # TODO: fix hardcoded nova API-version
         if self.novaclient is None:
-            client = nova.Client(
-                '2', username=self.access_data["os_username"],
-                auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.access_data["auth_endpoint_ip"] +
-                         ":5000/v2.0/",
-                api_key=self.access_data["os_password"],
-                project_id=self.access_data["os_tenant_name"],
-                region_name=self.access_data["region_name"],
-                insecure=True,
-            )
-            self.novaclient = client
-        return self.novaclient
+            self.novaclient = Clients.get_nova_client(self.os_data)
+       return self.novaclient
 
     def _get_keystoneclient(self):
-        # TODO: fix keystone API-version
         if self.keystoneclient is None:
-            client = keystone.Client(
-                username=self.access_data["os_username"],
-                password=self.access_data["os_password"],
-                tenant_name=self.access_data["os_tenant_name"],
-                auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.access_data["auth_endpoint_ip"] +
-                         ":5000/v2.0/",
-                insecure=True,
-                region_name=self.access_data["region_name"],
-            )
-            self.keystoneclient = client
+            self.keystoneclient = Clients.get_keystone_client(self.os_data)
         return self.keystoneclient
 
     def _get_private_endpoint_ip(self):
@@ -226,7 +224,7 @@ class AccessSteward(object):
             ssh.connect(hostname="%(controller_ip)s" % self.access_data,
                         username=self.config.get('basic', 'controller_uname'),
                         password=self.config.get('basic', 'controller_pwd'))
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             LOG.critical("SSH authorization credentials are not defined in the config")
             sys.exit(1)
         except paramiko.ssh_exception.AuthenticationException:

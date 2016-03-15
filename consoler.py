@@ -25,7 +25,6 @@ import os
 import sys
 
 import utils
-
 from logger import LOG
 LOG = LOG.getLogger(__name__)
 
@@ -382,7 +381,7 @@ class Consoler(object):
                 self.update_config(run_results)
                 try:
                     reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
-                except Exception:
+                except:
                     LOG.warning("Brewing a report has failed.")
                     return r_helper
                 r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),

@@ -57,17 +57,7 @@ class SpeedTestRunner(run.Runner):
         return res
 
     def get_preparer(self):
-        tenant = self.accessor.access_data['os_tenant_name']
-        auth_url = self.config.get('basic', 'auth_protocol') + "://"
-        auth_url += self.accessor.access_data["auth_endpoint_ip"]
-        auth_url += ":5000/v2.0/"
-        preparer = Preparer(uname=self.accessor.access_data['os_username'],
-                            passwd=self.accessor.access_data['os_password'],
-                            tenant=tenant,
-                            auth_url=auth_url,
-                            region_name=self.accessor.access_data[
-                                'region_name'])
-        return preparer
+        return Preparer(self.accessor.os_data)
 
     def _prepare_vms(self):
         preparer = self.get_preparer()
@@ -143,7 +133,7 @@ class SpeedTestRunner(run.Runner):
             LOG.error('Incorrect task')
             return False
         try:
-            reporter = speed_class(self.accessor.access_data, image_size=i_s,
+            reporter = speed_class(self.accessor, image_size=i_s,
                                    volume_size=v_s, *args, **kwargs)
         except Exception:
             LOG.error(

@@ -15,11 +15,7 @@ import json
 import logging
 import os
 
-import novaclient.client as nova
-import cinderclient.client as cinder
-from neutronclient.neutron import client as neutron
-import glanceclient as glance
-from keystoneclient.v2_0 import client as keystone_v2
+from common import clients as Clients
 
 LOG = logging
 
@@ -117,46 +113,16 @@ class ResourceSearch(object):
 
     def init_clients(self, access_data):
         LOG.debug("Trying to obtain authenticated OS clients")
-        self.key_client = keystone_v2.Client(
-            username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            password=access_data['os_password'],
-            tenant_name=access_data['os_tenant_name'],
-            insecure=True)
-
-        self.novaclient = nova.Client(
-            '2', username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'],
-            region_name=access_data['region_name'],
-            insecure=True)
-
-        self.cinderclient = cinder.Client(
-            '1', username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'],
-            insecure=True)
-        image_api_url = self.key_client.service_catalog.url_for(
-            service_type="image")
-        self.glanceclient = glance.Client(
-            '1',
-            endpoint=image_api_url,
-            token=self.key_client.auth_token,
-            insecure=True)
-        network_api_url = self.key_client.service_catalog.url_for(
-            service_type="network")
-        self.neutronclient = neutron.Client(
-            '2.0', token=self.key_client.auth_token,
-            endpoint_url=network_api_url,
-            auth_url=self.config.get('basic', 'auth_protocol') + '://' + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            insecure=True)
+        self.novaclient = Clients.get_nova_client(access_data)
+        self.cinderclient = Clients.get_cinder_client(access_data)
+        self.glanceclient = Clients.get_glance_client(access_data)
+        self.neutronclient = Clients.get_neutron_client(access_data)
+        LOG.debug("Finish obtaining OS clients.")
 
 
 class ErrorResourceSearch(ResourceSearch):
 
-    def __init__(self, access_data, *args, **kwargs):
+    def __init__(self, accessor, *args, **kwargs):
         self.config = kwargs.get('config')
         self.resources = {
             'servers': [],
@@ -164,7 +130,7 @@ class ErrorResourceSearch(ResourceSearch):
             'images': [],
             'ports': []}
 
-        self.init_clients(access_data)
+        self.init_clients(accessor.os_data)
 
     def search_error_servers(self):
         LOG.debug('Collecting error servers data')
@@ -251,10 +217,10 @@ class ErrorResourceSearch(ResourceSearch):
 
 class GeneralResourceSearch(ResourceSearch):
 
-    def __init__(self, access_data, *args, **kwargs):
+    def __init__(self, accessor, *args, **kwargs):
         self.config = kwargs.get('config')
         self.resources = RESOURCES_TEMPLATE
-        self.init_clients(access_data)
+        self.init_clients(accessor.os_data)
 
     def _count_vms(self, flavor_id, vms):
         counter = 0

@@ -24,8 +24,7 @@ try:
 except:
     import simplejson as json
 
-import glanceclient as glance
-from keystoneclient.v2_0 import client as keystone_v2
+from common import clients as Clients
 
 import utils
 
@@ -134,21 +133,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                                  'floating_ip.yaml']
         super(ShakerOnDockerRunner, self).__init__()
 
-    def get_glanceclient(self):
-        self.key_client = keystone_v2.Client(
-            username=self.accessor.access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol')+"://" + self.accessor.access_data["auth_endpoint_ip"] +
-                     ":5000/v2.0/",
-            password=self.accessor.access_data['os_password'],
-            tenant_name=self.accessor.access_data['os_tenant_name'],
-            insecure=True)
-        image_api_url =self.key_client.service_catalog.url_for(
-            service_type="image")
-        self.glance = glance.Client(
-            '1',
-            endpoint=image_api_url,
-            token=self.key_client.auth_token,
-            insecure=True)
+        self.glance = Clients.get_glance_client(accessor.os_data)
 
     def _check_shaker_setup(self):
         LOG.info("Checking Shaker setup. If this is the first run of "\
@@ -166,7 +151,6 @@ class ShakerOnDockerRunner(ShakerRunner):
             LOG.error('No shaker image available')
             return
         LOG.debug('Authenticating in glance')
-        self.get_glanceclient()
         i_list = self.glance.images.list()
         image = False
         for im in i_list:

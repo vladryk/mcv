@@ -60,7 +60,7 @@ class ResourceReportRunner(run.Runner):
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')
             return False
-        reporter = reporter_class(self.accessor.access_data, config=self.config)
+        reporter = reporter_class(self.accessor, config=self.config)
         res = reporter.search_resources()
         self.generate_report(res, task)
         return True

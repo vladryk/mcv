@@ -18,36 +18,24 @@ import os
 import paramiko
 import time
 
-import cinderclient.client as cinder
-import novaclient.client as nova
+from common import clients as Clients
 
 LOG = logging
 
 
 class BaseStorageSpeed(object):
 
-    def __init__(self, access_data, *args, **kwargs):
+    def __init__(self, accessor, *args, **kwargs):
         self.config = kwargs.get('config')
-        self.access_data = access_data
-        self.init_clients(access_data)
+        self.access_data = accessor.access_data
         self.timeout = 0
         self.test_vm = None
+        self.init_clients(accessor.os_data)
 
     def init_clients(self, access_data):
         LOG.debug("Trying to obtain authenticated OS clients")
-        self.cinderclient = cinder.Client(
-            '1', username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'],
-            insecure=True)
-        self.novaclient = nova.Client(
-            '2', username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol')+"://" + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            api_key=access_data['os_password'],
-            project_id=access_data['os_tenant_name'],
-            region_name=access_data['region_name'],
-            insecure=True)
+        self.cinderclient = Clients.get_cinder_client(access_data)
+        self.novaclient = Clients.get_nova_client(access_data)
         LOG.debug('Authentication ends well')
 
     def generate_report(self, storage, compute_name, r_res, w_res):
@@ -166,8 +154,8 @@ def block_measure_dec(measure):
 
 class BlockStorageSpeed(BaseStorageSpeed):
 
-    def __init__(self, access_data, *args, **kwargs):
-        super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
+    def __init__(self, accessor, *args, **kwargs):
+        super(BlockStorageSpeed, self).__init__(accessor, *args, **kwargs)
         self.size_str = kwargs.get('volume_size')
         self.size = 0
         self.device = None
@@ -401,8 +389,8 @@ def object_measure_dec(measure):
 
 class ObjectStorageSpeed(BaseStorageSpeed):
 
-    def __init__(self, access_data, *args, **kwargs):
-        super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
+    def __init__(self, accessor, *args, **kwargs):
+        super(ObjectStorageSpeed, self).__init__(accessor, *args, **kwargs)
         self.size_str = kwargs.get('image_size')
         self.size = 0
         self.start_time = 0
@@ -430,12 +418,11 @@ class ObjectStorageSpeed(BaseStorageSpeed):
                '-d \'{"auth":{"tenantName": "%s", '
                '"passwordCredentials": {"username": "%s", '
                '"password": "%s"}}}\' -H "Content-type: application/json" '
-               '%s://%s:5000/v2.0/tokens') % (
-            self.access_data['os_tenant_name'],
-            self.access_data['os_username'],
-            self.access_data['os_password'],
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'])
+               '%s/tokens') % (
+            self.os_data['tenant_name'],
+            self.os_data['username'],
+            self.os_data['password'],
+            self.os_data['auth_url'])
         res = self.run_ssh_cmd(cmd)
         out = res['out']
         ret = res['ret']

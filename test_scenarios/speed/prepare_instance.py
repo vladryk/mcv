@@ -1,50 +1,16 @@
 import logging
 import time
 
-import glanceclient as glance
-from novaclient import client as nova
-from novaclient import exceptions
-from keystoneclient.v2_0 import client as keystone_v2
+from common import clients as Clients
 
 LOG = logging
 
 
 class Preparer(object):
-    def __init__(self, uname=None, passwd=None,
-                 auth_url=None, tenant=None,
-                 region_name=None):
-        self.uname = uname
-        self.passwd = passwd
-        self.auth_url = auth_url
-        self.tenant = tenant
-        self.region_name = region_name
-        super(Preparer, self).__init__()
-
-    def _get_clients(self):
-        self.key_client = keystone_v2.Client(
-            username=self.uname,
-            auth_url=self.auth_url,
-            password=self.passwd,
-            tenant_name=self.tenant,
-            insecure=True
-        )
-        image_api_url = self.key_client.service_catalog.url_for(
-            service_type="image")
-        self.glance = glance.Client(
-            '1',
-            endpoint=image_api_url,
-            token=self.key_client.auth_token,
-            insecure=True
-        )
-        self.nova = nova.Client(
-            '2',
-            username=self.uname,
-            api_key=self.passwd,
-            project_id=self.tenant,
-            auth_url=self.auth_url,
-            region_name=self.region_name,
-            insecure=True
-        )
+    def __init__(self, os_data):
+       super(Preparer, self).__init__()
+       self.nova = Clients.get_nova_client(os_data)
+       self.glance = Clients.get_glance_client(os_data)
 
     def _check_image(self, image_path):
         LOG.info('Check cirros-image in glance')
@@ -177,7 +143,6 @@ class Preparer(object):
             return None
 
     def delete_instances(self):
-        self._get_clients()
         LOG.info('Removing instances')
         servers = [server for server in self.nova.servers.list() if
                    server.name == 'speed-test']
@@ -202,6 +167,5 @@ class Preparer(object):
             [old_flavor.delete() for old_flavor in old_flavors]
 
     def prepare_instances(self, image_path, flavor_req):
-        self._get_clients()
         self._check_image(image_path)
         return self._launch_instances(flavor_req)

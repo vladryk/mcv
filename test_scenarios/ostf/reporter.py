@@ -18,12 +18,10 @@ from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
 from logger import LOG
+from common.config import DEBUG
 
 LOG = LOG.getLogger(__name__)
 
-#@TODO(albartash): This variable must be thrown out to the config.py or
-# somewhere else later!
-DEBUG = False
 
 class Reporter(object):
 

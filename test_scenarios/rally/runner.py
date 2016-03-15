@@ -21,9 +21,7 @@ import sys
 import time
 from test_scenarios import runner
 
-import glanceclient as glance
-from keystoneclient.v2_0 import client as keystone_v2
-from neutronclient.neutron import client as neutron
+from common import clients as Clients
 
 try:
     import json
@@ -163,47 +161,25 @@ class RallyOnDockerRunner(RallyRunner):
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
         self.failure_indicator = 50
 
-    def init_clients(self, access_data):
-        key_client = keystone_v2.Client(
-            username=access_data['os_username'],
-            auth_url=self.config.get('basic', 'auth_protocol') + '://'
-                     + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            password=access_data['os_password'],
-            tenant_name=access_data['os_tenant_name'],
-            insecure=True)
-        image_api_url = key_client.service_catalog.url_for(
-                service_type="image")
-        glanceclient = glance.Client(
-            '1',
-            endpoint=image_api_url,
-            token=key_client.auth_token,
-            insecure=True)
-        network_api_url =key_client.service_catalog.url_for(
-            service_type="network")
-        neutronclient = neutron.Client(
-            '2.0', token=key_client.auth_token,
-            endpoint_url=network_api_url,
-            auth_url=self.config.get('basic', 'auth_protocol') + '://'
-                     + access_data['auth_endpoint_ip'] + ':5000/v2.0/',
-            insecure=True)
-        return (glanceclient, neutronclient)
+        self.glanceclient = Clients.get_glance_client(accessor.os_data)
+        self.neutronclient = Clients.get_neutron_client(accessor.os_data)
 
-    def create_fedora_image(self, glc):
+    def create_fedora_image(self):
         # Note: made path to image configurable
         path = '/etc/toolbox/rally/Fedora-Cloud-Base-23-20151030.x86_64.qcow2'
-        i_list = glc.images.list()
+        i_list = self.glanceclient.images.list()
         image = False
         for im in i_list:
             if im.name == 'fedora':
                 image = True
         if not image:
-            glc.images.create(name='fedora', disk_format="qcow2", is_public=True,
+            self.glanceclient.images.create(name='fedora', disk_format="qcow2", is_public=True,
                                       container_format="bare", data=open(path))
 
-    def get_network_router_id(self, neuc):
-        networks = neuc.list_networks(**{'router:external': True})['networks']
+    def get_network_router_id(self):
+        networks = self.neutronclient.list_networks(**{'router:external': True})['networks']
         net_id = networks[0].get('id')
-        routers = neuc.list_routers()['routers']
+        routers = self.neutronclient.list_routers()['routers']
         rou_id = routers[0].get('id')
         return (net_id, rou_id)
 
@@ -374,9 +350,8 @@ class RallyOnDockerRunner(RallyRunner):
 
     def prepare_workload_task(self):
         self._patch_rally()
-        glc, neuc = self.init_clients(self.accessor.access_data)
-        self.create_fedora_image(glc)
-        net, rou = self.get_network_router_id(neuc)
+        self.create_fedora_image()
+        net, rou = self.get_network_router_id()
         concurrency = self.config.get('workload', 'concurrency')
         instance_count = self.config.get('workload', 'instance_count')
         task_args = {
@@ -396,10 +371,10 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self._prepare_certification_task_args()
 
             cmd = ("docker exec -t {container} sudo rally"
-                   " --log-file /var/log/rally.log --rally-debug"
-                   " task start"
-                   " {location}/certification/openstack/task.yaml"
-                   " --task-args '{task_args}'").format(
+                  " --log-file /var/log/rally.log --rally-debug"
+                  " task start"
+                  " {location}/certification/openstack/task.yaml"
+                  " --task-args '{task_args}'").format(
                       container = self.container_id,
                       location = self.test_storage_place,
                       task_args = json.dumps(task_args))
@@ -416,7 +391,7 @@ class RallyOnDockerRunner(RallyRunner):
                       task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
-            cmd = "docker exec -t %(container)s sudo rally" \
+            cmd = "docker exec -t %(container)s sudo rally"\
                   " --log-file /var/log/rally.log --rally-debug"\
                   " task start"\
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
