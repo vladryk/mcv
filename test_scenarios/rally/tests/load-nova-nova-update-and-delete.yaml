@@ -6,7 +6,7 @@
       runner:
         type: "constant"
         times: {{ compute }}
-        concurrency: 1
+        concurrency: {{ concurrency }}
       context:
         users:
           tenants: 3
