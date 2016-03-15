@@ -70,6 +70,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-v", '/home/mcv/toolbox/tempest:/home/rally/.rally/tempest',
+            "-v", "/home/mcv/toolbox/tempest:/mcv", "-w", "/mcv",
             "-t", "mcv-tempest"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()

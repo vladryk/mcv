@@ -199,6 +199,7 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+            "-v", "/home/mcv/toolbox/rally:/mcv", "-w", "/mcv",
             "-t", "mcv-rally"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()

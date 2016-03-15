@@ -186,6 +186,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+            "-v", "/home/mcv/toolbox/shaker:/mcv", "-w", "/mcv",
             "-t", "mcv-shaker"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 

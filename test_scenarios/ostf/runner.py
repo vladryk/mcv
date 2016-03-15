@@ -63,10 +63,14 @@ class OSTFOnDockerRunner(runner.Runner):
     def start_ostf_container(self):
         LOG.debug( "Bringing up OSTF container with credentials")
         mos_version = self.config.get("ostf", "version")
+        #@TODO(albartash): Remove tname when migrating to single ostf
+        # container!
         if mos_version == "6.1":
             cname = "mcv-ostf61"
+            tname = "ostf61"
         elif mos_version == "7.0":
             cname = "mcv-ostf70"
+            tname = "ostf70"
         else:
             LOG.error("Unsupported MOS version: " + mos_version)
             sys.exit(33)
@@ -92,6 +96,7 @@ class OSTFOnDockerRunner(runner.Runner):
             "-e", "NAILGUN_PORT=8000",
             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+            "-v", "/home/mcv/toolbox/%s:/mcv" % tname, "-w", "/mcv",
             "-t", cname], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
