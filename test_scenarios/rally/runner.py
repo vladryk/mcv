@@ -486,8 +486,8 @@ class RallyOnDockerRunner(RallyRunner):
                 LOG.warning("Task %s has failed for some instrumental issues" % (task))
                 self.test_failures.append(task)
                 return False
-        except subprocess.CalledProcessError:
-            LOG.error("Task %s has failed with: " % task, exc_info=True)
+        except subprocess.CalledProcessError as e:
+            LOG.error("Task %s has failed with: %s" % (task, e))
             self.test_failures.append(task)
             return False
         else:

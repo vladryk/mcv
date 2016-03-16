@@ -89,17 +89,17 @@ class SpeedTestRunner(run.Runner):
         except RuntimeError:
             LOG.error('Environment preparation error')
             return False
-        except Exception:
+        except Exception as e:
             LOG.error(
-                'Caught unexpected error: %s, exiting' % traceback.format_exc())
+                'Caught unexpected error: %s, exiting', e)
             return False
         finally:
             try:
                 self._remove_vms()
-            except Exception:
+            except Exception as e:
                 LOG.error(
                     'Something went wrong '
-                    'when removing VMs: %s' % traceback.format_exc())
+                    'when removing VMs: %s', e)
                 return False
 
     def generate_report(self, html, task):
@@ -135,9 +135,9 @@ class SpeedTestRunner(run.Runner):
         try:
             reporter = speed_class(self.accessor, image_size=i_s,
                                    volume_size=v_s, *args, **kwargs)
-        except Exception:
+        except Exception as e:
             LOG.error(
-                'Error creating class %s: %s' % (task, traceback.format_exc()))
+                'Error creating class %s: %s' % (task, e))
             self.test_failures.append(task)
             return False
 
@@ -163,17 +163,17 @@ class SpeedTestRunner(run.Runner):
                 LOG.error('Failed to measure speed')
                 try:
                     reporter.cleanup(node_id)
-                except Exception:
-                    LOG.warning('Cleanup error %s' % traceback.format_exc())
+                except Exception as e:
+                    LOG.warning('Cleanup error %s', e)
                 self.test_failures.append(task)
                 return False
-            except Exception:
+            except Exception as e:
                 LOG.error('Failed to measure speed, '
-                          'unexpected error: %s' % traceback.format_exc())
+                          'unexpected error: %s', e)
                 try:
                     reporter.cleanup(node_id)
-                except Exception:
-                    LOG.warning('Cleanup error %s' % traceback.format_exc())
+                except Exception as e:
+                    LOG.warning('Cleanup error %s', e)
                 self.test_failures.append(task)
                 return False
 

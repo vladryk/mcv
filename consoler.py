@@ -212,12 +212,12 @@ class Consoler(object):
                 major_crash = 1
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
-                LOG.error("The following exception has been caught: ", exc_info=True)
+                LOG.error("The following exception has been caught: %s", e)
                 self.failure_indicator = 12
             except Exception as e:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
-                LOG.error("The following exception has been caught: ", exc_info=True)
+                LOG.error("The following exception has been caught: %s", e)
                 self.failure_indicator = 12
             else:
                 path = os.path.join(self.results_vault, key)
@@ -245,9 +245,9 @@ class Consoler(object):
                             self.failure_indicator = 100
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
-                        LOG.debug("It looks like you are trying to use a wrong "\
-                              "runner. No tests will be run in this group "\
-                              "this time.", exc_info=True)
+                        LOG.debug("It looks like you are trying to use a wrong "
+                                  "runner. No tests will be run in this group "
+                                  "this time. Reply %s", e)
                     raise e
                 except Exception as e:
                     run_failures = test_dict[key].split(',')
@@ -353,7 +353,7 @@ class Consoler(object):
         elif to_check[0] == 'single':
             if len(to_check) < 3:
 
-                LOG.error("Too few arguments for option single. You must " \
+                LOG.error("Too few arguments for option single. You must "
                           "specify test type and test name")
                 sys.exit(1)
             if len(to_check) > 3:
@@ -424,17 +424,19 @@ class Consoler(object):
                 expected_arglist = inspect.getargspec(getattr(self, run_name)).args
                 scolding = {"supplied_args": ", ".join(self.args.run[1:]),
                             "function" : self.args.run[0],
-                            "expected_args": "\', \'".join(expected_arglist)}
+                            "expected_args": "\', \'".join(expected_arglist),
+                            "error": e}
                 temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
-                    "\'%(function)s\'\n\'%(function)s\' actually expects the "\
-                    "folowing arguments: \'%(expected_args)s\'"
-                LOG.error(temessage % scolding, exc_info=True)
+                            "\'%(function)s\'\n\'%(function)s\' actually expects the "\
+                            "folowing arguments: \'%(expected_args)s\' Reply: \'%(error)s\'"
+                LOG.error(temessage % scolding)
             except ValueError as e:
-                LOG.error("Some unexpected outer error has terminated the tool. Please try rerunning mcvconsoler", exc_info=True)
+                LOG.error("Some unexpected outer error has terminated the tool."
+                          " Please try rerunning mcvconsoler. Reply: %s", e)
                 self.failure_indicator = 13
             except Exception as e:
                 LOG.info("Something went wrong with the command, please refer to logs to find out what")
-                LOG.error("The following error has terminated the consoler:", exc_info=True)
+                LOG.error("The following error has terminated the consoler: %s", e)
                 self.failure_indicator = 13
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
@@ -447,10 +449,5 @@ class Consoler(object):
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         result.append(self.failure_indicator)
-        LOG.info('\n')
-        LOG.info("-"*40)
         if run_results is not None:
             LOG.info("One page report could be found in /tmp/mcv_run_%s.tar.gz" % r_helper)
-        LOG.info("For extra details and possible insights please refer to")
-        LOG.info(captain_logs)
-        LOG.info('\n')

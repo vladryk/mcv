@@ -122,7 +122,7 @@ class AccessSteward(object):
     def _get_novaclient(self):
         if self.novaclient is None:
             self.novaclient = Clients.get_nova_client(self.os_data)
-       return self.novaclient
+        return self.novaclient
 
     def _get_keystoneclient(self):
         if self.keystoneclient is None:

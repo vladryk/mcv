@@ -123,8 +123,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
                     preexec_fn=utils.ignore_sigint)
-        except subprocess.CalledProcessError:
-            LOG.error("Task %s failed with: " % task, exc_info=True)
+        except subprocess.CalledProcessError as e:
+            LOG.error("Task %s failed with: %s" % (task, e))
             return ''
 
         # get the last run results. This should be done in a more robust and

@@ -456,8 +456,8 @@ class ShakerOnDockerRunner(ShakerRunner):
             for internal_task in self.list_speed_tests:
                 try:
                     task_result = self._run_shaker_on_docker(internal_task)
-                except subprocess.CalledProcessError:
-                    LOG.error("Task %s failed with: " % task, exc_info=True)
+                except subprocess.CalledProcessError as e:
+                    LOG.error("Task %s failed with: %s" % (task, e))
 
                 check = self._evaluate_task_result(task, task_result)
                 if not check:

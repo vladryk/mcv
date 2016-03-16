@@ -206,8 +206,8 @@ class OSTFOnDockerRunner(runner.Runner):
             reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
                                  'ostf_template.html', {'reports': results})
 
-        except subprocess.CalledProcessError:
-            LOG.error("Task %s has failed with: " % task, exc_info=True)
+        except subprocess.CalledProcessError as e:
+            LOG.error("Task %s has failed with: %s" % (task, e))
             self.failures.append(task)
             return
 

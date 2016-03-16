@@ -110,8 +110,7 @@ def main():
         return 1
     except Exception as e:
         LOG.error("Something unforseen has just happened. "
-                      "The consoler is no more. You can get an insight from "
-                      "/var/log/mcvconsoler.log", exc_info=True)
+                  "reply: %s", e)
         return 1
     if res:
         return res[0]
