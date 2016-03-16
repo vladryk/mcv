@@ -89,17 +89,19 @@ class SpeedTestRunner(run.Runner):
         except RuntimeError:
             LOG.error('Environment preparation error')
             return False
-        except Exception as e:
-            LOG.error(
-                'Caught unexpected error: %s, exiting', e)
+        except Exception:
+            LOG.error('Caught unexpected error, exiting. '
+                      'Please check mcvconsoler logs')
+            LOG.debug(traceback.format_exc())
             return False
         finally:
             try:
                 self._remove_vms()
-            except Exception as e:
+            except Exception:
                 LOG.error(
-                    'Something went wrong '
-                    'when removing VMs: %s', e)
+                    'Something went wrong when removing VMs. '
+                    'Please check mcvconsoler logs')
+                LOG.debug(traceback.format_exc())
                 return False
 
     def generate_report(self, html, task):
@@ -135,9 +137,10 @@ class SpeedTestRunner(run.Runner):
         try:
             reporter = speed_class(self.accessor, image_size=i_s,
                                    volume_size=v_s, *args, **kwargs)
-        except Exception as e:
-            LOG.error(
-                'Error creating class %s: %s' % (task, e))
+        except Exception:
+            LOG.error('Error creating class %s. Please check mcvconsoler logs '
+                      'for more info' % task)
+            LOG.debug(traceback.format_exc())
             self.test_failures.append(task)
             return False
 
@@ -163,17 +166,22 @@ class SpeedTestRunner(run.Runner):
                 LOG.error('Failed to measure speed')
                 try:
                     reporter.cleanup(node_id)
-                except Exception as e:
-                    LOG.warning('Cleanup error %s', e)
+                except Exception:
+                    LOG.warning('Unexpected cleanup error. '
+                                'Please check mcvconsoler logs')
+                    LOG.debug(traceback.format_exc())
                 self.test_failures.append(task)
                 return False
-            except Exception as e:
-                LOG.error('Failed to measure speed, '
-                          'unexpected error: %s', e)
+            except Exception:
+                LOG.error('Failed to measure speed, caught unexpected error. '
+                          'Please check mcvconsoler logs')
+                LOG.debug(traceback.format_exc())
                 try:
                     reporter.cleanup(node_id)
-                except Exception as e:
-                    LOG.warning('Cleanup error %s', e)
+                except Exception:
+                    LOG.warning('Unexpected cleanup error. '
+                                'Please check mcvconsoler logs')
+                    LOG.debug(traceback.format_exc())
                 self.test_failures.append(task)
                 return False
 

@@ -418,11 +418,12 @@ class ObjectStorageSpeed(BaseStorageSpeed):
                '-d \'{"auth":{"tenantName": "%s", '
                '"passwordCredentials": {"username": "%s", '
                '"password": "%s"}}}\' -H "Content-type: application/json" '
-               '%s/tokens') % (
-            self.os_data['tenant_name'],
-            self.os_data['username'],
-            self.os_data['password'],
-            self.os_data['auth_url'])
+               '%s://%s:5000/v2.0/tokens') % (
+            self.access_data['os_tenant_name'],
+            self.access_data['os_username'],
+            self.access_data['os_password'],
+            self.config.get('basic', 'auth_protocol'),
+            self.access_data['auth_endpoint_ip'])
         res = self.run_ssh_cmd(cmd)
         out = res['out']
         ret = res['ret']

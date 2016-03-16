@@ -1,7 +1,8 @@
 import logging
 import time
-from novaclient import exceptions
+
 from common import clients as Clients
+from novaclient import exceptions
 
 LOG = logging
 
