@@ -12,11 +12,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+
 class BaseError(object):
 
     @staticmethod
     def range():
         raise NotImplementedError()
+
 
 class CAError(BaseError):
     UNKNOWN_EXCEPTION = 11
@@ -28,6 +30,7 @@ class CAError(BaseError):
     def range():
         return (1, 19)
 
+
 class SpeedError(BaseError):
     LOW_AVG_SPEED = 22
     FAILED_TEST_LIMIT_EXCESS = 29
@@ -36,12 +39,14 @@ class SpeedError(BaseError):
     def range():
         return (20, 29)
 
+
 class ResoureError(BaseError):
     FAILED_TEST_LIMIT_EXCESS = 39
 
     @staticmethod
     def range():
         return (30, 39)
+
 
 class ShakerError(BaseError):
     TIMEOUT_EXCESS = 41
@@ -51,6 +56,7 @@ class ShakerError(BaseError):
     def range():
         return (40, 49)
 
+
 class RallyError(BaseError):
     FAILED_TEST_LIMIT_EXCESS = 59
 
@@ -58,12 +64,15 @@ class RallyError(BaseError):
     def range():
         return (50, 59)
 
+
 class OSTFError(BaseError):
+    UNSUPPORTED_MOS_VERSION = 61
     FAILED_TEST_LIMIT_EXCESS = 69
 
     @staticmethod
     def range():
         return (60, 69)
+
 
 class TempestError(BaseError):
     TESTS_FAILED = 81
@@ -74,11 +83,13 @@ class TempestError(BaseError):
     def range():
         return (80, 89)
 
+
 class ReservedError(BaseError):
 
     @staticmethod
     def range():
         return (90, 99)
+
 
 class ComplexError(BaseError):
     SOME_SUITES_FAILED = 100

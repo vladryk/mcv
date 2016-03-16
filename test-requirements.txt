@@ -1,1 +1,2 @@
-mock
+mock>=1.0
+hacking>=0.8.0

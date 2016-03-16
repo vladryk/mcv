@@ -12,14 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import re
 import logging
 import os
 import subprocess
-import sys
 from test_scenarios import runner
 from ConfigParser import NoOptionError
 from test_scenarios.ostf.reporter import Reporter
+from common.errors import OSTFError
+
+
 try:
     import json
 except:
@@ -32,6 +33,7 @@ nevermind = None
 default_config = "etc/mcv.conf"
 
 LOG = logging
+
 
 class OSTFOnDockerRunner(runner.Runner):
 
@@ -51,7 +53,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.failure_indicator = 60
 
     def _do_config_extraction(self):
-        LOG.info( "Preparing OSTF")
+        LOG.debug("Trying to obtain OSTF configuration file")
         res = subprocess.Popen(["docker", "exec", "-t",
                                 self.container_id,
                                 "ostf-config-extractor", "-o",
@@ -61,7 +63,7 @@ class OSTFOnDockerRunner(runner.Runner):
         LOG.debug("Config extraction resulted in: " + res)
 
     def start_ostf_container(self):
-        LOG.debug( "Bringing up OSTF container with credentials")
+        LOG.debug("Bringing up OSTF container with credentials")
         mos_version = self.config.get("ostf", "version")
         #@TODO(albartash): Remove tname when migrating to single ostf
         # container!
@@ -73,7 +75,8 @@ class OSTFOnDockerRunner(runner.Runner):
             tname = "ostf70"
         else:
             LOG.error("Unsupported MOS version: " + mos_version)
-            sys.exit(33)
+            self.failure_indicator = OSTFError.UNSUPPORTED_MOS_VERSION
+            return False
 
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
@@ -81,24 +84,27 @@ class OSTFOnDockerRunner(runner.Runner):
                        fqdn=self.config.get("basic", "auth_fqdn"),
                        endpoint=self.accessor.access_data["auth_endpoint_ip"])
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+        res = subprocess.Popen(
+            ["docker", "run", "-d", "-P=true", ] +
             [add_host]*(add_host != "") +
-            ["-p", "8080:8080", #"-e", "OS_AUTH_URL=http://" +
-            #self.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.accessor.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-            "-e", "PYTHONWARNINGS=ignore",
-            "-e", "NAILGUN_PROTOCOL="+self.config.get('basic', 'auth_protocol'),
-            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
-            "-e", "NAILGUN_PORT=8000",
-            "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
-            "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-v", "/home/mcv/toolbox/%s:/mcv" % tname, "-w", "/mcv",
-            "-t", cname], stdout=subprocess.PIPE,
+            ["-p", "8080:8080",
+             "-e", "OS_TENANT_NAME=" +
+             self.accessor.access_data["os_tenant_name"],
+             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+             "-e", "PYTHONWARNINGS=ignore",
+             "-e", "NAILGUN_PROTOCOL="+self.config.get('basic', 'auth_protocol'),
+             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+             "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
+             "-e", "NAILGUN_PORT=8000",
+             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
+             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-v", "/home/mcv/toolbox/%s:/mcv" % tname, "-w", "/mcv",
+             "-t", cname], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
+        #TODO(albartash): Check 'res' variable
+
+        return True
 
     def _verify_ostf_container_is_up(self):
         self.verify_container_is_up("ostf")
@@ -116,6 +122,7 @@ class OSTFOnDockerRunner(runner.Runner):
             if elements[1].find("ostf") != -1:
                 self.container = elements[0]
                 status = elements[4]
+                LOG.debug("OSTF container status: " + status)
                 break
 
     def check_task(self, task):
@@ -128,8 +135,9 @@ class OSTFOnDockerRunner(runner.Runner):
               (self.container, _cmd)
 
         p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+            cmd, shell=True, stderr=subprocess.STDOUT,
+            preexec_fn=utils.ignore_sigint)
+
         result = p.split("\n")
         for line in result:
             if line.find(task) != -1:
@@ -156,27 +164,28 @@ class OSTFOnDockerRunner(runner.Runner):
               "--raw --output-file=/tmp/ostf_report.json "\
               "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
               "--validation-plugin-name fuel_health {arg} {task}".format(
-              container=self.container,
-              cmd=_cmd,
-              arg=_arg,
-              task=task)
+                  container=self.container,
+                  cmd=_cmd,
+                  arg=_arg,
+                  task=task)
+
         p = subprocess.check_output(
+            cmd, shell=True, stderr=subprocess.STDOUT,
+            preexec_fn=utils.ignore_sigint)
+
+        try:
+            cmd = ("sudo docker cp %(id)s:/tmp/ostf_report.json"
+                   " /tmp/ostf_report.json") % {"id": self.container}
+
+            p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        try:
-            cmd = "sudo docker cp %(id)s:/tmp/ostf_report.json /tmp/ostf_report.json" \
-                  % {"id": self.container}
-
-            p = subprocess.check_output(
-                    cmd, shell=True, stderr=subprocess.STDOUT,
-                    preexec_fn=utils.ignore_sigint)
-
             cmd = "docker exec -t {container} rm /tmp/ostf_report.json".format(
-                  container=self.container)
+                container=self.container)
             p = subprocess.check_output(
-                    cmd, shell=True, stderr=subprocess.STDOUT,
-                    preexec_fn=utils.ignore_sigint)
+                cmd, shell=True, stderr=subprocess.STDOUT,
+                preexec_fn=utils.ignore_sigint)
 
             results = []
             try:
@@ -197,7 +206,6 @@ class OSTFOnDockerRunner(runner.Runner):
                 elif result['result'] == 'Failed':
                     self.failures.append(result['suite'])
 
-
             def fix_suite(result):
                 result['suite'] = result['suite'].split(':')[1]
                 return result
@@ -206,7 +214,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
             #@TODO(albartash): Replace path to folder when we have a single
             # place for templates!
-	    folder = os.path.dirname(__file__)
+            folder = os.path.dirname(__file__)
             reporter = Reporter(folder)
             reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
                                  'ostf_template.html', {'reports': results})
@@ -219,6 +227,7 @@ class OSTFOnDockerRunner(runner.Runner):
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
 
+        #TODO(albartash): move this block to constructor and make a field
         try:
             max_failed_tests = int(self.config.get('ostf', 'max_failed_tests'))
         except NoOptionError:
@@ -241,4 +250,4 @@ class OSTFOnDockerRunner(runner.Runner):
                 "test_not_found": self.not_found}
 
     def run_individual_task(self, task, *args, **kwargs):
-        task_id = self._run_ostf_on_docker(task)
+        self._run_ostf_on_docker(task)

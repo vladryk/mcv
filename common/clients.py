@@ -46,6 +46,7 @@ glance_keys = ('insecure',)
 neutron_keys = ('insecure',
                 'auth_url',)
 
+
 def _filter_keys(data_dict, keys):
     """Returns items with keys from the preset tuple."""
 
@@ -55,31 +56,36 @@ def _filter_keys(data_dict, keys):
             results[key] = data_dict[key]
     return results
 
+
 def get_keystone_client(access_data):
     #@TODO(albartash): implement Keystone v3
     client_data = _filter_keys(access_data, keystone_keys)
     return keystone_v2.Client(**client_data)
 
+
 def get_nova_client(access_data):
     client_data = _filter_keys(access_data, nova_keys)
     return nova.Client('2', **client_data)
+
 
 def get_cinder_client(access_data):
     client_data = _filter_keys(access_data, cinder_keys)
     return cinder.Client('1', **client_data)
 
+
 def get_glance_client(access_data):
     keystone_client = get_keystone_client(access_data)
     client_data = _filter_keys(access_data, glance_keys)
     client_data['endpoint'] = keystone_client.service_catalog.url_for(
-                                  service_type="image")
+        service_type="image")
     client_data['token'] = keystone_client.auth_token
     return glance.Client('1', **client_data)
+
 
 def get_neutron_client(access_data):
     keystone_client = get_keystone_client(access_data)
     client_data = _filter_keys(access_data, neutron_keys)
     client_data['endpoint_url'] = keystone_client.service_catalog.url_for(
-                                      service_type="network")
+        service_type="network")
     client_data['token'] = keystone_client.auth_token
     return neutron.Client('2.0', **client_data)
