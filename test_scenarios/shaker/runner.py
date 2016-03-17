@@ -242,7 +242,7 @@ class ShakerOnDockerRunner(ShakerRunner):
               "%s:5999 --agent-join-timeout 3600 --scenario " \
               "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
               " --debug --output %s.out --report-template json --report " \
-              "%s.json --log-file /var/log/shaker.log" % (self.container, timeout,
+              "%s.json --log-file /mcv/log/shaker.log" % (self.container, timeout,
                            self.accessor.access_data["instance_ip"],
                            task, task, task)
 

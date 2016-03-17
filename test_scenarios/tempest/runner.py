@@ -111,7 +111,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 self.copy_tempest_image()
         LOG.info("Starting verification")
         cmd = "docker exec -t %(container)s sudo rally" \
-              " --log-file /var/log/tempest.log --rally-debug" \
+              " --log-file /mcv/log/tempest.log --rally-debug" \
               " verify start --set %(set)s" %\
               {"container": self.container_id,
                "set": task}

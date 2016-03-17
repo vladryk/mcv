@@ -372,7 +372,7 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self._prepare_certification_task_args()
 
             cmd = ("docker exec -t {container} sudo rally"
-                  " --log-file /var/log/rally.log --rally-debug"
+                  " --log-file /mcv/log/rally.log --rally-debug"
                   " task start"
                   " {location}/certification/openstack/task.yaml"
                   " --task-args '{task_args}'").format(
@@ -383,7 +383,7 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self.prepare_workload_task()
 
             cmd = ("docker exec -t {container} sudo rally"
-                   " --log-file /var/log/rally.log --rally-debug"
+                   " --log-file /mcv/log/rally.log --rally-debug"
                    " task start"
                    " {location}/workload.yaml"
                    " --task-args '{task_args}'").format(
@@ -393,7 +393,7 @@ class RallyOnDockerRunner(RallyRunner):
         else:
             LOG.info("Starting task %s" % task)
             cmd = "docker exec -t %(container)s sudo rally"\
-                  " --log-file /var/log/rally.log --rally-debug"\
+                  " --log-file /mcv/log/rally.log --rally-debug"\
                   " task start"\
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
                   "%(compute)s, \"concurrency\":%(concurrency)s,"\
