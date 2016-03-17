@@ -19,6 +19,7 @@ import ConfigParser
 import sys
 import time
 import threading
+import traceback
 import fcntl
 
 from logger import LOG
@@ -108,9 +109,11 @@ def main():
                      "Results of it will be lost")
         e.set()
         return 1
-    except Exception as e:
-        LOG.error("Something unforseen has just happened. "
-                  "reply: %s", e)
+    except Exception:
+        LOG.error("Something unforseen has just happened."
+                  " The consoler is no more. You can get an insight from"
+                  " /var/log/mcvconsoler.log")
+        LOG.debug(traceback.format_exc())
         return 1
     if res:
         return res[0]

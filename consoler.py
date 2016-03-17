@@ -13,7 +13,6 @@
 #    under the License.
 
 import accessor
-import argparse
 import datetime
 import inspect
 import ConfigParser
@@ -21,6 +20,7 @@ import imp
 import json
 import reporter
 import subprocess
+import traceback
 import os
 import sys
 
@@ -214,10 +214,11 @@ class Consoler(object):
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
                 self.failure_indicator = 12
-            except Exception as e:
+            except Exception:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
-                LOG.error("The following exception has been caught: %s", e)
+                LOG.error("Something went wrong. Please check mcvconsoler logs")
+                LOG.debug(traceback.format_exc())
                 self.failure_indicator = 12
             else:
                 path = os.path.join(self.results_vault, key)
@@ -434,9 +435,9 @@ class Consoler(object):
                 LOG.error("Some unexpected outer error has terminated the tool."
                           " Please try rerunning mcvconsoler. Reply: %s", e)
                 self.failure_indicator = 13
-            except Exception as e:
-                LOG.info("Something went wrong with the command, please refer to logs to find out what")
-                LOG.error("The following error has terminated the consoler: %s", e)
+            except Exception:
+                LOG.error("Something went wrong with the command, please refer to logs to find out what")
+                LOG.debug(traceback.format_exc())
                 self.failure_indicator = 13
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
