@@ -94,6 +94,9 @@ class RallyRunner(runner.Runner):
 
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
+        if type(resulting_dict) != dict:
+            LOG.debug("Task %s has failed with the following error: %s" % (task, resulting_dict))
+            return False
         if not resulting_dict['sla']:
             err = resulting_dict['result'][0]['error']
             if err:
@@ -132,8 +135,13 @@ class RallyRunner(runner.Runner):
         p = subprocess.check_output(task_id, shell=True,
                                     stderr=subprocess.STDOUT,
                                     preexec_fn=utils.ignore_sigint)
-        res = json.loads(p)[0]  # actual test result as a dictionary
-        return res
+        try:
+            res = json.loads(p)[0]  # actual test result as a dictionary
+            return res
+        except ValueError:
+            LOG.error("Gotten not-JSON object. Please see mcv-log")
+            LOG.debug("Not-JSON object: %s", p)
+            return "Not-JSON object"
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally()
@@ -419,9 +427,16 @@ class RallyOnDockerRunner(RallyRunner):
             p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-            res = json.loads(p)
-
-            if not res[0]['result'][0]['output']['complete']:
+            try:
+                res = json.loads(p)
+            except ValueError:
+                LOG.error("Gotten not-JSON object. Please see mcv-log")
+                LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+                res = False
+            if not res:
+                LOG.info('Workload test failed')
+                failed = True
+            elif not res[0]['result'][0]['output']['complete']:
                 LOG.info('Workload test failed')
                 failed = True
             else:
@@ -468,8 +483,13 @@ class RallyOnDockerRunner(RallyRunner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
         if task_id.find("detailed") ==-1:
-            res = json.loads(p)[0]  # actual test result as a dictionary
-            return res
+            try:
+                res = json.loads(p)[0]  # actual test result as a dictionary
+                return res
+            except ValueError:
+                LOG.error("Gotten not-JSON object. Please see mcv-log")
+                LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+                return "Not-JSON object"
         else:
             return p.split('\n')[-4:-1]
 

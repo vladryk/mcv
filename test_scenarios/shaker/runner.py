@@ -59,6 +59,9 @@ class ShakerRunner(runner.Runner):
         # logs both success and problems in an uniformely manner.
         status = True
         errors = ''
+        if type(resulting_dict) != dict:
+            LOG.debug("Task %s has failed with the following error: %s" % (task, resulting_dict))
+            return False
         if resulting_dict == []:
             errors = 'Timeout Error with shaker. Process was killed.'
             LOG.warning("Task %s has failed with the following error: %s" % \
@@ -106,8 +109,13 @@ class ShakerRunner(runner.Runner):
         p = subprocess.check_output(task_id, shell=True,
                                     stderr=subprocess.STDOUT,
                                     preexec_fn=utils.ignore_sigint)
-        res = json.loads(p)[0]  # actual test result as a dictionary
-        return res
+        try:
+            res = json.loads(p)[0]  # actual test result as a dictionary
+            return res
+        except ValueError:
+            LOG.error("Gotten not-JSON object. Please see mcv-log")
+            LOG.debug("Not-JSON object: %s", p)
+            return "Not-JSON object"
 
     def run_batch(self, tasks, *args, **kwargs):
         return super(ShakerRunner, self).run_batch(tasks, *args,  **kwargs)
@@ -274,7 +282,12 @@ class ShakerOnDockerRunner(ShakerRunner):
         temp = open('%s/%s.json' % (self.path, task), 'r')
         p = temp.read()
         temp.close()
-        result = json.loads(p)
+        try:
+            result = json.loads(p)
+        except ValueError:
+            LOG.error("Gotten not-JSON object. Please see mcv-log")
+            LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+            return "Not-JSON object"
 
         cmd = "sudo docker cp %s:/%s.html %s" % (self.container,
                                                  task,
@@ -305,8 +318,13 @@ class ShakerOnDockerRunner(ShakerRunner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
         if task_id.find("detailed") == -1:
-            res = json.loads(p)[0]  # actual test result as a dictionary
-            return res
+            try:
+                res = json.loads(p)[0]  # actual test result as a dictionary
+                return res
+            except ValueError:
+                LOG.error("Gotten not-JSON object. Please see mcv-log")
+                LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+                return "Not-JSON object"
         else:
             return p.split('\n')[-4:-1]
 

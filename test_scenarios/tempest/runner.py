@@ -169,7 +169,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.info("Results of test set '%s': FAILURE" % task)
             self.failure_indicator = 83
             return False
-        self.task = json.loads(res)
+        try:
+            self.task = json.loads(res)
+        except ValueError:
+            LOG.info("Results of test set '%s': FAILURE, gotten not-JSON object."
+                     " Please see logs" % task)
+            LOG.debug("Not-JSON object: %s", res)
+            return False
         failures = self.task.get('failures')
         success = self.task.get('success')
         self.failed_cases += failures
