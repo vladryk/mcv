@@ -13,19 +13,17 @@
 #    under the License.
 
 
-import argparse
 import consoler
 import ConfigParser
+import fcntl
 import sys
 import time
 import threading
 import traceback
-import fcntl
-
+from common.cmd import argparser
 from logger import LOG
-LOG = LOG.getLogger(__name__)
 
-from version import version
+LOG = LOG.getLogger(__name__)
 
 
 def acquire_lock():
@@ -41,62 +39,15 @@ config = ConfigParser.ConfigParser()
 default_config_file = "/etc/mcv/mcv.conf"
 lockfile = open("/var/lock/consoler", "w")
 
-# processing command line arguments.
-parser = argparse.ArgumentParser(
-    prog="mcvconsoler",
-    formatter_class=argparse.RawTextHelpFormatter,
-    description="""Central point of control for cloud validation -- one tool
-    to rule them all.""",
-    epilog=r"""The following command gives an example of how tests could be run:
 
-    # mcvconsoler --run custom short
-
-    Default config could be found in <path-to-mcv>/etc/mcv.conf so you can try
-    it out with the default config:
-
-    # mcvconsoler --run custom short --config <path-to-mcv>/etc/mcv.conf
-
-    Also it is recommended to run the tool as a superuser, running it as an
-    ordinary user might cause unexpected errors in strange places for odd
-    tools.
-
-    ...and in the darkness bind them, in the cloud where the
-    instances lie.""",)
-
-parser.add_argument(
-    "--run",
-    nargs='+',
-    help="""Run one of specified test suits : full, custom, single or
-    short.""")
-
-parser.add_argument(
-    "--test",
-    nargs='+',
-    dest='test',
-    help="""testing mcv test groups""")
-
-parser.add_argument(
-    "--config",
-    help="""Provide custom config file instead of the default one""")
-
-parser.add_argument(
-    "--no-tunneling", action="store_true", default=False,
-    help="""Forbids setting up automatic tunnels""")
-
-parser.add_argument(
-    "--version",
-    action="version",
-    version=version,
-    help="""Print out version of MCV Consoler and exit.""")
-
-args = parser.parse_args()
+args = argparser.parse_args()
 
 
 def main():
     if not acquire_lock():
-        LOG.error("Thou shalt not pass! There is another instance of MCVConsoler!")
+        LOG.error("There is another instance of MCVConsoler! Stop.")
         sys.exit(1)
-    consolerr = consoler.Consoler(parser=parser, args=args)
+    consolerr = consoler.Consoler(parser=argparser, args=args)
     e = threading.Event()
     res = []
     t = threading.Thread(target=consolerr.console_user, args=[e, res])
@@ -106,7 +57,7 @@ def main():
             time.sleep(30)
     except KeyboardInterrupt:
         LOG.info("Consoler will be interrupted after finish of current task. "
-                     "Results of it will be lost")
+                 "Results of it will be lost")
         e.set()
         return 1
     except Exception:

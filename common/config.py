@@ -15,3 +15,18 @@
 
 # Enables DEBUG logging
 DEBUG = False
+
+# Project description
+PROJECT_NAME = "mcvconsoler"
+
+PROJECT_DESCRIPTION = """The main tool in Mirantis Cloudvalidation Project."""
+
+RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
+
+    # mcvconsoler --run custom quick
+
+    Also it is recommended to run the tool as a superuser, running it as an
+    ordinary user might cause unexpected errors in strange places for odd
+    tools.
+
+    ...and in the darkness bind them, in the cloud where the instances lie."""

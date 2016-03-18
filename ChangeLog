@@ -1,0 +1,251 @@
+CHANGES
+=======
+
+* Some fix for OSTF runner and PEP8 additions
+* Added module for error codes
+* Removed unused option from mcv.conf
+* Moving tracebacks to DEBUG and fix access data
+* Added mouning directories to containers
+* Remove print traceback to console
+* Removed hard-coded concurrency rally scenario parameter Deleted unused test
+* Extracted all OS clients inits into one module
+* Move Rally-arguments in the right place
+* Pinned default MOS version for OSTF to 7.0
+* Create config file for Rally-tempest
+* Create config file for Rally
+* Clean up environment after running tests
+* Implemented reporting OSTF
+* Remove dummy runner from Consoler
+* Removed useless rally runner dep HTTPServer
+* Refactored some exceptions handling
+* Logging is not configured correctly
+* Remove interactive mode
+* Implemented versioning in Consoler
+* Move setup pf default deployment to rally runner
+* Remove iptables rules from PREROUTING table
+* Obtain private endpoint ip from keystone
+* Fix tempest failed group
+* Obtain private endpoint ip from keystone
+* MCV-451: Update estimates for speed tests
+* MCV-450: Using volume_size param in ObjectStorageSpeed
+* MCV-449: curl failed to initialize during upload image
+* Fix error codes
+* Fix parse string for tests in mcv.conf
+* Fix parse string for tests in mcv.conf
+* Fix nit in ostf runner
+* Fix for OSTF and remove deprecated groups
+* MCV-255 & MCV-256 Measrung block/object storage speed from every compute
+* Fix path to workload template and sed
+* Fixed failed group and some cosmetic things
+* Fix tempest
+* Fixes for workload
+* Fixes for workload
+* Updated mcv.conf for production
+* Add rally fixes and workload results
+* Fixed running both Block and Object speed tests
+* Add ability to run 5 test groups
+* Fixed another bug in ostf runner
+* Fixes for workload
+* Fixed bug in ostf runner
+* Tiny grammar fix
+* Changed place for pbr requirement
+* Adds checking block storage speed on every compute
+* Fixed MCV-410 (FQDN missed in OSTF container)
+* Updated list of available OSTF tests
+* Added mount directory for tempest's docker
+* Fixed docker copy for rally
+* Fixed report for multi-node output
+* Added measure VM to VM network speed on every compute
+* More fixes for workload
+* Fixes workload:
+* Disabled some OSTF tests
+* Add base for rally workload tests
+* Use one log file
+* Fix report for interrupt
+* Fix path to resources report
+* Fix rally failure
+* Revert "Change log handler not to create new files"
+* Change log handler not to create new files
+* Minor fix:
+* Fix docker fail due to c-c
+* Fixed whitespace in bash script
+* Add utils
+* Removed patch rally from runner
+* Add event for keyboard interrupt
+* hotfix BlockStorageSpeed
+* hotfix parser shaker report
+* hotfix issue if shaker failed with timeout
+* Update time db
+* fixed estimate runtime and progress for tempest
+* Fixing of path to test script
+* Added ability to run groups of mcv tests automatically
+* Fix unit-tests for speed_runner and accessor
+* hotfix patch #48565
+* Fixed NoUniqueMatch error in speed test
+* Added timeout for executing shaker
+* Added test mechanism (by @imenkov)
+* Fixed info message for single test Reasons: - info message for single test is not capable with the running Changes: - Changed info message Closes-Bug: mcv-177
+* hotfix key 'upload' to 'update' in config
+* Disabled CinderWorkersTest for OSTF 6.1
+* Added exception catching on test running
+* Added estimate runtime and progress
+* Added customization for OS_REGION_NAME
+* Fixed issue with running speed tests
+* Added check shaker tasks result status
+* Add threshold for tempest
+* Make Tempest run tests by groups
+* Fixed bug in get_error_code
+* Fixed issue with KeyError (part2)
+* Fixed issue with KeyError
+* Added threshold for number of errors
+* Fixed bugs for network_speed test
+* Fix Authentication before delete instance
+* Fixes for BlockStorageSpeed
+* Move tempest images to tempest container
+* Fix BlockStorageSpeed
+* Enabled all OSTF tests
+* Launch instance for speed tests
+* [WIP]Make tempest better v2
+* Measure VM to VM network speed
+* Fix resources
+* Make tempest better
+* Fixed issue with wrong insert 'Back to Index' button
+* Added additional test to config for shaker
+* Fixed bug with shaker-flavor
+* Fixed indentation failure
+* Fixed html template for shaker report
+* Implemented Rally Certification Task running
+* Fix tempest port
+* Add tests to scale run
+* Fix cleanup for speed
+* Fixed issue with run shaker test
+* Fixes for tempest
+* Fixed bug with repeated shaker run
+* Add some error codes
+* Add support of concurrency
+* Minor shaker fix
+* Add failure indicator to runners
+* Fix path to disk while block storage speed measuring
+* Fixed bug with PYTHONWARNINGS
+* Minor fix
+* Add Tempest runner
+* Bug fixed for resources:
+* Add wait block
+* Minor fixes:
+* Removed migration OSTF tests
+* Fix insecure Fix template missed Fix umount
+* Fix for quick group
+* Extra fix for patches for Shaker
+* Fix for Shaker patches path
+* Add runner for measuring storage speed
+* Fix for patching code for Shaker
+* Fix for test groups
+* Fix for MCV-241
+* Fix to OSTF warnings issue
+* Updated test groups
+* Adding failed tests group
+* Fix for OSTF
+* Fix for MCV-242
+* Fix for MCV-203
+* Move shaker to etc
+* Fix for Shaker endpoint issues
+* Make shaker use local image
+* Add rally-load to config file
+* Fix for Shaker runner
+* Fix for MCV-201
+* Fix for Rally
+* Fix for endpoint name
+* Add reports of resource usage
+* More fixes to ssl issue
+* Extra fix for https endpoints
+* Fix for https endpoints
+* Added a return-code to indicate failure
+* Added support for different OSTF containers
+* Fix for OSTF config
+* Added test groups for OSTF
+* Fix for OSTF
+* More fixes for default testgroups
+* Load group cleanup
+* Some insulation against issues with tools
+* Minor bugs bundle
+* A fix to config
+* Add Back to Index link to reports
+* Assortment of typo fixes
+* Fix for MCV-191
+* Fix for MCV-190
+* Fix for predefined groups
+* Cleanup for port frowarding
+* Report aggregator feature
+* Fix for a typo
+* Fix for load tests
+* Fix for a missing option issue
+* Allow to read credentials from a file
+* Fix for Rally environment
+* Fix for OSTF runner
+* Fix for load tests issue
+* Fix for Shaker runner
+* Fix for OSTF
+* Fix for Shaker endpoint issue
+* Fixes for Shaker
+* Code cleanup
+* Adds a lock to consoler
+* Some cleanup and optimisations
+* Fix for MCV-175 and MCV-176
+* Fix to MCV-169
+* Fix for MCV-171
+* Minor fixes
+* Use novaclient
+* Fix to MCV-168
+* Fix for a typo
+* Fix for missing formatters
+* Fix for MCV-166
+* Unified logging
+* Fix for controller access issue
+* Add packaging for consoler
+* Better admin network issue handling
+* More pre-REST cleanup
+* Pre-REST cleanup
+* Fix for minor OSTF bugs
+* Minor bug fix
+* Fix for minor bugs
+* Better port forwarder
+* Fix for MCV-139
+* Fix for MCV-72
+* Make setting up port forwarding easier
+* Small fix to MCV-150
+* Initial trnsition to service commit
+* Fix for a false test not found warning
+* Fix for extra waiting time bug
+* Minor Shaker fix
+* Fix to Rally runner bugs
+* User friendlier support for load tests
+
+0.1.0
+-----
+
+* Fix for controller IP issue
+* Added license to source files
+* Fix for load scenarios
+* Adding Rally load tests
+* Unit tests for consoler
+* Minor fix
+* Minor fix to test groups
+* Small bugfixes
+* Consoler overhauling
+* Add ostf plugin to consoler
+* Fix missed container id in Shaker runner
+* Fix to the need for admin network
+* A fix to containers setup
+* Typo fix
+* Fixes for minor issues
+* Fix shaker container creation error
+* Add environment checks
+* A bundle of fixes
+* Fix for parsing issue
+* Fix for MCV-66
+* Adding Shaker
+* Adds progress indicator and more help
+* Change in dispatching tasks logic
+* Tests for Rally
+* Basic consoler functionality
+* Initial empty repository
