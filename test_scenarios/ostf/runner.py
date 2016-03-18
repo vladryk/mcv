@@ -52,6 +52,16 @@ class OSTFOnDockerRunner(runner.Runner):
         super(OSTFOnDockerRunner, self).__init__()
         self.failure_indicator = 60
 
+        try:
+            self.max_failed_tests = int(self.config.get('ostf',
+                                                        'max_failed_tests'))
+        except NoOptionError:
+            self.max_failed_tests = int(self.config.get('basic',
+                                                        'max_failed_tests'))
+            #TODO(albartash): we need to replace it with SafeConfigParser,
+            # as it will provide additional health against NoOptionError for
+            # option in 'basic' section
+
     def _do_config_extraction(self):
         LOG.debug("Trying to obtain OSTF configuration file")
         res = subprocess.Popen(["docker", "exec", "-t",
@@ -84,6 +94,7 @@ class OSTFOnDockerRunner(runner.Runner):
                        fqdn=self.config.get("basic", "auth_fqdn"),
                        endpoint=self.accessor.access_data["auth_endpoint_ip"])
 
+        LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true", ] +
             [add_host]*(add_host != "") +
@@ -92,17 +103,20 @@ class OSTFOnDockerRunner(runner.Runner):
              self.accessor.access_data["os_tenant_name"],
              "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
              "-e", "PYTHONWARNINGS=ignore",
-             "-e", "NAILGUN_PROTOCOL="+self.config.get('basic', 'auth_protocol'),
+             "-e",
+             "NAILGUN_PROTOCOL=" + self.config.get('basic', 'auth_protocol'),
              "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
              "-e", "NAILGUN_PORT=8000",
              "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
-             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-e",
+             "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
              "-v", "/home/mcv/toolbox/%s:/mcv" % tname, "-w", "/mcv",
              "-t", cname], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
-        #TODO(albartash): Check 'res' variable
+
+        LOG.debug('Finish starting OSTF container. Result: %s' % str(res))
 
         return True
 
@@ -161,7 +175,7 @@ class OSTFOnDockerRunner(runner.Runner):
             _arg = '--suite'
 
         cmd = "docker exec -t {container} cloudvalidation-cli "\
-              "--raw --output-file=/tmp/ostf_report.json "\
+              "--raw --output-file=/mcv/ostf_report.json "\
               "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
               "--validation-plugin-name fuel_health {arg} {task}".format(
                   container=self.container,
@@ -169,36 +183,31 @@ class OSTFOnDockerRunner(runner.Runner):
                   arg=_arg,
                   task=task)
 
+        LOG.debug('Executing command: "%s"' % cmd)
         p = subprocess.check_output(
             cmd, shell=True, stderr=subprocess.STDOUT,
             preexec_fn=utils.ignore_sigint)
 
+        LOG.debug('Finish executing Cloudvalidation CLI. Result: %s' % str(p))
+
         try:
-            cmd = ("sudo docker cp %(id)s:/tmp/ostf_report.json"
-                   " /tmp/ostf_report.json") % {"id": self.container}
-
-            p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-
-            cmd = "docker exec -t {container} rm /tmp/ostf_report.json".format(
-                container=self.container)
-            p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-
             results = []
             try:
-                fp = open('/tmp/ostf_report.json', 'r')
+                fp = open('/mcv/ostf_report.json', 'r')
                 results = json.loads(fp.read())
                 fp.close()
-                os.remove('/tmp/ostf_report.json')
+                os.remove('/mcv/ostf_report.json')
             except IOError as e:
-                LOG.error('Error while extracting report from OSTF container: {err_msg}'.format(
+                LOG.error(('Error while extracting report '
+                           'from OSTF container: {err_msg}').format(
                     err_msg=str(e)))
             except OSError as e:
-                LOG.error('Error while removing report file from container: {err_msg}'.format(
+                LOG.error(('Error while removing report '
+                           'file from container: {err_msg}').format(
                     err_msg=str(e)))
+            except ValueError as e:
+                LOG.error(('Error while parsing report file: {'
+                           'err_msg}').format(err_msg=str(e)))
 
             for result in results:
                 if result['result'] == 'Passed':
@@ -227,17 +236,11 @@ class OSTFOnDockerRunner(runner.Runner):
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
 
-        #TODO(albartash): move this block to constructor and make a field
-        try:
-            max_failed_tests = int(self.config.get('ostf', 'max_failed_tests'))
-        except NoOptionError:
-            max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
-
         for task in tasks:
             self.run_individual_task(task, *args, **kwargs)
 
-            if len(self.failures) >= max_failed_tests:
-                self.failure_indicator = 69
+            if len(self.failures) >= self.max_failed_tests:
+                self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 break
 
