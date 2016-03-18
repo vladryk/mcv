@@ -110,7 +110,7 @@ def main():
         e.set()
         return 1
     except Exception:
-        LOG.error("Something unforseen has just happened."
+        LOG.error("Something unforeseen has just happened."
                   " The consoler is no more. You can get an insight from"
                   " /var/log/mcvconsoler.log")
         LOG.debug(traceback.format_exc())

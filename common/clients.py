@@ -65,6 +65,7 @@ def get_keystone_client(access_data):
 
 def get_nova_client(access_data):
     client_data = _filter_keys(access_data, nova_keys)
+    client_data['timeout'] = 10
     return nova.Client('2', **client_data)
 
 

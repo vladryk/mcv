@@ -17,7 +17,6 @@ import logging
 import re
 import shlex
 import subprocess
-import sys
 import time
 from test_scenarios import runner
 
@@ -299,9 +298,9 @@ class RallyOnDockerRunner(RallyRunner):
                 p = subprocess.check_output(cmd, shell=True,
                                             stderr=subprocess.STDOUT,
                                             preexec_fn=utils.ignore_sigint)
-            except:
+            except Exception as cmd_e:
                 LOG.warning( "Failed to copy Rally setup  json.")
-                sys.exit(1)
+                raise cmd_e
             res = subprocess.Popen(["docker", "exec", "-t",
                                    self.container_id, "rally",
                                    "deployment", "create",

@@ -412,9 +412,17 @@ class Consoler(object):
         if self.args.run is not None:
             required_containers = self.check_args_run(self.args.run)
             self.access_helper = accessor.AccessSteward(self.config)
-            res = self.access_helper.check_and_fix_environment(
-                required_containers, self.args.no_tunneling)
-            if not res:
+            try:
+                res = self.access_helper.check_and_fix_environment(
+                    required_containers, self.args.no_tunneling)
+                if not res:
+                    result.append(14)
+                    return
+            except Exception as e:
+                LOG.info("Something went wrong with checking credentials "
+                         "and preparing environment")
+                LOG.error("The following error has terminated "
+                          "the consoler: %s", repr(e))
                 result.append(14)
                 return
 
@@ -446,7 +454,7 @@ class Consoler(object):
                     shell=True, preexec_fn=utils.ignore_sigint)
             return 1
         r_helper = do_finalization(run_results)
-        self.access_helper.stop_forwarding()
+        self.access_helper.cleanup()
         captain_logs = os.path.join(self.config.get("basic", "logdir"),
                                     self.config.get("basic", "logfile"))
         result.append(self.failure_indicator)
