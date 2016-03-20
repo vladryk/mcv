@@ -447,13 +447,13 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
-        cmd = "docker exec -t %(container)s rally task report --out=%(task)s.html" \
-              % {"container": self.container_id, "task": task}
+        cmd = ("docker exec -t %(container)s rally task report"
+               " --out=/mcv/reports/%(task)s.html") % {"container": self.container_id, "task": task}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "sudo docker cp %(id)s:/home/rally/%(task)s.html %(pth)s" \
-              % {"id": self.container_id, 'task': task, "pth": self.path}
+        cmd = "sudo cp /mcv/reports/%(task)s.html %(pth)s" \
+              % {'task': task, "pth": self.path}
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
