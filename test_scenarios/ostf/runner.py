@@ -153,6 +153,7 @@ class OSTFOnDockerRunner(runner.Runner):
             preexec_fn=utils.ignore_sigint)
 
         result = p.split("\n")
+        line = ""
         for line in result:
             if line.find(task) != -1:
                 break
