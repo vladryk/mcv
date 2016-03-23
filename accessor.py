@@ -392,17 +392,9 @@ class AccessSteward(object):
         LOG.debug("Nope. Has to create one")
         mcvgroup = self._get_novaclient().security_groups.create(
             'mcv-special-group', 'mcvgroup')
-        # TODO: combine into one call 5999-6001
-        # TODO: remove backslashes
-        self._get_novaclient().security_group_rules. \
-            create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                   from_port=5999, to_port=5999, cidr='0.0.0.0/0')
-        self._get_novaclient().security_group_rules. \
-            create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                   from_port=6000, to_port=6000, cidr='0.0.0.0/0')
-        self._get_novaclient().security_group_rules. \
-            create(parent_group_id=mcvgroup.id, ip_protocol='tcp',
-                   from_port=6001, to_port=6001, cidr='0.0.0.0/0')
+        self._get_novaclient().security_group_rules.create(
+            parent_group_id=mcvgroup.id, ip_protocol='tcp', from_port=5999,
+            to_port=6001, cidr='0.0.0.0/0')
         LOG.debug("Finished creating a group and adding rules")
         server = self._get_server_by_ip()
         if not server:
@@ -415,11 +407,7 @@ class AccessSteward(object):
         self._delete_floating_ips()
         self._restore_hosts_config()
 
-    def check_and_fix_environment(self, required_containers,
-                                  no_tunneling=False):
-        # TODO: Variable required_containers is not used here. Why it presents?
-        # TODO: Remove it completely if it's not required
-        # self.required_containers = required_containers
+    def check_and_fix_environment(self, no_tunneling=False):
         self.check_docker_images()
         if not self.check_and_fix_access_data():
             self._restore_hosts_config()
