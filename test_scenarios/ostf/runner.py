@@ -176,7 +176,7 @@ class OSTFOnDockerRunner(runner.Runner):
             _arg = '--suite'
 
         cmd = "docker exec -t {container} cloudvalidation-cli "\
-              "--raw --output-file=/mcv/ostf_report.json "\
+              "--output-file=/mcv/ostf_report.json "\
               "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
               "--validation-plugin-name fuel_health {arg} {task}".format(
                   container=self.container,

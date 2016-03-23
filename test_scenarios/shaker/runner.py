@@ -19,13 +19,9 @@ import subprocess
 import shlex
 import sys
 from test_scenarios import runner
-try:
-    import json
-except:
-    import simplejson as json
-
+import os.path
+import json
 from common import clients as Clients
-
 import utils
 
 nevermind = None
@@ -46,6 +42,8 @@ class ShakerRunner(runner.Runner):
         self.test_failures = []  # this object is supposed to live for one run
                                  # so let's leave it as is for now.
         self.failure_indicator = 40
+        self.homedir = '/home/mcv/toolbox/shaker'
+        self.home = '/mcv'
 
     def scenario_is_fine(self, scenario):
         return True
@@ -147,17 +145,21 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.info("Checking Shaker setup. If this is the first run of "\
                  "mcvconsoler on this cloud go grab some coffee, it will "\
                  "take a while.")
+
         insecure = ""
         if self.config.get("basic", "auth_protocol") == "https":
             insecure = " --os-insecure"
-        path = '/etc/toolbox/shaker'
+        path = os.path.join(self.homedir, 'images')
+
         for f in os.listdir(path):
             if f.endswith(".ss.img"):
-                path += '/' + f
+                path = os.path.join(path, f)
                 break
+
         if path.endswith('shaker'):
             LOG.error('No shaker image available')
             return
+
         LOG.debug('Authenticating in glance')
         i_list = self.glance.images.list()
         image = False
@@ -180,10 +182,14 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def start_shaker_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
+
         protocol = self.config.get('basic', 'auth_protocol')
+        add_host = ""
+
         if self.config.get("basic", "auth_fqdn") != '':
             add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +\
                        ":" + self.accessor.access_data["auth_endpoint_ip"]
+
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
                                [add_host]*(add_host != "") +
             ["-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
@@ -194,7 +200,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-v", "/home/mcv/toolbox/shaker:/mcv", "-w", "/mcv",
+            "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
             "-t", "mcv-shaker"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
@@ -250,9 +256,9 @@ class ShakerOnDockerRunner(ShakerRunner):
               "%s:5999 --agent-join-timeout 3600 --scenario " \
               "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
               " --debug --output %s.out --report-template json --report " \
-              "%s.json --log-file /mcv/log/shaker.log" % (self.container, timeout,
+              "%s.json --log-file %s/log/shaker.log" % (self.container, timeout,
                            self.accessor.access_data["instance_ip"],
-                           task, task, task)
+                           task, task, task, self.home)
 
         proc = subprocess.Popen(shlex.split(cmd + insecure),
                                 stdout=subprocess.PIPE,
@@ -272,9 +278,8 @@ class ShakerOnDockerRunner(ShakerRunner):
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = "sudo docker cp %s:/%s.json %s" % (self.container,
-                                                 task,
-                                                 self.path)
+        cmd = "sudo cp {homedir}/{task}.json {path}".format(
+                  homedir=self.homedir, task=task, path=self.path)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
@@ -289,9 +294,8 @@ class ShakerOnDockerRunner(ShakerRunner):
             LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
             return "Not-JSON object"
 
-        cmd = "sudo docker cp %s:/%s.html %s" % (self.container,
-                                                 task,
-                                                 self.path)
+        cmd = "sudo cp {homedir}/{task}.html {path}".format(
+                  homedir=self.homedir, task=task, path=self.path)
 
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,

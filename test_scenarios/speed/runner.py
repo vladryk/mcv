@@ -16,6 +16,8 @@ import logging
 import traceback
 import ConfigParser
 
+import os.path
+
 import test_scenarios.runner as run
 from test_scenarios.speed.prepare_instance import Preparer
 from test_scenarios.speed import speed_tester as st
@@ -35,6 +37,10 @@ class SpeedTestRunner(run.Runner):
         super(SpeedTestRunner, self).__init__()
         self.failure_indicator = 20
         self.node_ids = []
+        self.home = '/mcv'
+
+        # TODO(albartash): Make a single place for images!
+        self.imagedir = '/home/mcv/toolbox/rally/images'
 
     def scenario_is_fine(self, scenario):
         return True
@@ -65,7 +71,10 @@ class SpeedTestRunner(run.Runner):
             image_path = self.config.get('speed', 'cirros_image_path')
         except ConfigParser.NoOptionError:
             LOG.info('Use default image path')
-            image_path = '/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img'
+            # TODO(albartash): extract it to common/config.py somehow
+            image_path = os.path.join(self.imagedir,
+                                      'cirros-0.3.1-x86_64-disk.img')
+
         try:
             flavor_req = self.config.get('speed', 'flavor_req')
         except ConfigParser.NoOptionError:

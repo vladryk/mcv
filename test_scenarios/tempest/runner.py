@@ -20,6 +20,7 @@ import subprocess
 from test_scenarios.rally import runner as rrunner
 import json
 import glob
+import os.path
 
 import utils
 
@@ -40,6 +41,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.container = None
         self.accessor = accessor
         self.failed_cases = 0
+        self.home = '/mcv'
+        self.homedir = '/home/mcv/toolbox/tempest'
 
         super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
         self.failure_indicator = 80
@@ -58,7 +61,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
+            add_host = "--add-host="+self.config.get("basic", "auth_fqdn")\
+                       +":" + self.accessor.access_data["auth_endpoint_ip"]
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
             [add_host]*(add_host != "") +
             ["-p", "6001:6001", "-e", "OS_AUTH_URL=" + protocol +"://" +
@@ -69,8 +73,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-v", '/home/mcv/toolbox/tempest:/home/rally/.rally/tempest',
-            "-v", "/home/mcv/toolbox/tempest:/mcv", "-w", "/mcv",
+            "-v", '%s:/home/rally/.rally/tempest' % self.homedir,
+            "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
             "-t", "mcv-tempest"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
@@ -79,16 +83,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info('Copying image files required by tempest')
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
-                          "/etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img"],
+                          os.path.join(self.home,
+                                       "images",
+                                       "cirros-0.3.4-x86_64-disk.img")],
                           stdout=subprocess.PIPE,
                           preexec_fn=utils.ignore_sigint).stdout.read()
-        cmd = "mkdir /home/mcv/toolbox/tempest/data"
+
+        cmd = "mkdir " + os.path.join(self.homedir, "data")
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = "sudo cp /etc/toolbox/tempest/cirros-0.3.4-x86_64-disk.img " \
-              "/home/mcv/toolbox/tempest/data"
+        # TODO(albartash): Replace cp with ln if possible!!!
+        cmd = ("sudo cp {homedir}/images/cirros-0.3.4-x86_64-disk.img "
+              "{homedir}/data").format(homedir=self.homedir)
+
         cmd = shlex.split(cmd)
 
         subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -97,7 +106,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         LOG.info("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
-        install = glob.glob('/home/mcv/toolbox/tempest/for-deployment-*')
+        install = glob.glob(self.homedir + '/for-deployment-*')
         if not install:
             LOG.info("No installation found. Installing tempest")
             cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest"%\
@@ -106,20 +115,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
                     preexec_fn=utils.ignore_sigint)
-            cirros = glob.glob('/home/mcv/toolbox/tempest/data/cirros-*')
+            cirros = glob.glob(self.homedir + '/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
         LOG.info("Starting verification")
-        cmd = "docker exec -t %(container)s sudo rally" \
-              " --log-file /mcv/log/tempest.log --rally-debug" \
-              " verify start --set %(set)s" %\
-              {"container": self.container_id,
-               "set": task}
+        cmd = ("docker exec -t {cid} sudo rally "
+               "--log-file {home}/log/tempest.log --rally-debug"
+               " verify start --set {_set}").format(
+                   cid=self.container_id,
+                   home=self.home,
+                   _set=task)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "docker exec -t %(container)s rally verify list" %\
-              {"container": self.container_id}
+        cmd = "docker exec -t {cid} rally verify list".format(
+                  cid=self.container_id)
         try:
             p = subprocess.check_output(
                     cmd, shell=True, stderr=subprocess.STDOUT,
@@ -138,26 +148,30 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         run = p.split('\n')[-3].split('|')[1]
 
         LOG.info('Generating html report')
-        cmd = "docker exec -t %(container)s rally verify results --html --out=%(task)s.html" %\
-              {"container": self.container_id, "task": task}
+        cmd = ("docker exec -t {cid} rally verify results --html"
+               "--out={home}/reports/{task}.html").format(
+                   cid=self.container_id, home=self.home, task=task)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = 'docker exec -it %s sudo cp /home/rally/%s.html ' \
-              '/home/rally/.rally/tempest' % (self.container_id, task)
+        cmd = ('docker exec -it {cid} sudo cp {home}/reports/{task}.html '
+               '/home/rally/.rally/tempest').format(
+                   cid=self.container_id, home=self.home, task=task)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = "sudo cp /home/mcv/toolbox/tempest/%(task)s.html %(pth)s" %\
-              {'task': task, "pth": self.path}
+        cmd = "sudo cp {homedir}/{task}.html {path}".format(
+                  homedir=self.homedir, task=task, path=self.path)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
 
-        cmd = "docker exec -t %(container)s rally verify results --json" %\
-              {"container": self.container_id}
+        cmd = "docker exec -t {cid} rally verify results --json".format(
+                  cid=self.container_id)
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)

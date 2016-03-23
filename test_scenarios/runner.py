@@ -96,9 +96,15 @@ class Runner(object):
     def _extract_container_id(self, container_name, output):
         output = output.split('\n')
         container_name = "mcv-" + container_name
+        container_id = ""
         for line in output:
             if re.search(container_name, line) is not None:
                 container_id = line[0:12]
+
+        if not container_id:
+            LOG.critical('Cannot extract container ID. '
+                         'Please check container name.')
+
         return container_id
 
     def check_task_list(self, tasks):

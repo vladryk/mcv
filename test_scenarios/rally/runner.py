@@ -12,21 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import ConfigParser
-import logging
-import re
-import shlex
-import subprocess
-import time
-from test_scenarios import runner
-
 from common import clients as Clients
-
-try:
-    import json
-except:
-    import simplejson as json
-
+import ConfigParser
+import json
+import logging
+import os.path
+import re
+import subprocess
+from test_scenarios import runner
+import time
 import utils
 
 nevermind = None
@@ -59,8 +53,10 @@ class RallyRunner(runner.Runner):
         self.config = kwargs["config"]
         self.identity = "rally"
         self.config_section = "rally"
-        self.test_failures = []  # this object is supposed to live for one run
-                                 # so let's leave it as is for now.
+        # this object is supposed to live for one run
+        # so let's leave it as is for now.
+        # TODO(albartash): todo smth with this property
+        self.test_failures = []
 
     def _it_ends_well(self, something):
         if something.split('.')[-1] in self.valid_staarten:
@@ -89,24 +85,31 @@ class RallyRunner(runner.Runner):
         #     "password": "myadminpass",
         #     "tenant_name": "demo"
         #   }
-        #}
+        # }
         pass
 
     def _evaluate_task_result(self, task, resulting_dict):
         # logs both success and problems in an uniformely manner.
         if type(resulting_dict) != dict:
-            LOG.debug("Task %s has failed with the following error: %s" % (task, resulting_dict))
+            LOG.debug(("Task {task} has failed with the following error: "
+                      "{err}").format(task=task, err=resulting_dict))
             return False
+
         if not resulting_dict['sla']:
             err = resulting_dict['result'][0]['error']
             if err:
-                LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
+                LOG.warning(("Task {task} has failed with the error: "
+                             "{err}").format(task=task,
+                                             err=resulting_dict['result']))
                 return False
             return True
-        if resulting_dict['sla'][0]['success'] == True:
+
+        if resulting_dict['sla'][0]['success'] is True:
             LOG.info("Task %s has completed successfully." % task)
         else:
-            LOG.warning("Task %s has failed with the following error: %s" % (task, resulting_dict['result']))
+            LOG.warning(("Task {task} has failed with the following error: "
+                         "{err}").format(task=task,
+                                         err=resulting_dict['result']))
             return False
         return True
 
@@ -120,8 +123,9 @@ class RallyRunner(runner.Runner):
         path_to_task = self._get_task_path(task)
         cmd = "rally task start %s" % path_to_task
         p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+            cmd, shell=True, stderr=subprocess.STDOUT,
+            preexec_fn=utils.ignore_sigint)
+
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
@@ -157,14 +161,16 @@ class RallyRunner(runner.Runner):
             self.test_failures.append(task)
             return False
 
+
 class RallyOnDockerRunner(RallyRunner):
 
     def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs["config"]
-        self.path =  path
+        self.path = path
         self.container = None
         self.accessor = accessor
-        self.test_storage_place = "/tmp/rally_tests"
+        self.homedir = "/home/mcv/toolbox/rally"
+        self.home = "/mcv"
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
         self.failure_indicator = 50
 
@@ -172,31 +178,38 @@ class RallyOnDockerRunner(RallyRunner):
         self.neutronclient = Clients.get_neutron_client(accessor.os_data)
 
     def create_fedora_image(self):
-        # Note: made path to image configurable
-        path = '/etc/toolbox/rally/Fedora-Cloud-Base-23-20151030.x86_64.qcow2'
+        path = os.path.join(os.path.join(self.homedir, "images"),
+                            'Fedora-Cloud-Base-23-20151030.x86_64.qcow2')
         i_list = self.glanceclient.images.list()
         image = False
         for im in i_list:
             if im.name == 'fedora':
                 image = True
         if not image:
-            self.glanceclient.images.create(name='fedora', disk_format="qcow2", is_public=True,
-                                      container_format="bare", data=open(path))
+            self.glanceclient.images.create(name='fedora',
+                                            disk_format="qcow2",
+                                            is_public=True,
+                                            container_format="bare",
+                                            data=open(path))
 
     def get_network_router_id(self):
-        networks = self.neutronclient.list_networks(**{'router:external': True})['networks']
+        networks = self.neutronclient.list_networks(
+            **{'router:external': True})['networks']
+
         net_id = networks[0].get('id')
         routers = self.neutronclient.list_routers()['routers']
         rou_id = routers[0].get('id')
         return (net_id, rou_id)
 
     def start_rally_container(self):
-        LOG.debug( "Bringing up Rally container with credentials")
+        LOG.debug("Starting Rally container")
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +":" + self.accessor.access_data["auth_endpoint_ip"]
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+            add_host = "--add-host=" + self.config.get("basic", "auth_fqdn")\
+                       + ":" + self.accessor.access_data["auth_endpoint_ip"]
+
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
             [add_host]*(add_host != "") +
             ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
@@ -206,54 +219,52 @@ class RallyOnDockerRunner(RallyRunner):
             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-v", "/home/mcv/toolbox/rally:/mcv", "-w", "/mcv",
+            "-v", self.homedir+":"+self.home, "-w", self.home,
             "-t", "mcv-rally"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
-        self._verify_rally_container_is_up()
-        # Since noone is actually giving a number two to how this is done
-        # and some people actively deny the logic arrangement I'll do it this
-        # dumb way.
-        cmd = 'sudo docker cp /etc/toolbox/rally/mcv/scenarios.consoler ' \
-              '%s:%s' % (self.container_id, self.test_storage_place)
-        cmd = shlex.split(cmd)
 
-        subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                         preexec_fn=utils.ignore_sigint).stdout.read()
+        LOG.debug('Finish starting Rally container. Result: {result}'.format(
+                  result=str(res)))
+
+        self._verify_rally_container_is_up()
 
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
-                          "/etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img"],
+                         self.homedir+"/images/cirros-0.3.1-x86_64-disk.img"],
                          stdout=subprocess.PIPE,
-                         preexec_fn=utils.ignore_sigint).stdout.read()
-
-        cmd = 'sudo docker cp /etc/toolbox/rally/cirros-0.3.1-x86_64-disk.img ' \
-              '%s:/home/rally' % self.container_id
-        cmd = shlex.split(cmd)
-
-        subprocess.Popen(cmd, stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _patch_rally(self):
         # Fix hardcoded timeout and siege regex
-        #TODO: Remove it with newest rally version
-        rally_path = '/usr/local/lib/python2.7/dist-packages/rally/plugins/openstack/services/heat/main.py'
-        cmd = "docker exec -t %s sudo sed -i '53s/.*/            timeout=10000,/' %s" % (self.container_id, rally_path)
+        # TODO(who posted?): Remove it with newest rally version (which??)
+        rally_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins'
+                      '/openstack/services/heat/main.py')
+        cmd = ("docker exec -t {cid} sudo sed -i "
+               "'53s/.*/            timeout=10000,/' {path}").format(
+                   cid=self.container_id, path=rally_path)
+
         res = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
-        siege_path = '/usr/local/lib/python2.7/dist-packages/rally/plugins/workload/siege.py'
+            cmd, shell=True, stderr=subprocess.STDOUT,
+            preexec_fn=utils.ignore_sigint)
+        siege_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins/'
+                      'workload/siege.py')
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
-        # TODO: Found out how to pass re through sed
-        template_path = '/tmp/rally_tests/templates/wp_instances.yaml'
+        # TODO(who?): Found out how to pass re through sed
+        template_path = os.path.join(self.homedir,
+                                     '/tests/templates/wp_instances.yaml')
+
+        LOG.debug('Start patching hosts')
         cmd = """docker exec -t %s sudo sed -i "61s/.*/            sudo sh -c 'echo %s %s >> \/etc\/hosts'/" %s""" % \
               (self.container_id,
                self.config.get("basic", 'auth_endpoint_ip'),
                self.config.get("basic", 'auth_fqdn'),
                template_path)
+
         res = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+            cmd, shell=True, stderr=subprocess.STDOUT,
+            preexec_fn=utils.ignore_sigint)
+        LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
         return
 
     def _verify_rally_container_is_up(self):
@@ -267,8 +278,9 @@ class RallyOnDockerRunner(RallyRunner):
             if f.name == 'm1.nano':
                 LOG.debug("Proper flavor for rally has been found")
                 return
-        LOG.debug("Apparently there is no flavor suitable for running rally. "\
+        LOG.debug("Apparently there is no flavor suitable for running rally. "
                   "Creating one...")
+
         self.accessor._get_novaclient().flavors.create(name='m1.nano', ram=128,
                                                        vcpus=1, disk=1,
                                                        flavorid=42)
@@ -284,7 +296,7 @@ class RallyOnDockerRunner(RallyRunner):
                        "uten": self.accessor.access_data["os_tenant_name"],
                        "auth_protocol": auth_protocol,
                        "insecure": "true" if auth_protocol == "https" else "false"}
-        f = open("existing.json", "w")
+        f = open(os.path.join(self.homedir, "conf", "existing.json"), "w")
         f.write(rally_json_template % credentials)
         f.close()
 
@@ -298,32 +310,29 @@ class RallyOnDockerRunner(RallyRunner):
         if res.startswith("There is no") or res.startswith('Deployment'):
             LOG.debug("It is not. Trying to set up rally deployment.")
             self.create_rally_json()
-            rally_config_json_location = "existing.json"
-            cmd = 'sudo docker cp %s %s:/home/rally' % (
-                rally_config_json_location, self.container_id)
-
-            try:
-                p = subprocess.check_output(cmd, shell=True,
-                                            stderr=subprocess.STDOUT,
-                                            preexec_fn=utils.ignore_sigint)
-            except Exception as cmd_e:
-                LOG.warning( "Failed to copy Rally setup  json.")
-                raise cmd_e
             res = subprocess.Popen(["docker", "exec", "-t",
-                                   self.container_id, "rally",
-                                   "deployment", "create",
-                                   "--file=/home/rally/existing.json",
-                                  # "--fromenv",
-                                   "--name=existing"],
+                                    self.container_id, "rally",
+                                    "deployment", "create",
+                                    "--file="+os.path.join(self.homedir,
+                                                           "conf",
+                                                           "existing.json"),
+                                    # "--fromenv",
+                                    "--name=existing"],
                                    stdout=subprocess.PIPE,
-                                   preexec_fn=utils.ignore_sigint).stdout.read()
+                                   preexec_fn=utils.ignore_sigint
+                                  ).stdout.read()
         else:
             LOG.debug("Seems like it is present.")
-        cmd = "docker exec -t %(container)s sudo rally deployment use existing" %\
-              {"container": self.container_id}
+
+        LOG.debug('Trying to use Rally deployment')
+        cmd = ("docker exec -t {cid} "
+               "sudo rally deployment use existing").format(
+               cid=self.container_id)
+        LOG.debug('Run "{cmd}"'.format(cmd=cmd))
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
+        LOG.debug('Result: {res}'.format(res=p))
 
     def _check_rally_setup(self):
         self._check_and_fix_flavor()
@@ -369,7 +378,6 @@ class RallyOnDockerRunner(RallyRunner):
             'instance_count': instance_count
         }
 
-
         return task_args
 
     def _run_rally_on_docker(self, task, *args, **kwargs):
@@ -379,45 +387,50 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self._prepare_certification_task_args()
 
             cmd = ("docker exec -t {container} sudo rally"
-                  " --log-file /mcv/log/rally.log --rally-debug"
-                  " task start"
-                  " {location}/certification/openstack/task.yaml"
-                  " --task-args '{task_args}'").format(
-                      container = self.container_id,
-                      location = self.test_storage_place,
-                      task_args = json.dumps(task_args))
+                   " --log-file {home}/log/rally.log --rally-debug"
+                   " task start"
+                   " {location}/certification/openstack/task.yaml"
+                   " --task-args '{task_args}'").format(
+                       home=self.home,
+                       container=self.container_id,
+                       location=os.path.join(self.home, "tests"),
+                       task_args=json.dumps(task_args))
+
         elif task == 'workload.yaml':
             task_args = self.prepare_workload_task()
 
             cmd = ("docker exec -t {container} sudo rally"
-                   " --log-file /mcv/log/rally.log --rally-debug"
+                   " --log-file {home}/log/rally.log --rally-debug"
                    " task start"
                    " {location}/workload.yaml"
                    " --task-args '{task_args}'").format(
+                      home = self.home,
                       container=self.container_id,
-                      location=self.test_storage_place,
+                      location=os.path.join(self.home, "tests"),
                       task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
             cmd = "docker exec -t %(container)s sudo rally"\
-                  " --log-file /mcv/log/rally.log --rally-debug"\
+                  " --log-file %(home)s/log/rally.log --rally-debug"\
                   " task start"\
                   " %(location)s/%(task)s --task-args '{\"compute\":"\
                   "%(compute)s, \"concurrency\":%(concurrency)s,"\
                   "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
                   "\"vlan_amount\":%(vlan_amount)s}'" %\
-                  {"container": self.container_id,
+                  {"home": self.home,
+                   "container": self.container_id,
                    "compute": kwargs["compute"],
                    "concurrency": kwargs["concurrency"],
                    "gre_enabled": kwargs["gre_enabled"],
                    "vlan_amount": kwargs["vlan_amount"],
                    "task": task,
-                   "location": self.test_storage_place}
+                   "location": os.path.join(self.home, 'tests')}
 
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
         original_output = p
+
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
         failed = False
@@ -462,16 +475,23 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
-        cmd = ("docker exec -t %(container)s rally task report"
-               " --out=/mcv/reports/%(task)s.html") % {"container": self.container_id, "task": task}
+        cmd = ("docker exec -t {container} rally task report"
+               " --out={home}/reports/{task}.html").format(
+                   home=self.home,
+                   container=self.container_id,
+                   task=task)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
-        cmd = "sudo cp /mcv/reports/%(task)s.html %(pth)s" \
-              % {'task': task, "pth": self.path}
+
+        cmd = "sudo cp {fld}/reports/{task}.html {pth}".format(
+                  fld=self.homedir, task=task, pth=self.path)
+
         p = subprocess.check_output(
                 cmd, shell=True, stderr=subprocess.STDOUT,
                 preexec_fn=utils.ignore_sigint)
+
         return {'next_command': ret_val,
                 'original output': original_output,
                 'failed': failed}
