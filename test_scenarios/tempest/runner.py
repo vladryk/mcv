@@ -148,7 +148,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         run = p.split('\n')[-3].split('|')[1]
 
         LOG.info('Generating html report')
-        cmd = ("docker exec -t {cid} rally verify results --html"
+        cmd = ("docker exec -t {cid} sudo rally verify results --html"
                "--out={home}/reports/{task}.html").format(
                    cid=self.container_id, home=self.home, task=task)
 

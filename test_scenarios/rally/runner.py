@@ -475,7 +475,7 @@ class RallyOnDockerRunner(RallyRunner):
             out = p.split('\n')[-3].lstrip('\t')
         LOG.debug("Received results for a task %s, those are '%s'" % (task,
                           out.rstrip('\r')))
-        cmd = ("docker exec -t {container} rally task report"
+        cmd = ("docker exec -t {container} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
                    home=self.home,
                    container=self.container_id,
