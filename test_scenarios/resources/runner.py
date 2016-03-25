@@ -16,6 +16,7 @@ import logging
 
 import test_scenarios.runner as run
 from test_scenarios.resources import resource_reporter as resources
+from common.errors import ResourceError
 
 LOG = logging
 
@@ -31,7 +32,7 @@ class ResourceReportRunner(run.Runner):
         self.path = path
         self.test_failures = []
         super(ResourceReportRunner, self).__init__()
-        self.failure_indicator = 30
+        self.failure_indicator = ResourceError.NO_RUNNER_ERROR
 
     def scenario_is_fine(self, scenario):
         return True

@@ -15,6 +15,7 @@
 import logging
 import traceback
 import ConfigParser
+from common.errors import SpeedError
 
 import os.path
 
@@ -35,7 +36,7 @@ class SpeedTestRunner(run.Runner):
         self.test_failures = []
         self.path = path
         super(SpeedTestRunner, self).__init__()
-        self.failure_indicator = 20
+        self.failure_indicator = SpeedError.NO_RUNNER_ERROR
         self.node_ids = []
         self.home = '/mcv'
 

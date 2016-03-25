@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+from common.errors import CAError
 import ConfigParser
 import datetime
 import json
@@ -37,7 +37,7 @@ class Runner(object):
         self.current_task = 1
         self.test_success = []
         self.test_not_found = []
-        self.failure_indicator = 10
+        self.failure_indicator = CAError.NO_RUNNER_ERROR
         super(Runner, self).__init__()
 
     def _it_ends_well(self, scenario):

@@ -13,6 +13,8 @@
 #    under the License.
 
 import ConfigParser
+from common.errors import ShakerError
+from common.errors import SpeedError
 import logging
 import os
 import subprocess
@@ -41,7 +43,7 @@ class ShakerRunner(runner.Runner):
         self.config_section = "shaker"
         self.test_failures = []  # this object is supposed to live for one run
                                  # so let's leave it as is for now.
-        self.failure_indicator = 40
+        self.failure_indicator = ShakerError.NO_RUNNER_ERROR
         self.homedir = '/home/mcv/toolbox/shaker'
         self.home = '/mcv'
 
@@ -267,7 +269,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         proc.communicate()
         # Note: TIMEOUT_RETCODE = 124
         if proc.returncode == 124:
-            self.failure_indicator = 41
+            self.failure_indicator = ShakerError.TIMEOUT_EXCESS
             LOG.info('Process #%d killed after %s seconds' % (proc.pid, timeout))
             LOG.debug('Timeout error occurred trying to execute shaker')
             return []
@@ -464,7 +466,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def run_individual_task(self, task, *args, **kwargs):
         if (task == 'network_speed'):
-            self.failure_indicator = 22
+            self.failure_indicator = SpeedError.LOW_AVG_SPEED
 
             try:
                 threshold = self.config.get('network_speed', 'threshold')

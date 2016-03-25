@@ -21,6 +21,7 @@ import time
 import threading
 import traceback
 from common.cmd import argparser
+from common.errors import CAError
 from logger import LOG
 
 LOG = LOG.getLogger(__name__)
@@ -46,7 +47,7 @@ args = argparser.parse_args()
 def main():
     if not acquire_lock():
         LOG.error("There is another instance of MCVConsoler! Stop.")
-        sys.exit(1)
+        return CAError.TOO_MANY_INSTANCES
     consolerr = consoler.Consoler(parser=argparser, args=args)
     e = threading.Event()
     res = []
@@ -59,13 +60,13 @@ def main():
         LOG.info("Consoler will be interrupted after finish of current task. "
                  "Results of it will be lost")
         e.set()
-        return 1
+        return CAError.KEYBOARD_INTERRUPT
     except Exception:
         LOG.error("Something unforeseen has just happened."
                   " The consoler is no more. You can get an insight from"
                   " /var/log/mcvconsoler.log")
         LOG.debug(traceback.format_exc())
-        return 1
+        return CAError.UNKNOWN_EXCEPTION
     if res:
         return res[0]
 

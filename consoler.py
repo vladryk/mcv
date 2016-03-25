@@ -16,6 +16,8 @@ import accessor
 import datetime
 import inspect
 import ConfigParser
+from common.errors import CAError
+from common.errors import ComplexError
 import imp
 import json
 import reporter
@@ -39,7 +41,7 @@ class Consoler(object):
         self.args = args
         self.all_time = 0
         self.plugin_dir = "test_scenarios"
-        self.failure_indicator = 0
+        self.failure_indicator = CAError.NO_ERROR
         self.config_config()
         self.concurrency = self.config.get('basic', 'concurrency')
         self.gre_enabled = self.config.get('basic', "gre_enabled")
@@ -213,13 +215,13 @@ class Consoler(object):
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
-                self.failure_indicator = 12
+                self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             except Exception:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("Something went wrong. Please check mcvconsoler logs")
                 LOG.debug(traceback.format_exc())
-                self.failure_indicator = 12
+                self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             else:
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
@@ -240,10 +242,10 @@ class Consoler(object):
                                                     test_group=kwargs.get('testgroup'))
 
                     if len(run_failures['test_failures']) > 0:
-                        if self.failure_indicator == 0:
+                        if self.failure_indicator == CAError.NO_ERROR:
                             self.failure_indicator = runner.failure_indicator
                         else:
-                            self.failure_indicator = 100
+                            self.failure_indicator = ComplexError.SOME_SUITES_FAILED
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
                         LOG.debug("It looks like you are trying to use a wrong "
@@ -252,7 +254,7 @@ class Consoler(object):
                     raise e
                 except Exception as e:
                     run_failures = test_dict[key].split(',')
-                    self.failure_indicator = 11
+                    self.failure_indicator = CAError.UNKNOWN_EXCEPTION
                     raise e
                 else:
                     dispatch_result[key]['results'] = run_failures
@@ -334,44 +336,6 @@ class Consoler(object):
                                    group, "tests")
         return fname in os.listdir(dir_to_walk)
 
-    def check_args_run(self, to_check):
-    # TODO: make a proper dispatcher for this stuff
-        retval = []
-        if to_check[0] == 'full' or to_check[0] == 'short':
-            pass
-        elif to_check[0] == 'custom': #and len(to_check) >= 2:
-            if len(to_check) < 2:
-                to_check.append("default")
-            if len(to_check) > 2:
-                LOG.warning("Ignoring arguments: " + ", ".join(to_check[2:]))
-            results = self.prepare_tests(to_check[1])
-            if results == {}:
-                LOG.error("Can't find group '" + to_check[1] + "' in"+ self.path_to_config+ "Please, provide exisitng group name!")
-                sys.exit(1)
-            for key in results:
-                if key in ['rally', 'ostf', 'shaker', 'resources'] and key not in retval:
-                    retval.append(key)
-        elif to_check[0] == 'single':
-            if len(to_check) < 3:
-
-                LOG.error("Too few arguments for option single. You must "
-                          "specify test type and test name")
-                sys.exit(1)
-            if len(to_check) > 3:
-                LOG.warning( "Ignoring arguments: "+ ", ".join(to_check[3:]))
-            if not self.existing_plugin(to_check[1]):
-                LOG.error("Unrecognized test group: "+ to_check[1])
-
-                sys.exit(1)
-            if not self.a_real_file(to_check[2], to_check[1]):
-                LOG.error("Test not found: " + to_check[2])
-                sys.exit(1)
-            retval = [to_check[1]]
-        else:
-            LOG.error("Wrong option: " + to_check[0] + ". Please run mcvconsoler --help if unsure what has gone wrong")
-            sys.exit(1)
-        return retval
-
     def console_user(self, event, result):
         # TODO: split this god's abomination.
         self.event = event
@@ -402,7 +366,9 @@ class Consoler(object):
 
         if len(sys.argv) < 2:
             self.parser.print_help()
-            sys.exit(1)
+            result.append(CAError.TOO_FEW_ARGS)
+            return
+
         run_results = None
 
         # TODO: leaving this leftover for now. In the nearest future this
@@ -415,14 +381,14 @@ class Consoler(object):
                 res = self.access_helper.check_and_fix_environment(
                     self.args.no_tunneling)
                 if not res:
-                    result.append(14)
+                    result.append(CAError.WRONG_CREDENTIALS)
                     return
             except Exception as e:
                 LOG.info("Something went wrong with checking credentials "
                          "and preparing environment")
                 LOG.error("The following error has terminated "
                           "the consoler: %s", repr(e))
-                result.append(14)
+                result.append(CAError.WRONG_CREDENTIALS)
                 return
 
             try:
@@ -441,11 +407,11 @@ class Consoler(object):
             except ValueError as e:
                 LOG.error("Some unexpected outer error has terminated the tool."
                           " Please try rerunning mcvconsoler. Reply: %s", e)
-                self.failure_indicator = 13
+                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
             except Exception:
                 LOG.error("Something went wrong with the command, please refer to logs to find out what")
                 LOG.debug(traceback.format_exc())
-                self.failure_indicator = 13
+                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
             subprocess.call(

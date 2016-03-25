@@ -13,6 +13,7 @@
 #    under the License.
 
 import ConfigParser
+from common.errors import TempestError
 import datetime
 import logging
 import shlex
@@ -45,7 +46,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.homedir = '/home/mcv/toolbox/tempest'
 
         super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
-        self.failure_indicator = 80
+        self.failure_indicator = TempestError.NO_RUNNER_ERROR
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("tempest")
@@ -181,7 +182,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info("Parsing results")
         if res == '':
             LOG.info("Results of test set '%s': FAILURE" % task)
-            self.failure_indicator = 83
+            self.failure_indicator = TempestError.VERIFICATION_FAILED
             return False
         try:
             self.task = json.loads(res)
@@ -199,7 +200,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             return True
         else:
             self.test_failures.append(task)
-            self.failure_indicator = 81
+            self.failure_indicator = TempestError.TESTS_FAILED
             return False
 
     def run_batch(self, tasks, *args, **kwargs):
@@ -273,7 +274,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             if self.failed_cases > max_failed_tests:
                 self.total_checks = len(t)
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                self.failure_indicator = 89
+                self.failure_indicator = TempestError.FAILED_LIMIT_TEST_EXCESS
                 break
 
         if self.config.get('times', 'update') == 'True':

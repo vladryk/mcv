@@ -50,7 +50,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.not_found = []
         self.container = None
         super(OSTFOnDockerRunner, self).__init__()
-        self.failure_indicator = 60
+        self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
         try:
             self.max_failed_tests = int(self.config.get('ostf',

@@ -14,6 +14,7 @@
 
 
 class BaseError(object):
+    NO_ERROR = 0
 
     @staticmethod
     def range():
@@ -21,6 +22,11 @@ class BaseError(object):
 
 
 class CAError(BaseError):
+    TOO_MANY_INSTANCES = 1
+    KEYBOARD_INTERRUPT = 2
+    TOO_FEW_ARGS = 3
+
+    NO_RUNNER_ERROR = 10
     UNKNOWN_EXCEPTION = 11
     RUNNER_LOAD_ERROR = 12
     UNKNOWN_OUTER_ERROR = 13
@@ -49,6 +55,7 @@ class ResoureError(BaseError):
 
 
 class ShakerError(BaseError):
+    NO_RUNNER_ERROR = 40
     TIMEOUT_EXCESS = 41
     FAILED_TEST_LIMIT_EXCESS = 49
 
@@ -58,6 +65,7 @@ class ShakerError(BaseError):
 
 
 class RallyError(BaseError):
+    NO_RUNNER_ERROR = 50
     FAILED_TEST_LIMIT_EXCESS = 59
 
     @staticmethod
@@ -66,6 +74,7 @@ class RallyError(BaseError):
 
 
 class OSTFError(BaseError):
+    NO_RUNNER_ERROR = 60
     UNSUPPORTED_MOS_VERSION = 61
     FAILED_TEST_LIMIT_EXCESS = 69
 
@@ -75,6 +84,7 @@ class OSTFError(BaseError):
 
 
 class TempestError(BaseError):
+    NO_RUNNER_ERROR = 80
     TESTS_FAILED = 81
     VERIFICATION_FAILED = 83
     FAILED_TEST_LIMIT_EXCESS = 89

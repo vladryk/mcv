@@ -13,6 +13,7 @@
 #    under the License.
 
 from common import clients as Clients
+from common.errors import RallyError
 import ConfigParser
 import json
 import logging
@@ -172,7 +173,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
-        self.failure_indicator = 50
+        self.failure_indicator = RallyError.NO_RUNNER_ERROR
 
         self.glanceclient = Clients.get_glance_client(accessor.os_data)
         self.neutronclient = Clients.get_neutron_client(accessor.os_data)
