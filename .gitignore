@@ -1,8 +1,6 @@
 *.swp
 *.swo
-*.json
 *.htm
-*.html
 *.pyc
 *.egg-info
 *.egg[s]

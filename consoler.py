@@ -40,7 +40,7 @@ class Consoler(object):
         self.parser = parser
         self.args = args
         self.all_time = 0
-        self.plugin_dir = "test_scenarios"
+        self.plugin_dir = "plugins"
         self.failure_indicator = CAError.NO_ERROR
         self.config_config()
         self.concurrency = self.config.get('basic', 'concurrency')

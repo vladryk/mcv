@@ -14,8 +14,8 @@
 
 import logging
 
-import test_scenarios.runner as run
-from test_scenarios.resources import resource_reporter as resources
+import plugins.runner as run
+from plugins.resources import resource_reporter as resources
 from common.errors import ResourceError
 
 LOG = logging

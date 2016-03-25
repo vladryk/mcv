@@ -19,9 +19,9 @@ from common.errors import SpeedError
 
 import os.path
 
-import test_scenarios.runner as run
-from test_scenarios.speed.prepare_instance import Preparer
-from test_scenarios.speed import speed_tester as st
+import plugins.runner as run
+from plugins.speed.prepare_instance import Preparer
+from plugins.speed import speed_tester as st
 
 LOG = logging
 

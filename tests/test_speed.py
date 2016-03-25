@@ -15,8 +15,8 @@ import mock
 import unittest
 
 import accessor
-import test_scenarios.speed.speed_tester as st
-import test_scenarios.speed.runner as runner
+import plugins.speed.speed_tester as st
+import plugins.speed.runner as runner
 import ConfigParser
 
 class FakeReporter():

@@ -18,7 +18,7 @@ import datetime
 import logging
 import shlex
 import subprocess
-from test_scenarios.rally import runner as rrunner
+from plugins.rally import runner as rrunner
 import json
 import glob
 import os.path

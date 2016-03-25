@@ -20,7 +20,7 @@ import logging
 import os.path
 import re
 import subprocess
-from test_scenarios import runner
+from plugins import runner
 import time
 import utils
 
@@ -116,7 +116,8 @@ class RallyRunner(runner.Runner):
 
     def _get_task_path(self, task):
         # a quick and dirty way to find a task
-        return 'test_scenarios/rally/tests/%s' % task
+        # TODO(albartash): refactor this damn
+        return 'plugins/rally/tests/%s' % task
 
     def _run_rally(self, task):
         LOG.debug("Running task %s" % task)

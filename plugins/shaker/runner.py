@@ -20,7 +20,7 @@ import os
 import subprocess
 import shlex
 import sys
-from test_scenarios import runner
+from plugins import runner
 import os.path
 import json
 from common import clients as Clients
@@ -86,7 +86,8 @@ class ShakerRunner(runner.Runner):
 
     def _get_task_path(self, task):
         # a quick and dirty way to find a task
-        return 'test_scenarios/shaker/tests/%s' % task
+        # TODO(albartash): refactor this bullsh~
+        return 'plugins/shaker/tests/%s' % task
 
     def _run_shaker(self, task):
         LOG.debug("Running task %s" % task)

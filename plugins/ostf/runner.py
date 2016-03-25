@@ -15,9 +15,9 @@
 import logging
 import os
 import subprocess
-from test_scenarios import runner
+from plugins import runner
 from ConfigParser import NoOptionError
-from test_scenarios.ostf.reporter import Reporter
+from plugins.ostf.reporter import Reporter
 from common.errors import OSTFError
 
 
