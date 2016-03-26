@@ -127,9 +127,7 @@ class OSTFOnDockerRunner(runner.Runner):
         # Find docker container:
         self._verify_ostf_container_is_up()
         self._do_config_extraction()
-        p = subprocess.check_output("docker ps", shell=True,
-                                    stderr=subprocess.STDOUT,
-                                    preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd("docker ps")
         p = p.split('\n')
         for line in p:
             elements = line.split()
@@ -140,18 +138,17 @@ class OSTFOnDockerRunner(runner.Runner):
                 break
 
     def check_task(self, task):
+
         if ':' in task:
             _cmd = 'list_plugin_tests'
         else:
             _cmd = 'list_plugin_suites'
+
         cmd = "docker exec -t %s cloudvalidation-cli cloud-health-check "\
               "%s --validation-plugin fuel_health" %\
               (self.container, _cmd)
 
-        p = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
-
+        p = utils.run_cmd(cmd)
         result = p.split("\n")
         line = ""
         for line in result:
@@ -185,9 +182,7 @@ class OSTFOnDockerRunner(runner.Runner):
                   task=task)
 
         LOG.debug('Executing command: "%s"' % cmd)
-        p = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         LOG.debug('Finish executing Cloudvalidation CLI. Result: %s' % str(p))
 

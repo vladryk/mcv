@@ -352,13 +352,9 @@ class Consoler(object):
                 r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
                             "location": self.results_vault}
                 cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
-                p = subprocess.check_output(
-                        cmd, shell=True, stderr=subprocess.STDOUT,
-                        preexec_fn=utils.ignore_sigint)
+                p = utils.run_cmd(cmd)
                 cmd = "rm -rf %(location)s" % {"location": self.results_vault}
-                p = subprocess.check_output(
-                        cmd, shell=True, stderr=subprocess.STDOUT,
-                        preexec_fn=utils.ignore_sigint)
+                p = utils.run_cmd(cmd)
                 LOG.debug("Done with report generation.")
             else:
                 LOG.warning("For some reason test tools have returned nothing.")

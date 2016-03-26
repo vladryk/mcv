@@ -91,9 +91,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                           preexec_fn=utils.ignore_sigint).stdout.read()
 
         cmd = "mkdir " + os.path.join(self.homedir, "data")
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         # TODO(albartash): Replace cp with ln if possible!!!
         cmd = ("sudo cp {homedir}/images/cirros-0.3.4-x86_64-disk.img "
@@ -113,9 +111,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest"%\
              {"container": self.container_id}
 
-            p = subprocess.check_output(
-                    cmd, shell=True, stderr=subprocess.STDOUT,
-                    preexec_fn=utils.ignore_sigint)
+            p = utils.run_cmd(cmd)
+
             cirros = glob.glob(self.homedir + '/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
@@ -126,15 +123,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                    cid=self.container_id,
                    home=self.home,
                    _set=task)
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
+
         cmd = "docker exec -t {cid} rally verify list".format(
                   cid=self.container_id)
         try:
-            p = subprocess.check_output(
-                    cmd, shell=True, stderr=subprocess.STDOUT,
-                    preexec_fn=utils.ignore_sigint)
+            p = utils.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
             LOG.error("Task %s failed with: %s" % (task, e))
             return ''
@@ -153,29 +147,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                "--out={home}/reports/{task}.html").format(
                    cid=self.container_id, home=self.home, task=task)
 
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         cmd = ('docker exec -it {cid} sudo cp {home}/reports/{task}.html '
                '/home/rally/.rally/tempest').format(
                    cid=self.container_id, home=self.home, task=task)
 
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.html {path}".format(
                   homedir=self.homedir, task=task, path=self.path)
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         cmd = "docker exec -t {cid} rally verify results --json".format(
                   cid=self.container_id)
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
         return p
 
     def parse_results(self, res, task):

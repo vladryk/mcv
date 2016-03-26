@@ -13,7 +13,14 @@
 #    under the License.
 
 import signal
+import subprocess
 
 
 def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def run_cmd(cmd):
+    return subprocess.check_output(cmd,
+                                   shell=True,
+                                   stderr=subprocess.STDOUT,
+                                   preexec_fn=ignore_sigint)

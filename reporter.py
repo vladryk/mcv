@@ -46,17 +46,13 @@ general_report = """
 # before passing it to container.
 def fix_rally(file_location):
     cmd = "sed -i '412 a \     <a href=\"../index.html\">Back to Index</a>&nbsp;' %s" % file_location
-    p = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+    p = utils.run_cmd(cmd)
 
 def fix_shaker(file_location):
     cmd = "sed -i '/<div\ class=\"container\"\ id=\"container\">/ a\  <li " \
     "class=\"active\" style=\"list-style-type: none;\"><a " \
     "href=\"../index.html\">Back to Index</a></li>' %s" % file_location
-    p = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+    p = utils.run_cmd(cmd)
 
 def fix_ostf(file_location):
     """Just for compatibility."""

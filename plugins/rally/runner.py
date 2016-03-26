@@ -123,10 +123,7 @@ class RallyRunner(runner.Runner):
         LOG.debug("Running task %s" % task)
         # important: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
-        cmd = "rally task start %s" % path_to_task
-        p = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd("rally task start " + path_to_task)
 
         # here out is in fact a command which can be run to obtain task resuls
         # thus it is returned directly.
@@ -138,9 +135,7 @@ class RallyRunner(runner.Runner):
         # current state of affair direct command produced by rally. task_id
         # is left as is for now, but will be moved in future.
         # if asked kindly rally just spits resulting json directly to stdout
-        p = subprocess.check_output(task_id, shell=True,
-                                    stderr=subprocess.STDOUT,
-                                    preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(task_id)
         try:
             res = json.loads(p)[0]  # actual test result as a dictionary
             return res
@@ -245,9 +240,7 @@ class RallyOnDockerRunner(RallyRunner):
                "'53s/.*/            timeout=10000,/' {path}").format(
                    cid=self.container_id, path=rally_path)
 
-        res = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+        res = utils.run_cmd(cmd)
         siege_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins/'
                       'workload/siege.py')
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
@@ -263,9 +256,7 @@ class RallyOnDockerRunner(RallyRunner):
                self.config.get("basic", 'auth_fqdn'),
                template_path)
 
-        res = subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.STDOUT,
-            preexec_fn=utils.ignore_sigint)
+        res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
         return
 
@@ -331,9 +322,7 @@ class RallyOnDockerRunner(RallyRunner):
                "sudo rally deployment use existing").format(
                cid=self.container_id)
         LOG.debug('Run "{cmd}"'.format(cmd=cmd))
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
         LOG.debug('Result: {res}'.format(res=p))
 
     def _check_rally_setup(self):
@@ -428,9 +417,7 @@ class RallyOnDockerRunner(RallyRunner):
                    "task": task,
                    "location": os.path.join(self.home, 'tests')}
 
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
         original_output = p
 
         # here out is in fact a command which can be run to obtain task resuls
@@ -439,9 +426,7 @@ class RallyOnDockerRunner(RallyRunner):
         if task == 'workload.yaml':
             cmd = "docker exec -t %(container)s rally task results" \
               % {"container": self.container_id}
-            p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+            p = utils.run_cmd(cmd)
             try:
                 res = json.loads(p)
             except ValueError:
@@ -483,16 +468,12 @@ class RallyOnDockerRunner(RallyRunner):
                    container=self.container_id,
                    task=task)
 
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {fld}/reports/{task}.html {pth}".format(
                   fld=self.homedir, task=task, pth=self.path)
 
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
 
         return {'next_command': ret_val,
                 'original output': original_output,
@@ -501,9 +482,8 @@ class RallyOnDockerRunner(RallyRunner):
     def _get_task_result_from_docker(self, task_id):
         LOG.debug("Retrieving task results for %s" % task_id)
         cmd = "docker exec -t %s %s" % (self.container_id, task_id)
-        p = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.STDOUT,
-                preexec_fn=utils.ignore_sigint)
+        p = utils.run_cmd(cmd)
+
         if task_id.find("detailed") ==-1:
             try:
                 res = json.loads(p)[0]  # actual test result as a dictionary
