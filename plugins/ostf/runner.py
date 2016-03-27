@@ -72,7 +72,7 @@ class OSTFOnDockerRunner(runner.Runner):
                                preexec_fn=utils.ignore_sigint).stdout.read()
         LOG.debug("Config extraction resulted in: " + res)
 
-    def start_ostf_container(self):
+    def start_container(self):
         LOG.debug("Bringing up OSTF container with credentials")
         mos_version = self.config.get("ostf", "version")
         #@TODO(albartash): Remove tname when migrating to single ostf

@@ -89,7 +89,7 @@ class Runner(object):
             LOG.debug("Container %s is fine" % container_name)
         else:
             LOG.debug("It has to be started.")
-            getattr(self, "start_" + container_name + "_container")()
+            getattr(self, "start_container")()
             time.sleep(10)  # we are in no hurry today
             return self.verify_container_is_up(container_name)
 

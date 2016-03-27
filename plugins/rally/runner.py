@@ -168,6 +168,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.accessor = accessor
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
+
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
         self.failure_indicator = RallyError.NO_RUNNER_ERROR
 
@@ -198,7 +199,7 @@ class RallyOnDockerRunner(RallyRunner):
         rou_id = routers[0].get('id')
         return (net_id, rou_id)
 
-    def start_rally_container(self):
+    def start_container(self):
         LOG.debug("Starting Rally container")
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""

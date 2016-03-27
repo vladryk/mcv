@@ -57,7 +57,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def _it_ends_well(self, scenario):
         return True
 
-    def start_tempest_container(self):
+    def start_container(self):
         LOG.debug("Bringing up Tempest container with credentials")
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""

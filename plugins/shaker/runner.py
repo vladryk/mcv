@@ -179,7 +179,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                                 stdout=subprocess.PIPE,
                                 preexec_fn=utils.ignore_sigint).stdout.read()
 
-    def start_shaker_container(self):
+    def start_container(self):
         LOG.debug( "Bringing up Shaker container with credentials")
 
         protocol = self.config.get('basic', 'auth_protocol')

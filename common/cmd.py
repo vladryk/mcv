@@ -18,7 +18,6 @@ from common.config import PROJECT_DESCRIPTION
 from common.config import RUN_DESCRIPTION
 from version import version
 
-
 def _get_parser():
     parser = argparse.ArgumentParser(
         prog=PROJECT_NAME,
@@ -29,8 +28,7 @@ def _get_parser():
     parser.add_argument(
         "--run",
         nargs='+',
-        help="""Run one of specified test suits : full, custom, single or
-        short.""")
+        help="""Run one of specified test suites.""")
 
     parser.add_argument(
         "--test",
