@@ -49,6 +49,12 @@ class OSTFOnDockerRunner(runner.Runner):
         self.failures = []
         self.not_found = []
         self.container = None
+
+        # TODO(albartash): after single container release please fix this path
+        # and remove the same from start_container()
+        self.homedir = '/home/mcv/toolbox/ostfnew'
+        self.home = '/mcv'
+
         super(OSTFOnDockerRunner, self).__init__()
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
@@ -88,6 +94,11 @@ class OSTFOnDockerRunner(runner.Runner):
             self.failure_indicator = OSTFError.UNSUPPORTED_MOS_VERSION
             return False
 
+        # albartash: This hard patch is required to make sure we can extract
+        # OSTF report correctly. Must be removed when migrating to a single
+        # container!!!
+        self.homedir = '/home/mcv/toolbox/' + tname
+
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
@@ -112,7 +123,7 @@ class OSTFOnDockerRunner(runner.Runner):
              "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
              "-e",
              "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-             "-v", "/home/mcv/toolbox/%s:/mcv" % tname, "-w", "/mcv",
+             "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", cname], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
@@ -173,9 +184,10 @@ class OSTFOnDockerRunner(runner.Runner):
             _arg = '--suite'
 
         cmd = "docker exec -t {container} cloudvalidation-cli "\
-              "--output-file=/mcv/ostf_report.json "\
+              "--output-file={home}/ostf_report.json "\
               "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
               "--validation-plugin-name fuel_health {arg} {task}".format(
+                  home=self.home,
                   container=self.container,
                   cmd=_cmd,
                   arg=_arg,
@@ -189,10 +201,11 @@ class OSTFOnDockerRunner(runner.Runner):
         try:
             results = []
             try:
-                fp = open('/mcv/ostf_report.json', 'r')
+                fpath = os.path.join(self.homedir, 'ostf_report.json')
+                fp = open(fpath, 'r')
                 results = json.loads(fp.read())
                 fp.close()
-                os.remove('/mcv/ostf_report.json')
+                os.remove(fpath)
             except IOError as e:
                 LOG.error(('Error while extracting report '
                            'from OSTF container: {err_msg}').format(
