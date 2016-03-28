@@ -40,6 +40,7 @@ class CAError(BaseError):
 class SpeedError(BaseError):
     LOW_AVG_SPEED = 22
     FAILED_TEST_LIMIT_EXCESS = 29
+    NO_RUNNER_ERROR = 20
 
     @staticmethod
     def range():
@@ -48,6 +49,7 @@ class SpeedError(BaseError):
 
 class ResoureError(BaseError):
     FAILED_TEST_LIMIT_EXCESS = 39
+    NO_RUNNER_ERROR = 30
 
     @staticmethod
     def range():

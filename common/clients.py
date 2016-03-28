@@ -12,12 +12,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import requests
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
+
 from keystoneclient.v2_0 import client as keystone_v2
 import glanceclient as glance
 import novaclient.client as nova
 import cinderclient.client as cinder
 from neutronclient.neutron import client as neutron
+from heatclient import client as heat
 
+requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings(SNIMissingWarning)
 
 keystone_keys = ('username',
                  'password',
@@ -45,6 +52,8 @@ glance_keys = ('insecure',)
 
 neutron_keys = ('insecure',
                 'auth_url',)
+
+heat_keys = ('insecure',)
 
 
 def _filter_keys(data_dict, keys):
@@ -90,3 +99,13 @@ def get_neutron_client(access_data):
         service_type="network")
     client_data['token'] = keystone_client.auth_token
     return neutron.Client('2.0', **client_data)
+
+
+def get_heat_client(access_data):
+    keystone_client = get_keystone_client(access_data)
+    client_data = _filter_keys(access_data, heat_keys)
+    client_data['endpoint'] = keystone_client.service_catalog.url_for(
+        service_type='orchestration')
+    client_data['token'] = keystone_client.auth_token
+
+    return heat.Client('1', **client_data)

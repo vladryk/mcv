@@ -139,10 +139,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         super(ShakerOnDockerRunner, self).__init__()
 
         self.glance = Clients.get_glance_client(accessor.os_data)
+        self.heat = Clients.get_heat_client(accessor.os_data)
 
     def _check_shaker_setup(self):
-        LOG.info("Checking Shaker setup. If this is the first run of "\
-                 "mcvconsoler on this cloud go grab some coffee, it will "\
+        LOG.info("Checking Shaker setup. If this is the first run of "
+                 "mcvconsoler on this cloud go grab some coffee, it will "
                  "take a while.")
 
         insecure = ""
@@ -261,6 +262,9 @@ class ShakerOnDockerRunner(ShakerRunner):
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
             LOG.info('Process #%d killed after %s seconds' % (proc.pid, timeout))
             LOG.debug('Timeout error occurred trying to execute shaker')
+            for stack in self.heat.stacks.list():
+                if 'shaker' in stack.stack_name:
+                    stack.delete()
             return []
 
         cmd = "docker exec -t %s shaker-report --input %s.out --report " \
