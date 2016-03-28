@@ -12,23 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import ConfigParser
 
-# Enables DEBUG logging
-DEBUG = False
+def _init_parser():
+    parser = ConfigParser.SafeConfigParser()
+    return parser
 
-# Project description
-PROJECT_NAME = "mcvconsoler"
-
-PROJECT_DESCRIPTION = """The main tool in Mirantis Cloudvalidation Project."""
-
-RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
-
-    # mcvconsoler --run custom quick
-
-    Also it is recommended to run the tool as a superuser, running it as an
-    ordinary user might cause unexpected errors in strange places for odd
-    tools.
-
-    ...and in the darkness bind them, in the cloud where the instances lie."""
-
-DEFAULT_CONFIG_FILE = "/etc/mcv/mcv.conf"
+config_parser = _init_parser()

@@ -15,9 +15,7 @@
 import accessor
 import datetime
 import inspect
-import ConfigParser
-from common.errors import CAError
-from common.errors import ComplexError
+from ConfigParser import NoSectionError
 import imp
 import json
 import reporter
@@ -28,6 +26,12 @@ import sys
 
 import utils
 from logger import LOG
+
+from common.cfgparser import config_parser
+from common.config import DEFAULT_CONFIG_FILE
+from common.errors import CAError
+from common.errors import ComplexError
+
 LOG = LOG.getLogger(__name__)
 
 
@@ -35,8 +39,7 @@ class Consoler(object):
     """Consoles poor user when her stack is not working as expected"""
 
     def __init__(self, parser, args):
-        self.config = ConfigParser.ConfigParser()
-        self.default_config_file = "/etc/mcv/mcv.conf"
+        self.config = config_parser
         self.parser = parser
         self.args = args
         self.all_time = 0
@@ -48,10 +51,10 @@ class Consoler(object):
         self.vlan_amount = self.config.get('basic', "vlan_amount")
 
     def prepare_tests(self, test_group):
-        section  = "custom_test_group_" + test_group
+        section = "custom_test_group_" + test_group
         try:
-            restmp = self.config.options(section)
-        except ConfigParser.NoSectionError:
+            self.config.options(section)
+        except NoSectionError:
             LOG.warning("Test group %s doesn't seem to exist in config!" % test_group)
             return {}
 
@@ -63,7 +66,7 @@ class Consoler(object):
         if self.args.config is not None:
             default_config = self.args.config
         else:
-            default_config = self.default_config_file
+            default_config = DEFAULT_CONFIG_FILE
         self.path_to_config = os.path.join(os.path.dirname(__file__),
                                            default_config)
         self.config.read(self.path_to_config)

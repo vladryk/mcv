@@ -12,17 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import consoler
-import ConfigParser
 import fcntl
 import sys
 import time
 import threading
 import traceback
+
+from logger import LOG
+
+from common.cfgparser import config_parser
 from common.cmd import argparser
 from common.errors import CAError
-from logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -36,13 +37,10 @@ def acquire_lock():
 
 
 # hooking up a config
-config = ConfigParser.ConfigParser()
-default_config_file = "/etc/mcv/mcv.conf"
+config = config_parser
 lockfile = open("/var/lock/consoler", "w")
 
-
 args = argparser.parse_args()
-
 
 def main():
     if not acquire_lock():

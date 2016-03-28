@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import ConfigParser
+from ConfigParser import NoOptionError
 from common.errors import TempestError
 import datetime
 import logging
@@ -205,7 +205,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         try:
             max_failed_tests = int(self.config.get('tempest', 'max_failed_tests'))
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
 
         self._setup_rally_on_docker()

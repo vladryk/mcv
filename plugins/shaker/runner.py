@@ -12,24 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import ConfigParser
-from common.errors import ShakerError
-from common.errors import SpeedError
+from ConfigParser import NoOptionError
 import logging
 import os
 import subprocess
 import shlex
-import sys
 from plugins import runner
 import os.path
 import json
-from common import clients as Clients
 import utils
+
+from common import clients as Clients
+from common.cfgparser import config_parser
+from common.errors import ShakerError
+from common.errors import SpeedError
 
 nevermind = None
 
-config = ConfigParser.ConfigParser()
-default_config = "/etc/mcv/mcv.conf"
+config = config_parser
 LOG = logging
 
 
@@ -453,7 +453,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             try:
                 threshold = self.config.get('network_speed', 'threshold')
                 LOG.info('Threshold is %s Gb/s' % threshold)
-            except ConfigParser.NoOptionError:
+            except NoOptionError:
                 LOG.info('Default threshold is 7 Gb/s')
                 threshold = 7
 

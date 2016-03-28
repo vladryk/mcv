@@ -22,10 +22,10 @@ import mock
 import unittest
 import StringIO
 import sys
-import ConfigParser
+
 
 import accessor
-
+from common.cfgparser import config_parser
 
 def input_diverter(f, *args, **kwargs):
     @functools.wraps(f)
@@ -59,7 +59,7 @@ class test_AccessSteward(unittest.TestCase):
                                 }
 
     def setUp(self):
-        self.fake_config=ConfigParser.ConfigParser()
+        self.fake_config=config_parser
         self.fake_config.add_section('basic')
         self.accessor = accessor.AccessSteward(self.fake_config)
         self.accessor.novaclient = mock.Mock()

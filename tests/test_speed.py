@@ -17,7 +17,8 @@ import unittest
 import accessor
 import plugins.speed.speed_tester as st
 import plugins.speed.runner as runner
-import ConfigParser
+
+from common.cfgparser import config_parser
 
 class FakeReporter():
     html = 'fake-html'
@@ -54,13 +55,13 @@ class TestSpeedRunner(BaseTestCase):
         run._it_ends_well('fake')
 
     def test_evaluate_result_pass(self):
-        fake_config=ConfigParser.ConfigParser()
+        fake_config=config_parser
         fake_config.add_section('speed')
         run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)
         run._evaluate_task_results([80])
 
     def test_evaluate_result_fail(self):
-        fake_config=ConfigParser.ConfigParser()
+        fake_config=config_parser
         fake_config.add_section('speed')
         fake_config.set('speed', 'threshold', '11')
         run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)

@@ -12,17 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from common.errors import CAError
-import ConfigParser
+from ConfigParser import NoOptionError
 import datetime
 import json
 import subprocess
 import logging
 import os
 import re
-import sys
 import time
 
+from common.errors import CAError
 import utils
 
 # Base class for runners should be placed here.
@@ -116,7 +115,6 @@ class Runner(object):
              LOG.error("Looks like not a single test will be run for group %s" % self.identity)
         LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
-
     def get_error_code(self, tool_name):
 
         codes = {'rally': 59,
@@ -156,7 +154,7 @@ class Runner(object):
         elapsed_time = kwargs["elapsed_time"]
         try:
             max_failed_tests = int(config.get(tool_name, 'max_failed_tests'))
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             max_failed_tests = int(config.get('basic', 'max_failed_tests'))
 
         self.check_task_list(tasks)

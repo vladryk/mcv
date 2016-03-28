@@ -14,7 +14,7 @@
 
 import logging
 import traceback
-import ConfigParser
+from ConfigParser import NoOptionError
 from common.errors import SpeedError
 
 import os.path
@@ -53,7 +53,7 @@ class SpeedTestRunner(run.Runner):
         res = True
         try:
             threshold = self.config.get('speed', 'threshold')
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             threshold = 50
             LOG.info('Default threshold is %s Mb/s' % threshold)
         for speed in task_results:
@@ -70,7 +70,7 @@ class SpeedTestRunner(run.Runner):
         preparer = self.get_preparer()
         try:
             image_path = self.config.get('speed', 'cirros_image_path')
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             LOG.info('Use default image path')
             # TODO(albartash): extract it to common/config.py somehow
             image_path = os.path.join(self.imagedir,
@@ -78,7 +78,7 @@ class SpeedTestRunner(run.Runner):
 
         try:
             flavor_req = self.config.get('speed', 'flavor_req')
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             LOG.info('Use default flavor requirements')
             flavor_req = 'ram:64,vcpus:1'
         supported_req = ['ram', 'vcpus', 'disk']
@@ -130,12 +130,12 @@ class SpeedTestRunner(run.Runner):
             return False
         try:
             i_s = self.config.get('speed', 'image_size')
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             i_s = '1G'
             LOG.info('Use default image size %s' % i_s)
         try:
             v_s = self.config.get('speed', 'volume_size')
-        except ConfigParser.NoOptionError:
+        except NoOptionError:
             v_s = '1G'
             LOG.info('Use default volume size %s' % v_s)
         LOG.debug('Start generating %s' % task)

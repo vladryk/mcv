@@ -12,9 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from common import clients as Clients
-from common.errors import RallyError
-import ConfigParser
+
 import json
 import logging
 import os.path
@@ -24,10 +22,13 @@ from plugins import runner
 import time
 import utils
 
+from common import clients as Clients
+from common.cfgparser import config_parser
+from common.errors import RallyError
+
 nevermind = None
 
-config = ConfigParser.ConfigParser()
-default_config = "etc/mcv.conf"
+config = config_parser
 LOG = logging
 
 rally_json_template = """{
