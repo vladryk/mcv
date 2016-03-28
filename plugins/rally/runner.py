@@ -247,7 +247,7 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
         # TODO(who?): Found out how to pass re through sed
-        template_path = os.path.join(self.homedir,
+        template_path = os.path.join(self.home,
                                      '/tests/templates/wp_instances.yaml')
 
         LOG.debug('Start patching hosts')
