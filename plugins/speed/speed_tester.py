@@ -19,8 +19,9 @@ import paramiko
 import time
 
 from common import clients as Clients
+from logger import LOG
 
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 
 class BaseStorageSpeed(object):

@@ -12,13 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
-
 import plugins.runner as run
 from plugins.resources import resource_reporter as resources
 from common.errors import ResourceError
+from logger import LOG
 
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 
 class ResourceReportRunner(run.Runner):

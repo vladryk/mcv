@@ -12,13 +12,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
 import os
 import subprocess
 from plugins import runner
 from ConfigParser import NoOptionError
 from plugins.ostf.reporter import Reporter
 from common.errors import OSTFError
+from logger import LOG
 
 
 try:
@@ -32,7 +32,7 @@ nevermind = None
 
 default_config = "etc/mcv.conf"
 
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 
 class OSTFOnDockerRunner(runner.Runner):

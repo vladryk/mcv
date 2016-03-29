@@ -12,20 +12,20 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
-from common.errors import TempestError
 import datetime
-import logging
 import shlex
 import subprocess
-from plugins.rally import runner as rrunner
 import json
 import glob
 import os.path
-
 import utils
+from ConfigParser import NoOptionError
 
-LOG = logging
+from common.errors import TempestError
+from plugins.rally import runner as rrunner
+from logger import LOG
+
+LOG = LOG.getLogger(__name__)
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):

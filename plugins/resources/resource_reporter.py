@@ -12,12 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 import json
-import logging
 import os
 
 from common import clients as Clients
+from logger import LOG
 
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 RESOURCES_TEMPLATE = {
     'flavors': None,

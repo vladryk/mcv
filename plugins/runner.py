@@ -12,23 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
 import datetime
 import json
 import subprocess
-import logging
 import os
 import re
 import time
+import utils
+from ConfigParser import NoOptionError
 
 from common.errors import CAError
-import utils
+from logger import LOG
 
 # Base class for runners should be placed here.
 
 nevermind = None
 
-LOG = logging.getLogger(__name__)
+LOG = LOG.getLogger(__name__)
+
 
 class Runner(object):
 

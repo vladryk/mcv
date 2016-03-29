@@ -47,7 +47,7 @@ class SpeedError(BaseError):
         return (20, 29)
 
 
-class ResoureError(BaseError):
+class ResourceError(BaseError):
     FAILED_TEST_LIMIT_EXCESS = 39
     NO_RUNNER_ERROR = 30
 

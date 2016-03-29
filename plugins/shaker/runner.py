@@ -12,25 +12,25 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
-import logging
 import os
 import subprocess
 import shlex
-from plugins import runner
 import os.path
 import json
 import utils
+from ConfigParser import NoOptionError
 
 from common import clients as Clients
 from common.cfgparser import config_parser
 from common.errors import ShakerError
 from common.errors import SpeedError
+from logger import LOG
+from plugins import runner
 
 nevermind = None
 
 config = config_parser
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 
 class ShakerRunner(runner.Runner):

@@ -14,7 +14,6 @@
 
 
 import json
-import logging
 import os.path
 import re
 import subprocess
@@ -25,11 +24,12 @@ import utils
 from common import clients as Clients
 from common.cfgparser import config_parser
 from common.errors import RallyError
+from logger import LOG
 
 nevermind = None
 
 config = config_parser
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 rally_json_template = """{
 "type": "ExistingCloud",

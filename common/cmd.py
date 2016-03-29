@@ -18,6 +18,7 @@ from common.config import PROJECT_DESCRIPTION
 from common.config import RUN_DESCRIPTION
 from version import version
 
+
 def _get_parser():
     parser = argparse.ArgumentParser(
         prog=PROJECT_NAME,

@@ -12,18 +12,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
 import traceback
+import os.path
 from ConfigParser import NoOptionError
 from common.errors import SpeedError
-
-import os.path
 
 import plugins.runner as run
 from plugins.speed.prepare_instance import Preparer
 from plugins.speed import speed_tester as st
+from logger import LOG
 
-LOG = logging
+LOG = LOG.getLogger(__name__)
 
 
 class SpeedTestRunner(run.Runner):
