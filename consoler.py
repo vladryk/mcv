@@ -254,11 +254,13 @@ class Consoler(object):
                         LOG.debug("It looks like you are trying to use a wrong "
                                   "runner. No tests will be run in this group "
                                   "this time. Reply %s", e)
-                    raise e
-                except Exception as e:
+                        self.failure_indicator = CAError.WRONG_RUNNER
+                except Exception:
                     run_failures = test_dict[key].split(',')
                     self.failure_indicator = CAError.UNKNOWN_EXCEPTION
-                    raise e
+                    LOG.error("Something went wrong. "
+                              "Please check mcvconsoler logs")
+                    LOG.debug(traceback.format_exc())
                 else:
                     dispatch_result[key]['results'] = run_failures
                     dispatch_result[key]['batch'] = batch
