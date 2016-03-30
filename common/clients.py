@@ -12,19 +12,20 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import requests
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
-
-from keystoneclient.v2_0 import client as keystone_v2
-import glanceclient as glance
-import novaclient.client as nova
 import cinderclient.client as cinder
-from neutronclient.neutron import client as neutron
+import glanceclient as glance
 from heatclient import client as heat
+from keystoneclient.v2_0 import client as keystone_v2
+from neutronclient.neutron import client as neutron
+import novaclient.client as nova
+from requests.packages import urllib3
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import SNIMissingWarning
 
-requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-requests.packages.urllib3.disable_warnings(SNIMissingWarning)
+urllib3.disable_warnings(InsecurePlatformWarning)
+urllib3.disable_warnings(InsecureRequestWarning)
+urllib3.disable_warnings(SNIMissingWarning)
 
 keystone_keys = ('username',
                  'password',
@@ -67,7 +68,7 @@ def _filter_keys(data_dict, keys):
 
 
 def get_keystone_client(access_data):
-    #@TODO(albartash): implement Keystone v3
+    # @TODO(albartash): implement Keystone v3
     client_data = _filter_keys(access_data, keystone_keys)
     return keystone_v2.Client(**client_data)
 
