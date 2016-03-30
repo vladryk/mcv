@@ -37,6 +37,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     """
 
     def __init__(self, accessor, path, *args, **kwargs):
+        super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
+
         self.config = kwargs["config"]
         self.path = path
         self.container = None
@@ -44,8 +46,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.failed_cases = 0
         self.home = '/mcv'
         self.homedir = '/home/mcv/toolbox/tempest'
-
-        super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
         self.failure_indicator = TempestError.NO_RUNNER_ERROR
 
     def _verify_rally_container_is_up(self):
@@ -80,6 +80,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
 
+    def _patch_tempest_conf(self):
+        config = glob.glob(self.homedir + '/for-deployment-*/tempest.conf')
+        if config:
+            config = config[0]
+            cmd = """sudo sed -i "70s/.*/operator_role = admin" %s""" % config
+            p = utils.run_cmd(cmd)
+
+
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')
         # here we fix glance image issues
@@ -112,7 +120,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
              {"container": self.container_id}
 
             p = utils.run_cmd(cmd)
-
+            self._patch_tempest_conf()
             cirros = glob.glob(self.homedir + '/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
