@@ -110,3 +110,15 @@ class ComplexError(BaseError):
     @staticmethod
     def range():
         return (100, 100)
+
+
+class BaseSelfCheckError(BaseError):
+    SELF_CHECK_WRONG_RUNNER = 110
+    CONSOLER_NOT_EXISTS = 111
+    BOARD_NOT_EXISTS = 112
+    CONFIG_NOT_EXISTS = 113
+    HOSTNAME_NOT_EXISTS = 114
+
+    @staticmethod
+    def range():
+        return 110, 115

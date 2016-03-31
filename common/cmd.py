@@ -13,9 +13,8 @@
 #    under the License.
 
 import argparse
-from common.config import PROJECT_NAME
-from common.config import PROJECT_DESCRIPTION
-from common.config import RUN_DESCRIPTION
+
+from common.config import PROJECT_DESCRIPTION, PROJECT_NAME, RUN_DESCRIPTION
 from version import version
 
 

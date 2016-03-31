@@ -12,25 +12,23 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import accessor
 import datetime
-import inspect
-from ConfigParser import NoSectionError
 import imp
+import inspect
 import json
-import reporter
-import subprocess
-import traceback
 import os
+import subprocess
 import sys
+import traceback
+from ConfigParser import NoSectionError
 
+import accessor
+import reporter
 import utils
-from logger import LOG
-
 from common.cfgparser import config_parser
 from common.config import DEFAULT_CONFIG_FILE
-from common.errors import CAError
-from common.errors import ComplexError
+from common.errors import CAError, ComplexError
+from logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -58,7 +56,7 @@ class Consoler(object):
             LOG.warning("Test group %s doesn't seem to exist in config!" % test_group)
             return {}
 
-        out =  dict([(opt, self.config.get(section, opt)) for opt in
+        out = dict([(opt, self.config.get(section, opt)) for opt in
                     self.config.options(section)])
         return out
 
@@ -265,7 +263,6 @@ class Consoler(object):
                     dispatch_result[key]['results'] = run_failures
                     dispatch_result[key]['batch'] = batch
 
-
         return dispatch_result
 
     def do_full(self):
@@ -344,18 +341,22 @@ class Consoler(object):
     def console_user(self, event, result):
         # TODO: split this god's abomination.
         self.event = event
+
         def do_finalization(run_results):
-            r_helper = {"timestamp" : "xxx", "location": "xxx"}
+            r_helper = {"timestamp": "xxx", "location": "xxx"}
             if run_results is not None:
                 self.describe_results(run_results)
                 self.update_config(run_results)
                 try:
-                    reporter.brew_a_report(run_results, self.results_vault+ "/index.html")
+                    reporter.brew_a_report(run_results,
+                                           self.results_vault + "/index.html")
                 except:
                     LOG.warning("Brewing a report has failed.")
                     return r_helper
-                r_helper = {"timestamp": str(datetime.datetime.utcnow()).replace(" ", "_"),
-                            "location": self.results_vault}
+                r_helper = {
+                    "timestamp": str(datetime.datetime.utcnow()).replace(" ",
+                                                                         "_"),
+                    "location": self.results_vault}
                 cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
                 p = utils.run_cmd(cmd)
                 cmd = "rm -rf %(location)s" % {"location": self.results_vault}

@@ -14,14 +14,15 @@
 
 import cinderclient.client as cinder
 import glanceclient as glance
-from heatclient import client as heat
+import novaclient.client as nova
 from keystoneclient.v2_0 import client as keystone_v2
 from neutronclient.neutron import client as neutron
-import novaclient.client as nova
 from requests.packages import urllib3
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.packages.urllib3.exceptions import SNIMissingWarning
+from requests.packages.urllib3.exceptions import (InsecurePlatformWarning,
+                                                  InsecureRequestWarning,
+                                                  SNIMissingWarning)
+
+from heatclient import client as heat
 
 urllib3.disable_warnings(InsecurePlatformWarning)
 urllib3.disable_warnings(InsecureRequestWarning)
