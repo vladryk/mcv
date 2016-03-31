@@ -36,7 +36,7 @@ class Preparer(object):
             LOG.info('Upload image to glance')
             self.glance.images.create(name='cirros-image', disk_format="qcow2",
                                       container_format="bare",
-                                      data=open(image_path))
+                                      data=open(image_path), is_public=True)
         else:
             LOG.info('Cirros-image exists')
 
