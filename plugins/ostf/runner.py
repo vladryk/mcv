@@ -12,25 +12,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
+import re
 import os
 import subprocess
-from plugins import runner
 from ConfigParser import NoOptionError
+
+from plugins import runner
 from plugins.ostf.reporter import Reporter
 from common.errors import OSTFError
 from logger import LOG
-
-
-try:
-    import json
-except:
-    import simplejson as json
-
 import utils
 
 nevermind = None
-
-default_config = "etc/mcv.conf"
 
 LOG = LOG.getLogger(__name__)
 
@@ -59,7 +53,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
         try:
-            self.max_failed_tests = int(self.config.get('ostf',
+            self.max_failed_tests = int(self.config.get(self.config_section,
                                                         'max_failed_tests'))
         except NoOptionError:
             self.max_failed_tests = int(self.config.get('basic',
@@ -73,14 +67,14 @@ class OSTFOnDockerRunner(runner.Runner):
         res = subprocess.Popen(["docker", "exec", "-t",
                                 self.container_id,
                                 "ostf-config-extractor", "-o",
-                                "/tmp/ostfcfg.conf"],
+                                "%s/conf/ostfcfg.conf" % self.home],
                                stdout=subprocess.PIPE,
                                preexec_fn=utils.ignore_sigint).stdout.read()
         LOG.debug("Config extraction resulted in: " + res)
 
     def start_container(self):
         LOG.debug("Bringing up OSTF container with credentials")
-        mos_version = self.config.get("ostf", "version")
+        mos_version = self.config.get(self.config_section, "version")
         #@TODO(albartash): Remove tname when migrating to single ostf
         # container!
         if mos_version == "6.1":
@@ -161,9 +155,10 @@ class OSTFOnDockerRunner(runner.Runner):
 
         p = utils.run_cmd(cmd)
         result = p.split("\n")
+        task_re = re.compile('\.%s\s+' % task)
         line = ""
         for line in result:
-            if line.find(task) != -1:
+            if task_re.search(line):
                 break
         line = line.split("|")[2].replace(" ", "")
         return line
@@ -185,7 +180,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
         cmd = "docker exec -t {container} cloudvalidation-cli "\
               "--output-file={home}/ostf_report.json "\
-              "--config-file=/tmp/ostfcfg.conf cloud-health-check {cmd} "\
+              "--config-file={home}/conf/ostfcfg.conf cloud-health-check {cmd} "\
               "--validation-plugin-name fuel_health {arg} {task}".format(
                   home=self.home,
                   container=self.container,
