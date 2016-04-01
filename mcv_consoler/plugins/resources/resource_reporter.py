@@ -14,8 +14,8 @@
 import json
 import os
 
-from common import clients as Clients
-from logger import LOG
+from mcv_consoler.common import clients as Clients
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -97,12 +97,14 @@ class ResourceSearch(object):
         res = {}
         for f in list_flavors:
             res.update(
-                {f.id: 'Flavour {}: RAM {} disc {}'.format(f.name, f.ram, f.disk)})
+                {f.id: 'Flavour {}: RAM {} disc {}'.format(f.name,
+                                                           f.ram,
+                                                           f.disk)})
         return res
 
     def generate_json(self):
         res = json.dumps(self.resources, sort_keys=True,
-                          indent=4, separators=(',', ': '))
+                         indent=4, separators=(',', ': '))
         return res
 
     def search_resources(self):
@@ -134,12 +136,15 @@ class ErrorResourceSearch(ResourceSearch):
 
     def search_error_servers(self):
         LOG.debug('Collecting error servers data')
-        # Check only for Exception because of difference between clients outputs
+        # Check only for Exception because of difference between
+        # clients outputs
+
         try:
             serv = self.novaclient.servers.list()
         except Exception:
             LOG.error('Failed connection to nova, report will be incomplete')
             return
+
         res = self.list_servers(serv)
         for s in res:
             if s['status'] == 'ERROR':
@@ -147,11 +152,14 @@ class ErrorResourceSearch(ResourceSearch):
 
     def search_error_volumes(self):
         LOG.debug('Collecting error volumes data')
+
         try:
             vol = self.cinderclient.volumes.list()
         except Exception:
-            LOG.error('Failed connect to the cinder, report will be incomplete')
+            LOG.error('Failed connect to the cinder, '
+                      'report will be incomplete')
             return
+
         res = self.list_volumes(vol)
         for v in res:
             if v['status'] == 'error':
@@ -159,11 +167,14 @@ class ErrorResourceSearch(ResourceSearch):
 
     def search_error_images(self):
         LOG.debug('Collecting error images data')
+
         try:
             images = self.glanceclient.images.list()
         except Exception:
-            LOG.error('Failed obtain data from glance, report will be incomplete')
+            LOG.error('Failed obtain data from glance, '
+                      'report will be incomplete')
             return
+
         res = self.list_images(images)
         for i in res:
             if i['status'] == 'killed':
@@ -199,16 +210,16 @@ class ErrorResourceSearch(ResourceSearch):
         temp.close()
         servers = ''
         for s in self.resources['servers']:
-            servers +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Reason {reason}</td><tr>\n'.format(**s)
+            servers += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Reason {reason}</td><tr>\n'.format(**s)
         images = ''
         for i in self.resources['images']:
-            images +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Updated at {updated_at}</td>\n'.format(**i)
+            images += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Updated at {updated_at}</td>\n'.format(**i)
         volumes = ''
         for v in self.resources['volumes']:
-            volumes +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Is bootable {bootable}</td>\n'.format(**v)
+            volumes += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Is bootable {bootable}</td>\n'.format(**v)
         ports = ''
         for p in self.resources['ports']:
-            ports +='<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Fixed IPs {fixed_ips}</td>\n'.format(**p)
+            ports += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Fixed IPs {fixed_ips}</td>\n'.format(**p)
         return template.format(servers=servers,
                                images=images,
                                ports=ports,
@@ -252,9 +263,9 @@ class GeneralResourceSearch(ResourceSearch):
         active_vms = [v for v in vms if v.status == 'ACTIVE']
         paused_vms = [v for v in vms if v.status == 'PAUSED']
         self.resources['active_flavors'] = {f.name: self._count_vms(f.id, active_vms) 
-                                                    for f in flavors 
+                                                    for f in flavors
                                                     if self._count_vms(f.id, active_vms) != 0}
-        self.resources['paused_flavors'] = {f.name: self._count_vms(f.id, paused_vms) 
+        self.resources['paused_flavors'] = {f.name: self._count_vms(f.id, paused_vms)
                                                     for f in flavors
                                                     if self._count_vms(f.id, paused_vms) != 0}
 
@@ -262,8 +273,8 @@ class GeneralResourceSearch(ResourceSearch):
                     + self.resources['paused_flavors'].keys()]
         total_usage = {
             k: self.resources['active_flavors'].get(k) or 0
-                + self.resources['paused_flavors'].get(k) or 0
-                for k in all_keys}
+               + self.resources['paused_flavors'].get(k) or 0
+               for k in all_keys}
         most_used = self._count_usage(total_usage)
         self.resources['most_used_flavors'] = most_used
         LOG.debug('Flavor usage statistic successfully collected')
@@ -301,11 +312,14 @@ class GeneralResourceSearch(ResourceSearch):
 
     def get_image_data(self):
         LOG.debug('Collecting image usage data')
+
         try:
             all_images = self.glanceclient.images.list()
         except Exception:
-            LOG.error('Failed obtain data from glance, report will be incomplete')
+            LOG.error('Failed obtain data from glance, '
+                      'report will be incomplete')
             return
+
         vms = self.novaclient.servers.list()
         used_size_id = [v.image['id'] for v in vms]
         used_size = [i for i in all_images if i.id in used_size_id]
@@ -361,7 +375,8 @@ class GeneralResourceSearch(ResourceSearch):
         return html
 
     def fill_the_template(self):
-        path = os.path.join(os.path.dirname(__file__), 'statistic_template.txt')
+        path = os.path.join(os.path.dirname(__file__),
+                            'statistic_template.txt')
         temp = open(path, 'r')
         template = temp.read()
         temp.close()

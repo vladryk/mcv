@@ -11,16 +11,16 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 import mock
 import unittest
 
-import accessor
-import plugins.speed.speed_tester as st
-import plugins.speed.runner as runner
+from mcv_consoler import accessor
+from mcv_consoler.common.cfgparser import config_parser
+import mcv_consoler.plugins.speed.runner as runner
 
-from common.cfgparser import config_parser
 
-class FakeReporter():
+class FakeReporter(object):
     html = 'fake-html'
     r_av = 'fake-r-speed'
     w_av = 'fake-w-speed'
@@ -36,13 +36,13 @@ class BaseTestCase(unittest.TestCase):
                                  "os_tenant_name": 'admin',
                                  "os_password": 'admin',
                                  "auth_endpoint_ip": '10.6.7.5',
-                                 "nailgun_host": '10.6.7.4',
-                                }
+                                 "nailgun_host": '10.6.7.4'}
 
     def setUp(self):
-        self.accessor = accessor.AccessSteward({'qwe':'fake'})
+        self.accessor = accessor.AccessSteward({'qwe': 'fake'})
         self.accessor.access_data = self.fake_access_data_template
         self.accessor.novaclient = mock.Mock()
+
 
 class TestSpeedRunner(BaseTestCase):
 
@@ -55,20 +55,29 @@ class TestSpeedRunner(BaseTestCase):
         run._it_ends_well('fake')
 
     def test_evaluate_result_pass(self):
-        fake_config=config_parser
+        fake_config = config_parser
         fake_config.add_section('speed')
-        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)
+        run = runner.SpeedTestRunner(self.accessor,
+                                     'fake-path',
+                                     config=fake_config)
+
         run._evaluate_task_results([80])
 
     def test_evaluate_result_fail(self):
-        fake_config=config_parser
+        fake_config = config_parser
         fake_config.add_section('speed')
         fake_config.set('speed', 'threshold', '11')
-        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config=fake_config)
+        run = runner.SpeedTestRunner(self.accessor,
+                                     'fake-path',
+                                     config=fake_config)
+
         res = run._evaluate_task_results([10])
         self.assertFalse(res)
 
     def test_wrong_task(self):
-        run = runner.SpeedTestRunner(self.accessor, 'fake-path', config={'fake': 'fake'})
+        run = runner.SpeedTestRunner(self.accessor,
+                                     'fake-path',
+                                     config={'fake': 'fake'})
+
         res = run.run_individual_task('fake-task')
         self.assertFalse(res)

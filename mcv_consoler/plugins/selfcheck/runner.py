@@ -12,10 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import plugins.runner as run
-from common.errors import BaseSelfCheckError
-from logger import LOG
-from plugins.selfcheck import selfcheck_tester as st
+import mcv_consoler.plugins.runner as run
+from mcv_consoler.common.errors import BaseSelfCheckError
+from mcv_consoler.logger import LOG
+from mcv_consoler.plugins.selfcheck import selfcheck_tester as st
 
 LOG = LOG.getLogger(__name__)
 

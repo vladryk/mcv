@@ -22,20 +22,18 @@ import sys
 import traceback
 from ConfigParser import NoSectionError
 
-import accessor
-import reporter
-import utils
-from common.cfgparser import config_parser
-from common.config import DEFAULT_CONFIG_FILE
-from common.errors import CAError, ComplexError
-from logger import LOG
+from mcv_consoler import accessor
+from mcv_consoler import reporter
+from mcv_consoler import utils
+from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
+from mcv_consoler.common.errors import CAError, ComplexError
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
 
 class Consoler(object):
-    """Consoles poor user when her stack is not working as expected"""
-
     def __init__(self, parser, args):
         self.config = config_parser
         self.parser = parser
@@ -174,7 +172,7 @@ class Consoler(object):
         self.results_vault = "/tmp/mcv_run_" + str(datetime.datetime.utcnow()).replace(" ","_")
         os.mkdir(self.results_vault)
 
-        f = open(os.path.join(os.path.dirname(__file__), 'times.json'), 'r')
+        f = open('/etc/mcv/times.json', 'r')
         db = json.loads(f.read())
         elapsed_time_by_group = dict()
         f.close()
@@ -200,8 +198,7 @@ class Consoler(object):
                 break
             if self.config.get('times', 'update') == 'True':
                 elapsed_time_by_group[key] = 0
-                f = open(os.path.join(os.path.dirname(__file__),
-                         'times.json'), 'r')
+                f = open('/etc/mcvtimes.json', 'r')
                 db = json.loads(f.read())
                 f.close()
 

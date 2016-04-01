@@ -14,23 +14,26 @@
 
 
 from ConfigParser import NoOptionError
-from common.config import DEBUG
-from common import clients as Clients
 import operator
 import re
 import socket
 import subprocess
 import time
+
 import paramiko
 from paramiko import client
+
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
 
 from novaclient import exceptions as nexc
 
-import utils
+from mcv_consoler.common import clients as Clients
+from mcv_consoler.common.config import DEBUG
+from mcv_consoler.logger import LOG
+from mcv_consoler import utils
 
-from logger import LOG
+
 LOG = LOG.getLogger(__name__)
 
 image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
@@ -66,7 +69,7 @@ class AccessSteward(object):
                             "nailgun_host": None,
                             "region_name": None,
                             "cluster_id": None,
-                            "auth_fqdn": None,}
+                            "auth_fqdn": None}
 
         self.config = config
         for key in self.access_data.keys():
@@ -79,7 +82,7 @@ class AccessSteward(object):
         self.novaclient = None
         self.keystoneclient = None
 
-        #@albartash: hard hack
+        # @albartash: hard hack
         self.os_data = {'username': self.access_data['os_username'],
                         'password': self.access_data['os_password'],
                         'tenant_name': self.access_data['os_tenant_name'],

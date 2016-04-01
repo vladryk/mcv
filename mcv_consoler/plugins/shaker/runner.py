@@ -12,20 +12,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-import subprocess
-import shlex
-import os.path
-import json
-import utils
 from ConfigParser import NoOptionError
+import json
+import os
+import shlex
+import subprocess
 
-from common import clients as Clients
-from common.cfgparser import config_parser
-from common.errors import ShakerError
-from common.errors import SpeedError
-from logger import LOG
-from plugins import runner
+from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.common import clients as Clients
+from mcv_consoler.common.errors import ShakerError
+from mcv_consoler.common.errors import SpeedError
+from mcv_consoler.logger import LOG
+from mcv_consoler.plugins import runner
+from mcv_consoler import utils
 
 nevermind = None
 
@@ -41,8 +40,11 @@ class ShakerRunner(runner.Runner):
         super(ShakerRunner, self).__init__()
         self.identity = "shaker"
         self.config_section = "shaker"
-        self.test_failures = []  # this object is supposed to live for one run
-                                 # so let's leave it as is for now.
+
+        # this object is supposed to live for one run
+        # so let's leave it as is for now.
+        self.test_failures = []
+
         self.failure_indicator = ShakerError.NO_RUNNER_ERROR
         self.homedir = '/home/mcv/toolbox/shaker'
         self.home = '/mcv'
@@ -190,18 +192,19 @@ class ShakerOnDockerRunner(ShakerRunner):
             add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +\
                        ":" + self.accessor.access_data["auth_endpoint_ip"]
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+        res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
                                [add_host]*(add_host != "") +
             ["-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
-            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.accessor.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
-            "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
-            "-t", "mcv-shaker"], stdout=subprocess.PIPE,
+             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+             "-e", "OS_TENANT_NAME=" +
+             self.accessor.access_data["os_tenant_name"],
+             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+             "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
+             "-t", "mcv-shaker"],
+            stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _setup_shaker_on_docker(self):
@@ -248,9 +251,10 @@ class ShakerOnDockerRunner(ShakerRunner):
               "%s:5999 --agent-join-timeout 3600 --scenario " \
               "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
               " --debug --output %s.out --report-template json --report " \
-              "%s.json --log-file %s/log/shaker.log" % (self.container, timeout,
-                           self.accessor.access_data["instance_ip"],
-                           task, task, task, self.home)
+              "%s.json --log-file %s/log/shaker.log" % (self.container,
+                  timeout,
+                  self.accessor.access_data["instance_ip"],
+                  sk, task, task, self.home)
 
         proc = subprocess.Popen(shlex.split(cmd + insecure),
                                 stdout=subprocess.PIPE,
@@ -267,8 +271,8 @@ class ShakerOnDockerRunner(ShakerRunner):
                     stack.delete()
             return []
 
-        cmd = "docker exec -t %s shaker-report --input %s.out --report " \
-         "%s.html" % (self.container, task, task)
+        cmd = ("docker exec -t %s shaker-report --input %s.out --report "
+               "%s.html") % (self.container, task, task)
         p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.json {path}".format(
@@ -340,7 +344,6 @@ class ShakerOnDockerRunner(ShakerRunner):
             except KeyError:
                 pass
 
-        nodes = set()
         agents = []
 
         for i in report['agents']:
@@ -354,7 +357,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 tmp.add(slave_node)
                 spd = speeds_dict[master_node] / 1024.0
 
-                agents.append({ "speed": spd, "node": tmp })
+                agents.append({"speed": spd, "node": tmp})
 
         success = True & (len(speeds) > 0)
 
@@ -382,6 +385,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             status = error
 
         return test_case, speeds, agents, success, status
+
 
     def _generate_one_row_report(self, result, task, threshold):
         template = """
@@ -435,7 +439,8 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _generate_report_network_speed(self, threshold, task, output):
         LOG.info('Generating report for network_speed tests')
 
-        path = os.path.join(os.path.dirname(__file__), 'network_speed_template.html')
+        path = os.path.join(os.path.dirname(__file__),
+                            'network_speed_template.html')
         temp = open(path, 'r')
         template = temp.read()
         temp.close()
@@ -474,11 +479,12 @@ class ShakerOnDockerRunner(ShakerRunner):
                 if not check:
                     self.clear_shaker_image()
                     self.test_failures.append(task)
-                    LOG.debug("Task %s has failed with %s" % (task, task_result))
+                    LOG.debug("Task {task} has failed with {res}".format(
+                                  task=task, res=task_result))
                     return False
 
                 row, report_status = self._generate_one_row_report(task_result,
-                    internal_task, threshold)
+                                         internal_task, threshold)
                 output += row
                 success &= report_status
             self._generate_report_network_speed(threshold, task, output)

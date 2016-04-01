@@ -12,18 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import consoler
 import fcntl
 import sys
-import time
 import threading
+import time
+
 import traceback
 
-from logger import LOG
-
-from common.cfgparser import config_parser
-from common.cmd import argparser
-from common.errors import CAError
+from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.common.cmd import argparser
+from mcv_consoler.common.errors import CAError
+from mcv_consoler import consoler
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -41,6 +41,7 @@ config = config_parser
 lockfile = open("/var/lock/consoler", "w")
 
 args = argparser.parse_args()
+
 
 def main():
     if not acquire_lock():

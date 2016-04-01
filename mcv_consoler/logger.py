@@ -11,17 +11,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import os
+
 import logging
 import logging.config
 
-"""Here be thefunctions to run logging."""
-# TODO: this starts looking ugly, should  be fixed whenever there is a
-# a chance to do it.
-
 
 def _get_logger():
-    lc = os.path.join(os.path.dirname(__file__), 'etc/logging.conf')
+    lc = '/etc/mcv/logging.conf'
     logging.config.fileConfig(lc)
 
     # This is somewhat radical way to shut up paramiko

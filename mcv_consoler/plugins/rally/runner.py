@@ -12,19 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import json
 import os.path
 import re
 import subprocess
-from plugins import runner
 import time
-import utils
 
-from common import clients as Clients
-from common.cfgparser import config_parser
-from common.errors import RallyError
-from logger import LOG
+from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.common import clients as Clients
+from mcv_consoler.common.errors import RallyError
+from mcv_consoler.logger import LOG
+from mcv_consoler.plugins import runner
+from mcv_consoler import utils
 
 nevermind = None
 
@@ -211,15 +210,15 @@ class RallyOnDockerRunner(RallyRunner):
         res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
             [add_host]*(add_host != "") +
             ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
-            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.accessor.access_data["os_tenant_name"],
-            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
-            "-v", self.homedir+":"+self.home, "-w", self.home,
-            "-t", "mcv-rally"], stdout=subprocess.PIPE,
+             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
+             "-e", "OS_TENANT_NAME=" +
+             self.accessor.access_data["os_tenant_name"],
+             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-v", self.homedir+":"+self.home, "-w", self.home,
+             "-t", "mcv-rally"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting Rally container. Result: {result}'.format(
@@ -284,13 +283,14 @@ class RallyOnDockerRunner(RallyRunner):
 
     def create_rally_json(self):
         auth_protocol = self.config.get("basic", "auth_protocol")
+        insecure = "true" if auth_protocol == "https" else "false"
         credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
                        "region": self.accessor.access_data["region_name"],
                        "uname": self.accessor.access_data["os_username"],
                        "upass": self.accessor.access_data["os_password"],
                        "uten": self.accessor.access_data["os_tenant_name"],
                        "auth_protocol": auth_protocol,
-                       "insecure": "true" if auth_protocol == "https" else "false"}
+                       "insecure": insecure}
         f = open(os.path.join(self.homedir, "conf", "existing.json"), "w")
         f.write(rally_json_template % credentials)
         f.close()
@@ -315,14 +315,14 @@ class RallyOnDockerRunner(RallyRunner):
                                     "--name=existing"],
                                    stdout=subprocess.PIPE,
                                    preexec_fn=utils.ignore_sigint
-                                  ).stdout.read()
+                                   ).stdout.read()
         else:
             LOG.debug("Seems like it is present.")
 
         LOG.debug('Trying to use Rally deployment')
         cmd = ("docker exec -t {cid} "
                "sudo rally deployment use existing").format(
-               cid=self.container_id)
+                   cid=self.container_id)
         LOG.debug('Run "{cmd}"'.format(cmd=cmd))
         p = utils.run_cmd(cmd)
         LOG.debug('Result: {res}'.format(res=p))
@@ -354,8 +354,8 @@ class RallyOnDockerRunner(RallyRunner):
         args["flavor_name"] = "m1.tiny"
         args["image_name"] = "^(cirros.*uec|TestVM)$"
         args["glance_image_location"] = ""
-        args["service_list"] = self.config.get('certification', 'services'
-                                              ).split(',')
+        args["service_list"] = self.config.get('certification',
+                                               'services').split(',')
         return args
 
     def prepare_workload_task(self):
@@ -397,10 +397,10 @@ class RallyOnDockerRunner(RallyRunner):
                    " task start"
                    " {location}/workload.yaml"
                    " --task-args '{task_args}'").format(
-                      home = self.home,
-                      container=self.container_id,
-                      location=os.path.join(self.home, "tests"),
-                      task_args=json.dumps(task_args))
+                       home=self.home,
+                       container=self.container_id,
+                       location=os.path.join(self.home, "tests"),
+                       task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
             cmd = "docker exec -t %(container)s sudo rally"\

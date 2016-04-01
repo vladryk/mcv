@@ -12,10 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import plugins.runner as run
-from plugins.resources import resource_reporter as resources
-from common.errors import ResourceError
-from logger import LOG
+import mcv_consoler.plugins.runner as run
+from mcv_consoler.common.errors import ResourceError
+from mcv_consoler.plugins.resources import resource_reporter as resources
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -47,7 +47,9 @@ class ResourceReportRunner(run.Runner):
                                                            **kwargs)
 
     def generate_report(self, html, task):
-        # Append last run to existing file for now. Not sure how to fix this properly
+        # Append last run to existing file for now.
+        # Not sure how to fix this properly
+
         LOG.debug('Generating report in resources.html file')
         report = file('%s/%s.html' % (self.path, task), 'w')
         report.write(html)
@@ -55,7 +57,7 @@ class ResourceReportRunner(run.Runner):
 
     def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
-        LOG.debug('Start generating %s' %task)
+        LOG.debug('Start generating %s' % task)
         reporter_class = getattr(resources, task)
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')

@@ -12,20 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import contextlib
 import copy
 import functools
-import operator
-import time
 import mock
-import unittest
+import operator
 import StringIO
 import sys
+import unittest
 
+from mcv_consoler import accessor
+from mcv_consoler.common.cfgparser import config_parser
 
-import accessor
-from common.cfgparser import config_parser
 
 def input_diverter(f, *args, **kwargs):
     @functools.wraps(f)
@@ -55,11 +53,10 @@ class test_AccessSteward(unittest.TestCase):
                                  "os_tenant_name": 'admin',
                                  "os_password": 'admin',
                                  "auth_endpoint_ip": '10.6.7.5',
-                                 "nailgun_host": '10.6.7.4',
-                                }
+                                 "nailgun_host": '10.6.7.4'}
 
     def setUp(self):
-        self.fake_config=config_parser
+        self.fake_config = config_parser
         self.fake_config.add_section('basic')
         self.accessor = accessor.AccessSteward(self.fake_config)
         self.accessor.novaclient = mock.Mock()
@@ -75,7 +72,7 @@ class test_AccessSteward(unittest.TestCase):
 
     @input_diverter
     def test_request_ip_mistake(self):
-        gen = (x for x in (None, '272.16.57.41','172.16.57.41'))
+        gen = (x for x in (None, '272.16.57.41', '172.16.57.41'))
         gen.send(None)
         # this should be redone with sideeffects
         __builtins__['raw_input'] = gen.send
@@ -91,7 +88,7 @@ class test_AccessSteward(unittest.TestCase):
         req_methods = filter(lambda x: x.startswith("_request"),
                              dir(self.accessor))
         req_methods.remove("_request_ip")
-        mmocker = lambda x: mock.patch.object(self.accessor,x)
+        mmocker = lambda x: mock.patch.object(self.accessor, x)
         fad = copy.deepcopy(self.fake_access_data_template)
         self.accessor.access_data = fad
         with contextlib.nested(*map(mmocker, req_methods)) as requests:
@@ -101,7 +98,7 @@ class test_AccessSteward(unittest.TestCase):
 
     @mock.patch('accessor.LOG')
     def test_check_and_fix_floating_ips_enough(self, mock_logging):
-        #self.accessor.novaclient.floating_ips = mock.Mock()
+        # self.accessor.novaclient.floating_ips = mock.Mock()
         self.accessor.novaclient.floating_ips.list.return_value =\
             ['10.0.0.2', '10.0.0.3', '10.0.0.4']
         self.accessor.check_and_fix_floating_ips()
@@ -111,7 +108,7 @@ class test_AccessSteward(unittest.TestCase):
     def test_check_and_fix_floating_ips_not_enough(self, mock_logging):
         self.accessor.novaclient.floating_ips = mock.Mock()
         self.accessor.novaclient.floating_ips.list.side_effect = \
-            [['10.0.0.7'],['10.0.0.7', '10.0.0.8']]
+            [['10.0.0.7'], ['10.0.0.7', '10.0.0.8']]
 
         self.accessor.check_and_fix_floating_ips()
         self.assertTrue(mock_logging.info.called)
@@ -120,24 +117,17 @@ class test_AccessSteward(unittest.TestCase):
     def test_check_and_fix_floating_ips_never_enough(self, mock_logging):
         self.accessor.novaclient.floating_ips = mock.Mock()
         self.accessor.novaclient.floating_ips.list.return_value = ['10.0.0.5']
-        self.accessor.novaclient.floating_ips.create.side_effect = Exception('NO.')
+        self.accessor.novaclient.floating_ips.create.side_effect = Exception(
+            'NO.')
 
         self.accessor.check_and_fix_floating_ips()
         self.assertTrue(mock_logging.warning.called)
 
-
-
     @mock.patch('accessor.LOG')
     def test_check_mcv_secgroup_there(self, mock_logging):
         self.accessor.novaclient.security_groups = mock.Mock()
-        a=type('foo', (object,), {})
-        a.name='mcv-special-group'
-        b=[a, a]
+        a = type('foo', (object,), {})
+        a.name = 'mcv-special-group'
+        b = [a, a]
         self.accessor.novaclient.security_groups.list.return_value = b
         self.assertEqual(self.accessor.check_mcv_secgroup(), None)
-        #
-
-
-
-
-

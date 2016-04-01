@@ -11,15 +11,15 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 import json
-import logging
 import math
 import os
 import paramiko
 import time
 
-from common import clients as Clients
-from logger import LOG
+from mcv_consoler.common import clients as Clients
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class BaseStorageSpeed(object):
         w_average = round(sum(w_res) / float(len(w_res)), 2)
         write = ''
         for i in range(len(w_res)):
-            write +=('<tr><td>{} attempt:</td><td align="right">Speed '
-                     '{} MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
+            write += ('<tr><td>{} attempt:</td><td align="right">Speed '
+                      '{} MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
 
         LOG.info("Compute %s average results:" % compute_name)
         LOG.info("Read %s MB/s" % r_average)
@@ -86,7 +86,7 @@ class BaseStorageSpeed(object):
                 self.client.connect(username=username, password=password)
                 conn = True
                 break
-            except paramiko.SSHException as e:
+            except paramiko.SSHException:
                 LOG.info('Waiting for test VM became available')
             time.sleep(10)
         if conn:
@@ -136,6 +136,7 @@ class BaseStorageSpeed(object):
             size = 1024
         return size
 
+
 def block_measure_dec(measure):
     def wrapper(self, m_type='default'):
         if m_type == 'thr':
@@ -152,6 +153,7 @@ def block_measure_dec(measure):
         ret = measure(self, bs, count)
         return time.time() - start_time if not ret else 0
     return wrapper
+
 
 class BlockStorageSpeed(BaseStorageSpeed):
 
@@ -243,13 +245,15 @@ class BlockStorageSpeed(BaseStorageSpeed):
         read_thr = ''
         for i in range(len(r_res_thr)):
             read_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i+1, round(r_res_thr[i], 2))
+                         ' MB/s</td><tr>\n').format(i+1,
+                                                    round(r_res_thr[i], 2))
         w_res_thr = [float(self.thr_size) / i for i in w_res_thr]
         w_average_thr = round(sum(w_res_thr) / float(len(w_res_thr)), 2)
         write_thr = ''
         for i in range(len(w_res_thr)):
             write_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                          'MB/s</td><tr>\n').format(i+1, round(w_res_thr[i], 2))
+                          'MB/s</td><tr>\n').format(i+1,
+                                                    round(w_res_thr[i], 2))
 
         # IOPs
         r_res_iop = [float(self.size) / i for i in r_res_iop]
@@ -257,13 +261,15 @@ class BlockStorageSpeed(BaseStorageSpeed):
         read_iop = ''
         for i in range(len(r_res_iop)):
             read_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i+1, round(r_res_iop[i], 2))
+                         ' MB/s</td><tr>\n').format(i+1,
+                                                    round(r_res_iop[i], 2))
         w_res_iop = [float(self.size) / i for i in w_res_iop]
         w_average_iop = round(sum(w_res_iop) / float(len(w_res_iop)), 2)
         write_iop = ''
         for i in range(len(w_res_iop)):
             write_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                          ' MB/s</td><tr>\n').format(i+1, round(w_res_iop[i], 2))
+                          ' MB/s</td><tr>\n').format(i+1,
+                                                     round(w_res_iop[i], 2))
 
         # Average
         r_res_all = r_res + r_res_thr + r_res_iop
@@ -356,11 +362,16 @@ class BlockStorageSpeed(BaseStorageSpeed):
     def cleanup(self, node_id):
         LOG.debug('Start cleanup resources')
         vm, ip = self.get_test_vm(node_id)
+
         try:
-            res = self.run_ssh_cmd('umount /mnt/testvolume')
-            res = self.run_ssh_cmd('rm -rf /mnt/testvolume')
+            cmds = ['umount /mnt/testvolume', 'rm -rf /mnt/testvolume']
+            for cmd in cmds:
+                LOG.debug('Executing command: %s' % cmd)
+                res = self.run_ssh_cmd(cmd)
+                LOG.debug('RESULT: %s' % str(res))
         except OSError:
             LOG.error('Unmounting volume failed')
+
         self.client.close()
         self.novaclient.volumes.delete_server_volume(vm.id, self.vol.id)
         LOG.debug('Waiting for volume became available')
@@ -375,6 +386,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
             LOG.error('Deleting test volume failed')
         LOG.debug('Cleanup finished')
 
+
 def object_measure_dec(measure):
     def wrapper(self, image_id=None, token=None):
         if image_id is None:
@@ -387,6 +399,7 @@ def object_measure_dec(measure):
         measure(self, image_id, token)
         return time.time() - start_time
     return wrapper
+
 
 class ObjectStorageSpeed(BaseStorageSpeed):
 

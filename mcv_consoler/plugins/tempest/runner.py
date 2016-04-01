@@ -18,12 +18,13 @@ import subprocess
 import json
 import glob
 import os.path
-import utils
 from ConfigParser import NoOptionError
 
-from common.errors import TempestError
-from plugins.rally import runner as rrunner
-from logger import LOG
+from mcv_consoler.common.errors import TempestError
+from mcv_consoler.plugins.rally import runner as rrunner
+from mcv_consoler.logger import LOG
+from mcv_consoler import utils
+
 
 LOG = LOG.getLogger(__name__)
 
@@ -268,11 +269,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             if self.failed_cases > max_failed_tests:
                 self.total_checks = len(t)
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                self.failure_indicator = TempestError.FAILED_LIMIT_TEST_EXCESS
+                self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
                 break
 
         if self.config.get('times', 'update') == 'True':
-            f = file("/opt/mcv-consoler/times.json", "w")
+            f = file("/etc/mcv/times.json", "w")
             f.write(json.dumps(db))
             f.close()
 

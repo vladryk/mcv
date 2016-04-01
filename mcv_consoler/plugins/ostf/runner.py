@@ -12,17 +12,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import json
-import re
-import os
-import subprocess
 from ConfigParser import NoOptionError
+import json
+import os
+import re
+import subprocess
 
-from plugins import runner
-from plugins.ostf.reporter import Reporter
-from common.errors import OSTFError
-from logger import LOG
-import utils
+from mcv_consoler.common.errors import OSTFError
+from mcv_consoler.logger import LOG
+from mcv_consoler.plugins.ostf.reporter import Reporter
+from mcv_consoler.plugins import runner
+from mcv_consoler import utils
 
 nevermind = None
 
@@ -37,8 +37,11 @@ class OSTFOnDockerRunner(runner.Runner):
         self.path = path
         self.identity = "ostf"
         self.config_section = "ostf"
-        self.test_failures = []  # this object is supposed to live for one run
-                                 # so let's leave it as is for now.
+
+        # this object is supposed to live for one run
+        # so let's leave it as is for now.
+        self.test_failures = []
+
         self.success = []
         self.failures = []
         self.not_found = []
@@ -58,7 +61,7 @@ class OSTFOnDockerRunner(runner.Runner):
         except NoOptionError:
             self.max_failed_tests = int(self.config.get('basic',
                                                         'max_failed_tests'))
-            #TODO(albartash): we need to replace it with SafeConfigParser,
+            # TODO(albartash): we need to replace it with SafeConfigParser,
             # as it will provide additional health against NoOptionError for
             # option in 'basic' section
 
@@ -75,7 +78,7 @@ class OSTFOnDockerRunner(runner.Runner):
     def start_container(self):
         LOG.debug("Bringing up OSTF container with credentials")
         mos_version = self.config.get(self.config_section, "version")
-        #@TODO(albartash): Remove tname when migrating to single ostf
+        # @TODO(albartash): Remove tname when migrating to single ostf
         # container!
         if mos_version == "6.1":
             cname = "mcv-ostf61"
@@ -92,6 +95,7 @@ class OSTFOnDockerRunner(runner.Runner):
         # OSTF report correctly. Must be removed when migrating to a single
         # container!!!
         self.homedir = '/home/mcv/toolbox/' + tname
+        self.home = '/mcv/' + tname
 
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
@@ -225,7 +229,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
             map(fix_suite, results)
 
-            #@TODO(albartash): Replace path to folder when we have a single
+            # @TODO(albartash): Replace path to folder when we have a single
             # place for templates!
             folder = os.path.dirname(__file__)
             reporter = Reporter(folder)

@@ -14,8 +14,10 @@
 
 import argparse
 
-from common.config import PROJECT_DESCRIPTION, PROJECT_NAME, RUN_DESCRIPTION
-from version import version
+from mcv_consoler.common.config import PROJECT_DESCRIPTION
+from mcv_consoler.common.config import PROJECT_NAME
+from mcv_consoler.common.config import RUN_DESCRIPTION
+from mcv_consoler.version import version
 
 
 def _get_parser():

@@ -12,15 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import traceback
-import os.path
 from ConfigParser import NoOptionError
-from common.errors import SpeedError
+import os.path
+import traceback
 
-import plugins.runner as run
-from plugins.speed.prepare_instance import Preparer
-from plugins.speed import speed_tester as st
-from logger import LOG
+from mcv_consoler.common.errors import SpeedError
+from mcv_consoler.logger import LOG
+import mcv_consoler.plugins.runner as run
+from mcv_consoler.plugins.speed.prepare_instance import Preparer
+from mcv_consoler.plugins.speed import speed_tester as st
 
 LOG = LOG.getLogger(__name__)
 

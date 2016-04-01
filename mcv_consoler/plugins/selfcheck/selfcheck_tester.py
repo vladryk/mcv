@@ -14,8 +14,8 @@
 
 import os
 
-from common.errors import BaseSelfCheckError
-from logger import LOG
+from mcv_consoler.common.errors import BaseSelfCheckError
+from mcv_consoler.logger import LOG
 
 LOG = LOG.getLogger(__name__)
 

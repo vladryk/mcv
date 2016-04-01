@@ -12,19 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ConfigParser import NoOptionError
 import datetime
 import json
-import subprocess
 import os
 import re
+import subprocess
 import time
-import utils
-from ConfigParser import NoOptionError
 
-from common.errors import CAError
-from logger import LOG
+from mcv_consoler.common.errors import CAError
+from mcv_consoler.logger import LOG
+from mcv_consoler import utils
 
-# Base class for runners should be placed here.
 
 nevermind = None
 
@@ -44,13 +43,13 @@ class Runner(object):
         raise NotImplementedError
 
     def scenario_is_fine(self, scenario):
-        #I am totally usure if it is needed to check for file existence
-        #as it is sort of a bad idea to expect that there is an issue in
-        #a pre-build tool. however as we provide an end-user with ability
-        #to change settings we may run into a typo in a config.
-        #probably each line retrieved from a config should be checked for
-        #sanity as typos manage to creep in and ruin everything. however
-        #that is a daunting task so probably not every single line.
+        # I am totally usure if it is needed to check for file existence
+        # as it is sort of a bad idea to expect that there is an issue in
+        # a pre-build tool. however as we provide an end-user with ability
+        # to change settings we may run into a typo in a config.
+        # probably each line retrieved from a config should be checked for
+        # sanity as typos manage to creep in and ruin everything. however
+        # that is a daunting task so probably not every single line.
         # very basic test for scenario correctness. It is assumed that
         # scenarios shipped with the tool are okay and are working. However
         # a typo might crawl in and cause a malfunction.
@@ -226,12 +225,12 @@ class Runner(object):
                 break
 
         if self.config.get('times', 'update') == 'True':
-            f = file("/opt/mcv-consoler/times.json", "w")
+            f = file("/etc/mcv/times.json", "w")
             f.write(json.dumps(db))
             f.close()
 
-        return {"test_failures": self.test_failures, 
-                "test_success": self.test_success, 
+        return {"test_failures": self.test_failures,
+                "test_success": self.test_success,
                 "test_not_found": self.test_not_found}
 
     def _evaluate_task_results(self, task_results):
