@@ -248,7 +248,7 @@ class RallyOnDockerRunner(RallyRunner):
               % (self.container_id, siege_path)
         # TODO(who?): Found out how to pass re through sed
         template_path = os.path.join(self.home,
-                                     '/tests/templates/wp_instances.yaml')
+                                     'tests/templates/wp_instances.yaml')
 
         LOG.debug('Start patching hosts')
         cmd = """docker exec -t %s sudo sed -i "61s/.*/            sudo sh -c 'echo %s %s >> \/etc\/hosts'/" %s""" % \

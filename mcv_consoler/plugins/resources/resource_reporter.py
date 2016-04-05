@@ -275,6 +275,7 @@ class GeneralResourceSearch(ResourceSearch):
             k: self.resources['active_flavors'].get(k) or 0
                + self.resources['paused_flavors'].get(k) or 0
                for k in all_keys}
+
         most_used = self._count_usage(total_usage)
         self.resources['most_used_flavors'] = most_used
         LOG.debug('Flavor usage statistic successfully collected')
@@ -284,7 +285,8 @@ class GeneralResourceSearch(ResourceSearch):
         try:
             volumes = self.cinderclient.volumes.list()
         except Exception:
-            LOG.error('Failed connect to the cinder, report will be incomplete')
+            LOG.error('Failed connect to the cinder, '
+                      'report will be incomplete')
             return
         for v in volumes:
             if v.status == 'in-use':
@@ -340,7 +342,8 @@ class GeneralResourceSearch(ResourceSearch):
         all_images = self.glanceclient.images.list()
         full_size = sum([i.size for i in all_images])
         if full_size:
-            unused = sum(self.resources['images'].itervalues()) * 100 / full_size
+            unused = sum(self.resources['images'].itervalues()
+                         ) * 100 / full_size
         else:
             unused = 100
         self.resources['unused'] = '%d%%' % unused
@@ -357,12 +360,15 @@ class GeneralResourceSearch(ResourceSearch):
         routers = self.neutronclient.list_routers()['routers']
         self.resources['routers'] = len(routers)
         all_agents = self.neutronclient.list_agents()['agents']
-        dhcp_agents = [a for a in all_agents if a['agent_type'] == 'DHCP agent']
+        dhcp_agents = [a for a in all_agents \
+                       if a['agent_type'] == 'DHCP agent']
+
         subnets = sum(a['configurations']['subnets'] for a in dhcp_agents)
         self.resources['subnets'] = subnets
         floating_ips = self.neutronclient.list_floatingips()['floatingips']
         unattached = [ip for ip in floating_ips if not ip['tenant_id']]
-        unassociated = [ip for ip in floating_ips if not ip['port_id'] and not ip in unattached]
+        unassociated = [ip for ip in floating_ips if not ip['port_id'] and\
+                                                     ip not in unattached]
         self.resources['unassociated_ips'] = len(unassociated)
         self.resources['unattached_ips'] = len(unattached)
 

@@ -93,7 +93,9 @@ class SpeedTestRunner(run.Runner):
     def run_batch(self, tasks, *args, **kwargs):
         try:
             self.node_ids = self._prepare_vms()
-            res = super(SpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
+            res = super(SpeedTestRunner, self).run_batch(tasks,
+                                                         *args,
+                                                         **kwargs)
             return res
         except RuntimeError:
             LOG.error('Environment preparation error')

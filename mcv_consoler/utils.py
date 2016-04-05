@@ -15,12 +15,16 @@
 import signal
 import subprocess
 
+from mcv_consoler.logger import LOG
 
 def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def run_cmd(cmd):
-    return subprocess.check_output(cmd,
-                                   shell=True,
-                                   stderr=subprocess.STDOUT,
-                                   preexec_fn=ignore_sigint)
+    LOG.debug('Executing command: "%s"' % cmd)
+    result = subprocess.check_output(cmd,
+                                     shell=True,
+                                     stderr=subprocess.STDOUT,
+                                     preexec_fn=ignore_sigint)
+    LOG.debug('RESULT: "%s"' % result)
+    return result

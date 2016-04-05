@@ -1,0 +1,37 @@
+<html>
+<head>
+    <title>OSTF report</title>
+    <style>
+    <!--
+    .Passed
+    {
+        color: #00FF00;
+    }
+
+    .Failed
+    {
+        color: #FF0000;
+    }
+    -->
+    </style>
+</head>
+<body>
+<h1>OSTF report</h1>
+<table>
+<tr>
+    <th>Suite</th>
+    <th>Description</th>
+    <th>Duration</th>
+    <th>Result</th>
+</tr>
+{% for report in reports %}
+<tr>
+    <td>{{ report.suite }}</td>
+    <td>{{ report.test }}</td>
+    <td>{{ report.duration }}</td>
+    <td class="{{ report.result }}">{{ report.result }}</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

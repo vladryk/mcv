@@ -290,7 +290,7 @@ class AccessSteward(object):
         if stdout.read().find("MCV_tunnel") == -1:
             LOG.debug("There is no rule in controller's iptables "
                       "for proper forwarding! Have to add one")
-            ssh.exec_command( mk_rule)
+            ssh.exec_command(mk_rule)
         else:
             LOG.debug("Controller's iptables rule seems to be in place")
 

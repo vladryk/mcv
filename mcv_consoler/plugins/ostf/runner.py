@@ -95,7 +95,7 @@ class OSTFOnDockerRunner(runner.Runner):
         # OSTF report correctly. Must be removed when migrating to a single
         # container!!!
         self.homedir = '/home/mcv/toolbox/' + tname
-        self.home = '/mcv/' + tname
+        self.home = '/mcv/'
 
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
@@ -229,10 +229,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
             map(fix_suite, results)
 
-            # @TODO(albartash): Replace path to folder when we have a single
-            # place for templates!
-            folder = os.path.dirname(__file__)
-            reporter = Reporter(folder)
+            reporter = Reporter(os.path.dirname(__file__))
             reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
                                  'ostf_template.html', {'reports': results})
 

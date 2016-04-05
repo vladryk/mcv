@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ConfigParser import NoSectionError
 import datetime
 import imp
 import inspect
@@ -20,15 +21,15 @@ import os
 import subprocess
 import sys
 import traceback
-from ConfigParser import NoSectionError
 
 from mcv_consoler import accessor
-from mcv_consoler import reporter
-from mcv_consoler import utils
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
-from mcv_consoler.common.errors import CAError, ComplexError
+from mcv_consoler.common.errors import CAError
+from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.logger import LOG
+from mcv_consoler import reporter
+from mcv_consoler import utils
 
 LOG = LOG.getLogger(__name__)
 
@@ -51,7 +52,8 @@ class Consoler(object):
         try:
             self.config.options(section)
         except NoSectionError:
-            LOG.warning("Test group %s doesn't seem to exist in config!" % test_group)
+            LOG.warning(("Test group {group} doesn't seem to exist "
+                         "in config!").format(group=test_group))
             return {}
 
         out = dict([(opt, self.config.get(section, opt)) for opt in
@@ -68,49 +70,18 @@ class Consoler(object):
         self.config.read(self.path_to_config)
 
     def do_custom(self, test_group):
-        """Run custom test set.
-
-        Custom test list should be stored in /etc/cloud_validator/mcv.conf.
-        Test should be placed in sections named [custom_test_group_<groupname>]
-        Two sections exist by default: [custom_test_group_default] which gets
-        called each time custom does not get any parameter and another section
-        [custom_test_group_short] which contains the most essential tests per
-        average cloud operator opinion.
-        Tool-specific tests should be described as follows:
-        <tool1_name>=<testscenario1>,<testscenario2>,...
-        <tool2_name>=<testscenario1>,<testscenario2>,...
-        the test scenarios are supposed to be stored in corresponding place
-        in MCVpackage. Each test scenraio is supposed to be stored in a separate
-        file, also in some cases tests must be grouped together. This should be
-        done per test tool. Arbitrary number of sections is allowed to be present
-        in a config file. In case several custom groups have identical names
-        the last will be used.
-        """
         def pretty_print_tests(tests):
-            LOG.info("The following amount of tests is requested per available tools:")
+            LOG.info("Amount of tests requested per available tools:")
             for group, test_list in tests.iteritems():
                 LOG.info(" %s : %s", group, len(test_list.split(',')))
             LOG.info('\n')
 
-        if test_group == 'default':
-            LOG.info("Either no group has been explicitly requested or it was group 'default'.")
-
-        # NOTE: this cludge is used to prevent accidental production cloud
-        # destruction and relies solely on group name. It is not bulletproof as
-        # anyone could create loading group with a wrong name and easily break
-        # everything up.
-
-        if test_group.find('load') != -1 and test_group.find('workload') == -1:
-            if self.config.get('rally', 'rally_load') != 'True':
-                LOG.info("WARNING! Load test suit contains rally load tests. These tests may "
-                         "break your cloud. So, please set rally_load=True manually in mcv.conf ")
-                return None
         tests_to_run = self.prepare_tests(test_group)
         if tests_to_run is None:
             return None
-        # tests_to_run is a dictionary that looks like this:
-        # {'rally':'test1,test2,test3', 'ostf':'test1,test2', 'wtf':'test8'}
+
         pretty_print_tests(tests_to_run)
+
         if test_group.find('scale') != -1:
             return self.do_scale(tests_to_run)
         return self.dispatch_tests_to_runners(tests_to_run)
@@ -119,12 +90,6 @@ class Consoler(object):
         LOG.info("Starting scale check run.")
         self.concurrency = self.config.get('scale', 'concurrency')
         return self.dispatch_tests_to_runners(tests_to_run)
-
-    def do_short(self):
-        """Run the most essential tests.
-        """
-        # [custom_test_group_short]
-        return self.do_custom("short")
 
     def do_single(self, test_group, test_name):
         """Run specific test.
@@ -135,9 +100,7 @@ class Consoler(object):
         return self.dispatch_tests_to_runners(the_one)
 
     def discover_test_suits(self):
-        """Discovers tests in default location.
-        """
-        # TODO: generalize discovery
+        # TODO(aovchinnikov): generalize discovery
         self.config.get('basic', 'scenario_dir')
         scenario_dir = os.path.join(os.path.dirname(__file__), self.plugin_dir)
         possible_places = map(lambda x: os.path.join(scenario_dir, x),
@@ -169,7 +132,9 @@ class Consoler(object):
 
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
-        self.results_vault = "/tmp/mcv_run_" + str(datetime.datetime.utcnow()).replace(" ","_")
+        self.results_vault = "/tmp/mcv_run_{dt}".format(
+                             dt=str(datetime.datetime.utcnow()).replace(" ",
+                                                                        "_"))
         os.mkdir(self.results_vault)
 
         f = open('/etc/mcv/times.json', 'r')
@@ -179,22 +144,24 @@ class Consoler(object):
 
         if self.config.get('times', 'update') == 'False':
             for key in test_dict.keys():
-                batch = [x for x in (''.join(test_dict[key].split()).split(',')) if x]
+                batch = [x for x in (''.join(test_dict[key].split()
+                                             ).split(',')) if x]
                 elapsed_time_by_group[key] = self.all_time
                 for test in batch:
                     test = test.replace(' ', '')
                     try:
                         self.all_time += db[key][test]
                     except KeyError:
-                        LOG.info("You must update the database time tests. "\
-                                 "There is no time for %s" % test)
+                        LOG.info(("You must update the database time tests. "
+                                 "There is no time for %s") % test)
 
             LOG.info("\nExpected time to complete all the tests: %s\n" %
                      self.seconds_to_time(self.all_time))
 
         for key in test_dict.keys():
             if self.event.is_set():
-                LOG.info("Catch Keyboard interrupt. No more tests will be launched")
+                LOG.info("Catch Keyboard interrupt. "
+                         "No more tests will be launched")
                 break
             if self.config.get('times', 'update') == 'True':
                 elapsed_time_by_group[key] = 0
@@ -217,27 +184,36 @@ class Consoler(object):
             except Exception:
                 major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
-                LOG.error("Something went wrong. Please check mcvconsoler logs")
+                LOG.error("Something went wrong. "
+                          "Please check mcvconsoler logs")
                 LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             else:
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
                 runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path, config=self.config)
-                batch = [x for x in (''.join(test_dict[key].split()).split(',')) if x]
-                LOG.debug("Running " + str(len(batch)) + " test"+"s"*(len(batch)!=1) +  " for " + key)
+
+                batch = [x for x in (''.join(test_dict[key].split()
+                                             ).split(',')) if x]
+
+                LOG.debug("Running {batch} for {key}".format(
+                              batch=str(len(batch)),
+                              key=key))
+
                 try:
-                    run_failures = runner.run_batch(batch, compute="1",#self.access_helper.compute,
-                                                    event=self.event,
-                                                    concurrency=self.concurrency,
-                                                    config=self.config,
-                                                    tool_name=key,
-                                                    db=db,
-                                                    all_time=self.all_time,
-                                                    elapsed_time=elapsed_time_by_group[key],
-                                                    gre_enabled=self.gre_enabled,
-                                                    vlan_amount=self.vlan_amount,
-                                                    test_group=kwargs.get('testgroup'))
+                    run_failures = runner.run_batch(
+                                       batch,
+                                       compute="1",
+                                       event=self.event,
+                                       concurrency=self.concurrency,
+                                       config=self.config,
+                                       tool_name=key,
+                                       db=db,
+                                       all_time=self.all_time,
+                                       elapsed_time=elapsed_time_by_group[key],
+                                       gre_enabled=self.gre_enabled,
+                                       vlan_amount=self.vlan_amount,
+                                       test_group=kwargs.get('testgroup'))
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == CAError.NO_ERROR:
@@ -246,9 +222,9 @@ class Consoler(object):
                             self.failure_indicator = ComplexError.SOME_SUITES_FAILED
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
-                        LOG.debug("It looks like you are trying to use a wrong "
-                                  "runner. No tests will be run in this group "
-                                  "this time. Reply %s", e)
+                        LOG.debug(("It looks like you are trying to use a "
+                                   "wrong runner. No tests will be run in "
+                                   "this group this time. Reply %s"), e)
                         self.failure_indicator = CAError.WRONG_RUNNER
                 except Exception:
                     run_failures = test_dict[key].split(',')
@@ -263,13 +239,18 @@ class Consoler(object):
         return dispatch_result
 
     def do_full(self):
-        """Run full test suit"""
+
         LOG.info("Starting full check run.")
-        LOG.warning("WARNING! Full test suite contains Rally load tests. These tests may break your cloud. It is not recommended to run these tests on production clouds.")
+        LOG.warning("WARNING! Full test suite contains Rally load tests. "
+                    "These tests may break your cloud. It is not recommended "
+                    "to run these tests on production clouds.")
+
         if self.config.get('rally', 'rally_load') != 'True':
-            LOG.info("WARNING!Full test suite contains Rally load tests. These tests may "
-                     "break your cloud. So, please set rally_load=True manually in mcv.conf ")
+            LOG.info("WARNING! Full test suite contains Rally load tests. "
+                     "These tests may break your cloud. So, please set "
+                     "rally_load=True manually in mcv.conf.")
             return {}
+
         test_dict = self.discover_test_suits()
         return self.dispatch_tests_to_runners(test_dict)
 
@@ -297,19 +278,25 @@ class Consoler(object):
                 LOG.debug("Adding option %(key)s=%(trr)s" % {"key": key,
                                                              "trr": to_rerun})
                 if not self.config.has_section("custom_test_group_failed"):
-                    LOG.debug("Looks like there is no section 'custom_test_group_failed' in %s. Adding one." % self.path_to_config)
+                    LOG.debug("Looks like there is no section "
+                              "'custom_test_group_failed' in %s. "
+                              "Adding one." % self.path_to_config)
                     self.config.add_section("custom_test_group_failed")
+
                 self.config.set("custom_test_group_failed", key, to_rerun)
                 sent = True
             else:
                 if self.config.has_section("custom_test_group_failed") and\
-                        self.config.has_option("custom_test_group_failed", key):
+                   self.config.has_option("custom_test_group_failed", key):
+
                     LOG.debug("Removing %s from custom_test_group_failed" % key)
                     self.config.remove_option("custom_test_group_failed", key)
                     sent = True
         if self.config.has_section("custom_test_group_failed") and\
                 self.config.options("custom_test_group_failed") == []:
-            LOG.debug("Removing section 'custom_test_group_failed' since it is empty")
+
+            LOG.debug("Removing section 'custom_test_group_failed' "
+                      "since it is empty")
             self.config.remove_section("custom_test_group_failed")
             sent = True
         if sent:
@@ -336,7 +323,7 @@ class Consoler(object):
         return fname in os.listdir(dir_to_walk)
 
     def console_user(self, event, result):
-        # TODO: split this god's abomination.
+        # TODO(aovchinnikov): split this god's abomination.
         self.event = event
 
         def do_finalization(run_results):
@@ -347,20 +334,26 @@ class Consoler(object):
                 try:
                     reporter.brew_a_report(run_results,
                                            self.results_vault + "/index.html")
-                except:
+                except Exception:
                     LOG.warning("Brewing a report has failed.")
                     return r_helper
+
                 r_helper = {
                     "timestamp": str(datetime.datetime.utcnow()).replace(" ",
                                                                          "_"),
                     "location": self.results_vault}
-                cmd = "tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz -C %(location)s ." % r_helper
-                p = utils.run_cmd(cmd)
+
+                cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
+                       " -C %(location)s .") % r_helper
+                utils.run_cmd(cmd)
+
                 cmd = "rm -rf %(location)s" % {"location": self.results_vault}
-                p = utils.run_cmd(cmd)
+                utils.run_cmd(cmd)
+
                 LOG.debug("Done with report generation.")
             else:
-                LOG.warning("For some reason test tools have returned nothing.")
+                LOG.warning("For some reason test tools "
+                            "have returned nothing.")
             return r_helper
 
         if len(sys.argv) < 2:
@@ -370,10 +363,6 @@ class Consoler(object):
 
         run_results = None
 
-        # TODO: leaving this leftover for now. In the nearest future this
-        # should be forwarded to the real logging.
-        path_to_main_log = os.path.join(self.config.get('basic', 'logdir'),
-                                        self.config.get('basic', 'logfile'))
         if self.args.run is not None:
             self.access_helper = accessor.AccessSteward(self.config)
             try:
@@ -391,36 +380,45 @@ class Consoler(object):
                 return
 
             try:
-                run_results = getattr(self, "do_" + self.args.run[0])(*self.args.run[1:])
+                run_results = getattr(self, "do_" + self.args.run[0])(
+                                  *self.args.run[1:])
             except TypeError as e:
                 run_name = "do_" + self.args.run[0]
-                expected_arglist = inspect.getargspec(getattr(self, run_name)).args
+                expected_arglist = inspect.getargspec(
+                                       getattr(self, run_name)).args
+
                 scolding = {"supplied_args": ", ".join(self.args.run[1:]),
-                            "function" : self.args.run[0],
+                            "function": self.args.run[0],
                             "expected_args": "\', \'".join(expected_arglist),
                             "error": e}
-                temessage = "Somehow \'%(supplied_args)s\' is not enough for "\
-                            "\'%(function)s\'\n\'%(function)s\' actually expects the "\
-                            "folowing arguments: \'%(expected_args)s\' Reply: \'%(error)s\'"
+
+                temessage = ("Somehow \'%(supplied_args)s\' is not enough for "
+                            "\'%(function)s\'\n\'%(function)s\' actually "
+                            "expects the folowing arguments: \'"
+                            "%(expected_args)s\' Reply: \'%(error)s\'")
+
                 LOG.error(temessage % scolding)
             except ValueError as e:
-                LOG.error("Some unexpected outer error has terminated the tool."
-                          " Please try rerunning mcvconsoler. Reply: %s", e)
+                LOG.error("Some unexpected outer error has terminated "
+                          "the tool. Please try rerunning mcvconsoler. "
+                          "Reply: %s", e)
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
             except Exception:
-                LOG.error("Something went wrong with the command, please refer to logs to find out what")
+                LOG.error("Something went wrong with the command, "
+                          "please refer to logs to discover the problem.")
                 LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
+
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
-            subprocess.call(
-                    '/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh "({0})"'.format(arguments),
-                    shell=True, preexec_fn=utils.ignore_sigint)
+            subprocess.call(('/opt/mcv-consoler/tests/'
+                             'tmux_mcv_tests_runner.sh "({0})"').format(
+                                 arguments),
+                             shell=True,
+                             preexec_fn=utils.ignore_sigint)
             return 1
         r_helper = do_finalization(run_results)
         self.access_helper.cleanup()
-        captain_logs = os.path.join(self.config.get("basic", "logdir"),
-                                    self.config.get("basic", "logfile"))
         result.append(self.failure_indicator)
         if run_results is not None:
             LOG.info("One page report could be found in /tmp/mcv_run_%s.tar.gz" % r_helper)

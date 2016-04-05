@@ -228,7 +228,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = r"docker cp %s %s:%s" % (test_location,
                                        self.container,
                                        shaker_test_locations)
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
         LOG.info("Successfully prepared to task %s" % task)
 
     def _run_shaker_on_docker(self, task):
@@ -247,14 +247,17 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         # Note: make port configurable
         timeout = self.config.get("shaker", "timeout")
-        cmd = "docker exec -t %s timeout %s shaker --server-endpoint " \
-              "%s:5999 --agent-join-timeout 3600 --scenario " \
-              "/usr/local/lib/python2.7/dist-packages/shaker/scenarios/networking/%s" \
-              " --debug --output %s.out --report-template json --report " \
-              "%s.json --log-file %s/log/shaker.log" % (self.container,
-                  timeout,
-                  self.accessor.access_data["instance_ip"],
-                  sk, task, task, self.home)
+        cmd = ("docker exec -t {cid} timeout {tout} shaker --server-endpoint "
+               "{sep}:5999 --agent-join-timeout 3600 --scenario "
+               "/usr/local/lib/python2.7/dist-packages/shaker/"
+               "scenarios/networking/{task} "
+               "--debug --output {task}.out --report-template json --report "
+               "{task}.json --log-file {home}/log/shaker.log"
+               ).format(cid=self.container,
+                        tout=timeout,
+                        sep=self.accessor.access_data["instance_ip"],
+                        task=task,
+                        home=self.home)
 
         proc = subprocess.Popen(shlex.split(cmd + insecure),
                                 stdout=subprocess.PIPE,
@@ -264,7 +267,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         # Note: TIMEOUT_RETCODE = 124
         if proc.returncode == 124:
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
-            LOG.info('Process #%d killed after %s seconds' % (proc.pid, timeout))
+            LOG.info('Process #%d killed after %s seconds' % (proc.pid,
+                                                              timeout))
             LOG.debug('Timeout error occurred trying to execute shaker')
             for stack in self.heat.stacks.list():
                 if 'shaker' in stack.stack_name:
@@ -386,7 +390,6 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         return test_case, speeds, agents, success, status
 
-
     def _generate_one_row_report(self, result, task, threshold):
         template = """
         <tr role="row">
@@ -483,8 +486,10 @@ class ShakerOnDockerRunner(ShakerRunner):
                                   task=task, res=task_result))
                     return False
 
-                row, report_status = self._generate_one_row_report(task_result,
-                                         internal_task, threshold)
+                row, report_status = self._generate_one_row_report(
+                                         task_result,
+                                         internal_task,
+                                         threshold)
                 output += row
                 success &= report_status
             self._generate_report_network_speed(threshold, task, output)
