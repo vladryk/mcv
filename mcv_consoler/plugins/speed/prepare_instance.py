@@ -15,9 +15,9 @@
 
 import time
 
-from common import clients as Clients
-from novaclient import exceptions
 from logger import LOG
+from mcv_consoler.common import clients as Clients
+from novaclient import exceptions
 
 LOG = LOG.getLogger(__name__)
 
