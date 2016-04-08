@@ -109,7 +109,7 @@ class Preparer(object):
         LOG.info('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
-        # Note: make network name configurable
+        # TODO(ekudryashova): make network name configurable
         try:
             network = self.nova.networks.find(label="net04")
         except exceptions.NotFound:

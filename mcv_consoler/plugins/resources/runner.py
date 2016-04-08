@@ -23,7 +23,6 @@ LOG = LOG.getLogger(__name__)
 class ResourceReportRunner(run.Runner):
 
     def __init__(self, accessor, path, *args, **kwargs):
-        # Need accessor for access data
         self.config = kwargs.get("config")
         self.accessor = accessor
         self.identity = "resources"
@@ -47,7 +46,8 @@ class ResourceReportRunner(run.Runner):
                                                            **kwargs)
 
     def generate_report(self, html, task):
-        # Append last run to existing file for now.
+
+        # TODO(ekudryashova): Append last run to existing file for now.
         # Not sure how to fix this properly
 
         LOG.debug('Generating report in resources.html file')
@@ -56,7 +56,6 @@ class ResourceReportRunner(run.Runner):
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
-        # runs a set of commands
         LOG.debug('Start generating %s' % task)
         reporter_class = getattr(resources, task)
         if not reporter_class:

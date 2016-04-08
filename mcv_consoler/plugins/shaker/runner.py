@@ -58,7 +58,6 @@ class ShakerRunner(runner.Runner):
         return False
 
     def _evaluate_task_result(self, task, resulting_dict):
-        # logs both success and problems in an uniformely manner.
         status = True
         errors = ''
         if type(resulting_dict) != dict:
@@ -87,13 +86,12 @@ class ShakerRunner(runner.Runner):
         return status
 
     def _get_task_path(self, task):
-        # a quick and dirty way to find a task
-        # TODO(albartash): refactor this bullsh~
+        # TODO(albartash): refactor this damn
         return 'plugins/shaker/tests/%s' % task
 
     def _run_shaker(self, task):
         LOG.debug("Running task %s" % task)
-        # important: at this point task must be transformed to a full path
+        # warning: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         p = utils.run_cmd("rally task start " + path_to_task)
 
@@ -103,13 +101,15 @@ class ShakerRunner(runner.Runner):
         return out
 
     def _get_task_result(self, task_id):
+        # TODO(albartash): Fix the issue mentioned below:
+
         # this function is not using task id contrary to what it says,  but in
         # current state of affair direct command produced by rally. task_id
         # is left as is for now, but will be moved in future.
         # if asked kindly rally just spits resulting json directly to stdout
         p = utils.run_cmd(task_id)
         try:
-            res = json.loads(p)[0]  # actual test result as a dictionary
+            res = json.loads(p)[0]
             return res
         except ValueError:
             LOG.error("Gotten not-JSON object. Please see mcv-log")
@@ -245,7 +245,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         if (task in self.list_speed_tests):
             self._create_task_in_docker(task)
 
-        # Note: make port configurable
+        # TODO(albartash): make port for Shaker configurable some day
+
         timeout = self.config.get("shaker", "timeout")
         cmd = ("docker exec -t {cid} timeout {tout} shaker --server-endpoint "
                "{sep}:5999 --agent-join-timeout 3600 --scenario "
@@ -264,7 +265,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                                 stderr=subprocess.STDOUT,
                                 preexec_fn=utils.ignore_sigint)
         proc.communicate()
-        # Note: TIMEOUT_RETCODE = 124
+
         if proc.returncode == 124:
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
             LOG.info('Process #%d killed after %s seconds' % (proc.pid,
@@ -298,8 +299,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         p = utils.run_cmd(cmd)
 
-        # Network speed test includes three scenario, function 'clear_image'
-        # will run after completing all of scenarios
+        # Note: function 'clear_image' will run after completing
+        # all of speed scenarios
         if not (task in self.list_speed_tests):
             self.clear_shaker_image()
         return result
@@ -319,7 +320,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         if task_id.find("detailed") == -1:
             try:
-                res = json.loads(p)[0]  # actual test result as a dictionary
+                res = json.loads(p)[0]
                 return res
             except ValueError:
                 LOG.error("Gotten not-JSON object. Please see mcv-log")

@@ -90,7 +90,6 @@ class RallyRunner(runner.Runner):
         pass
 
     def _evaluate_task_result(self, task, resulting_dict):
-        # logs both success and problems in an uniformely manner.
         if type(resulting_dict) != dict:
             LOG.debug(("Task {task} has failed with the following error: "
                       "{err}").format(task=task, err=resulting_dict))
@@ -115,29 +114,30 @@ class RallyRunner(runner.Runner):
         return True
 
     def _get_task_path(self, task):
-        # a quick and dirty way to find a task
         # TODO(albartash): refactor this damn
         return 'plugins/rally/tests/%s' % task
 
     def _run_rally(self, task):
         LOG.debug("Running task %s" % task)
-        # important: at this point task must be transformed to a full path
+        # warning: at this point task must be transformed to a full path
         path_to_task = self._get_task_path(task)
         p = utils.run_cmd("rally task start " + path_to_task)
 
-        # here out is in fact a command which can be run to obtain task resuls
-        # thus it is returned directly.
         out = p.split('\n')[-4].lstrip('\t')
         return out
 
     def _get_task_result(self, task_id):
+
+        # TODO(albartash): Fix the problem mentioned below:
+
         # this function is not using task id contrary to what it says,  but in
         # current state of affair direct command produced by rally. task_id
         # is left as is for now, but will be moved in future.
         # if asked kindly rally just spits resulting json directly to stdout
+
         p = utils.run_cmd(task_id)
         try:
-            res = json.loads(p)[0]  # actual test result as a dictionary
+            res = json.loads(p)[0]
             return res
         except ValueError:
             LOG.error("Gotten not-JSON object. Please see mcv-log")
@@ -149,7 +149,6 @@ class RallyRunner(runner.Runner):
         return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
-        # runs a set of commands
         task_id = self._run_rally(task)
         task_result = self._get_task_result(task_id)
         if self._evaluate_task_result(task, task_result):
@@ -234,7 +233,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _patch_rally(self):
         # Fix hardcoded timeout and siege regex
-        # TODO(who posted?): Remove it with newest rally version (which??)
+        # TODO(mcv-team): Remove it with newest rally version (?)
         rally_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins'
                       '/openstack/services/heat/main.py')
         cmd = ("docker exec -t {cid} sudo sed -i "
@@ -246,7 +245,7 @@ class RallyOnDockerRunner(RallyRunner):
                       'workload/siege.py')
         cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
               % (self.container_id, siege_path)
-        # TODO(who?): Found out how to pass re through sed
+        # TODO(mcv-team): Found out how to pass re through sed
         template_path = os.path.join(self.home,
                                      'tests/templates/wp_instances.yaml')
 
@@ -266,7 +265,9 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _check_and_fix_flavor(self):
         LOG.debug("Searching for proper flavor.")
-        # Novaclient can't search flavours by name so manually search in list.
+
+        # Note: Nova client can't search flavours by name,
+        # so manually search in list.
         res = self.accessor._get_novaclient().flavors.list()
         for f in res:
             if f.name == 'm1.nano':
@@ -375,7 +376,6 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _run_rally_on_docker(self, task, *args, **kwargs):
         if task == 'certification':
-            # Certification Task requires another way to run
             LOG.info("Starting Rally Certification Task")
             task_args = self._prepare_certification_task_args()
 
@@ -422,8 +422,6 @@ class RallyOnDockerRunner(RallyRunner):
         p = utils.run_cmd(cmd)
         original_output = p
 
-        # here out is in fact a command which can be run to obtain task resuls
-        # thus it is returned directly.
         failed = False
         if task == 'workload.yaml':
             cmd = "docker exec -t %(container)s rally task results" \
@@ -452,7 +450,6 @@ class RallyOnDockerRunner(RallyRunner):
                              'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
         ret_val = None
 
-        # ok, this has to be recosidered to make it less ugly
         for candidate in result_candidates:
             m = re.search(candidate, p)
             if m is not None:
@@ -502,8 +499,6 @@ class RallyOnDockerRunner(RallyRunner):
         return super(RallyRunner, self).run_batch(tasks, *args,  **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
-        # here be the fix for running rally in a docker container.
-        # apparently we'll need something to set up rally inside docker.
         try:
             task_id = self._run_rally_on_docker(task, *args, **kwargs)
             if task_id['failed'] and len(task_id.keys()) == 1:

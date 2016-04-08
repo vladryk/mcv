@@ -102,7 +102,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cmd = "mkdir " + os.path.join(self.homedir, "data")
         p = utils.run_cmd(cmd)
 
-        # TODO(albartash): Replace cp with ln if possible!!!
+        # TODO(albartash): Replace cp with ln if possible
         cmd = ("sudo cp {homedir}/images/cirros-0.3.4-x86_64-disk.img "
               "{homedir}/data").format(homedir=self.homedir)
 
@@ -146,8 +146,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.error("Task %s failed with: %s" % (task, e))
             return ''
 
-        # get the last run results. This should be done in a more robust and
-        # sane manner at some point.
         run = p.split('\n')[-3].split('|')[8]
         if run == 'failed':
             LOG.error('Verification failed, unable to generate report')
@@ -207,10 +205,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         all_time = kwargs["all_time"]
         elapsed_time = kwargs["elapsed_time"]
 
-        # Note: the database execution time of each test. In the first run
-        # for each test tool calculate the multiplier, which shows the
-        # difference of execution time between testing on our cloud and
-        # the current cloud.
+        # Note (ayasakov): the database execution time of each test.
+        # In the first run for each test tool calculate the multiplier,
+        # which shows the difference of execution time between testing
+        # on our cloud and the current cloud.
+
         db = kwargs.get('db')
         first_run = True
         multiplier = 1.0
@@ -263,7 +262,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     persent -= float(all_time) / float(kwargs["all_time"])
                 persent = int(persent * 100)
 
-                #line = '\n[' + '#'*(persent // 10) + ' '*(10 - (persent // 10)) + ']'
                 line = '\nCompleted %s' % persent + '% and remaining time '
                 line += '%s\n' % self.seconds_to_time(all_time * multiplier)
 

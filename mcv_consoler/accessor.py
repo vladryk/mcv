@@ -282,7 +282,7 @@ class AccessSteward(object):
             return -1
 
         ssh.exec_command("ssh-keygen -f" + rkname + " -N '' > /dev/null 2>&1")
-        # TODO: ok, this should not be done by sleeping
+        # TODO(mcv-team): ok, this should not be done by sleeping
         time.sleep(3)
         ssh.exec_command("cat " + rkname + ".pub >> .ssh/authorized_keys")
         time.sleep(3)
@@ -335,7 +335,7 @@ class AccessSteward(object):
             LOG.debug("Now local iptables rule is set.")
 
     def _stop_forwarding(self):
-        # TODO: do this in a separate method
+        # TODO(mcv-team): do this in a separate method
         LOG.info("Reverting changes needed for access to admin network")
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

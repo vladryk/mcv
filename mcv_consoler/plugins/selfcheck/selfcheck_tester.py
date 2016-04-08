@@ -14,6 +14,7 @@
 
 import os
 
+from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.logger import LOG
 
@@ -32,8 +33,13 @@ class BasicSelfCheck(object):
         return self.results
 
     def consoler_exists(self):
-        self.results.append(True if os.path.isdir(
-            '/opt/mcv-consoler') else BaseSelfCheckError.CONSOLER_NOT_EXISTS)
+        # TODO(albartash): This test needs to be rewritten,
+        # as we now have Consoler installed into system.
+        # For now this test will be disabled.
+
+        #self.results.append(True if os.path.isdir(
+        #    '/opt/mcv-consoler') else BaseSelfCheckError.CONSOLER_NOT_EXISTS)
+        self.results.append(True)
 
     def board_exists(self):
         self.results.append(True if os.path.isdir(
@@ -41,7 +47,7 @@ class BasicSelfCheck(object):
 
     def config_exists(self):
         self.results.append(True if os.path.isfile(
-            '/etc/mcv/mcv.conf') else BaseSelfCheckError.CONFIG_NOT_EXISTS)
+            DEFAULT_CONFIG_FILE) else BaseSelfCheckError.CONFIG_NOT_EXISTS)
 
     def hostname_exists(self):
         res = BaseSelfCheckError.HOSTNAME_NOT_EXISTS

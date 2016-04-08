@@ -11,6 +11,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 import json
 import os
 
@@ -338,6 +339,7 @@ class GeneralResourceSearch(ResourceSearch):
                 self.resources['images']['>500Gb'] += 1
         most_used = self._count_usage(self.resources['images'])
         self.resources['most_used_images'] = most_used
+
         # Need it because glance returns generator
         all_images = self.glanceclient.images.list()
         full_size = sum([i.size for i in all_images])
