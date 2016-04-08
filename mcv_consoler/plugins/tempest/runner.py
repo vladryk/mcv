@@ -85,7 +85,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         config = glob.glob(self.homedir + '/for-deployment-*/tempest.conf')
         if config:
             config = config[0]
-            cmd = """sudo sed -i "70s/.*/operator_role = admin" %s""" % config
+            cmd = """sudo sed -i "70s/.*/operator_role = admin/" %s""" % config
             p = utils.run_cmd(cmd)
 
 
@@ -117,8 +117,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         install = glob.glob(self.homedir + '/for-deployment-*')
         if not install:
             LOG.info("No installation found. Installing tempest")
-            cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest"%\
-             {"container": self.container_id}
+            cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest" %\
+                  {"container": self.container_id}
+
+            p = utils.run_cmd(cmd)
+            cmd = "docker exec -t %(container)s sudo rally verify genconfig" %\
+                  {"container": self.container_id}
 
             p = utils.run_cmd(cmd)
             self._patch_tempest_conf()
