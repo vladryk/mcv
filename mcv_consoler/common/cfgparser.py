@@ -14,6 +14,7 @@
 
 import ConfigParser
 
+
 def _init_parser():
     parser = ConfigParser.SafeConfigParser()
     return parser

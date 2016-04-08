@@ -32,6 +32,7 @@ class CAError(BaseError):
     UNKNOWN_OUTER_ERROR = 13
     WRONG_CREDENTIALS = 14
     WRONG_RUNNER = 15
+    CONFIG_ERROR = 16
 
     @staticmethod
     def range():

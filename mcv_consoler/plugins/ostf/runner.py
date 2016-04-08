@@ -18,10 +18,17 @@ import os
 import re
 import subprocess
 
+from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
+from mcv_consoler.common.config import MOS_VERSIONS
+
+from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
+
 from mcv_consoler.logger import LOG
+
 from mcv_consoler.plugins.ostf.reporter import Reporter
 from mcv_consoler.plugins import runner
+
 from mcv_consoler import utils
 
 nevermind = None
@@ -38,6 +45,17 @@ class OSTFOnDockerRunner(runner.Runner):
         self.identity = "ostf"
         self.config_section = "ostf"
 
+        try:
+            self.mos_version = self.config.get(self.config_section, "version")
+        except NoOptionError:
+            LOG.error('No MOS version found in configuration file. '
+                      'Please specify it at section "ostf" as an option'
+                      '"version"')
+            self.failure_indicator = CAError.CONFIG_Error
+            return
+
+        LOG.debug('Found MOS version: %s' % self.mos_version)
+
         # this object is supposed to live for one run
         # so let's leave it as is for now.
         self.test_failures = []
@@ -47,23 +65,20 @@ class OSTFOnDockerRunner(runner.Runner):
         self.not_found = []
         self.container = None
 
-        # TODO(albartash): after single container release please fix this path
-        # and remove the same from start_container()
-        self.homedir = '/home/mcv/toolbox/ostfnew'
+        self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
 
         super(OSTFOnDockerRunner, self).__init__()
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
-        try:
+        if self.config.has_option(self.config_section, 'max_failed_tests'):
             self.max_failed_tests = int(self.config.get(self.config_section,
                                                         'max_failed_tests'))
-        except NoOptionError:
+        elif self.config.has_option('basic', 'max_failed_tests'):
             self.max_failed_tests = int(self.config.get('basic',
                                                         'max_failed_tests'))
-            # TODO(albartash): we need to replace it with SafeConfigParser,
-            # as it will provide additional health against NoOptionError for
-            # option in 'basic' section
+        else:
+            self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
     def _do_config_extraction(self):
         LOG.debug("Trying to obtain OSTF configuration file")
@@ -77,28 +92,16 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def start_container(self):
         LOG.debug("Bringing up OSTF container with credentials")
-        mos_version = self.config.get(self.config_section, "version")
-        # @TODO(albartash): Remove tname when migrating to single ostf
-        # container!
-        if mos_version == "6.1":
-            cname = "mcv-ostf61"
-            tname = "ostf61"
-        elif mos_version == "7.0":
-            cname = "mcv-ostf70"
-            tname = "ostf70"
-        else:
-            LOG.error("Unsupported MOS version: " + mos_version)
+
+        if self.mos_version not in MOS_VERSIONS:
+            LOG.error("Unsupported MOS version: " + self.mos_version)
             self.failure_indicator = OSTFError.UNSUPPORTED_MOS_VERSION
             return False
 
-        # albartash: This hard patch is required to make sure we can extract
-        # OSTF report correctly. Must be removed when migrating to a single
-        # container!!!
-        self.homedir = '/home/mcv/toolbox/' + tname
-        self.home = '/mcv/'
-
         add_host = ""
-        if self.config.get("basic", "auth_fqdn") != '':
+        if self.config.has_option("basic", "auth_fqdn") and \
+           self.config.get("basic", "auth_fqdn") != '':
+
             add_host = "--add-host={fqdn}:{endpoint}".format(
                        fqdn=self.config.get("basic", "auth_fqdn"),
                        endpoint=self.accessor.access_data["auth_endpoint_ip"])
@@ -122,7 +125,7 @@ class OSTFOnDockerRunner(runner.Runner):
              "-e",
              "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
-             "-t", cname], stdout=subprocess.PIPE,
+             "-t", "mcv-ostf"], stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting OSTF container. Result: %s' % str(res))
@@ -153,9 +156,13 @@ class OSTFOnDockerRunner(runner.Runner):
         else:
             _cmd = 'list_plugin_suites'
 
-        cmd = "docker exec -t %s cloudvalidation-cli cloud-health-check "\
-              "%s --validation-plugin fuel_health" %\
-              (self.container, _cmd)
+        cmd = ('docker exec -t {cid} '
+               '/mcv/execute.sh fuel-ostf.{mos_version} '
+               '"cloudvalidation-cli cloud-health-check {cmd} '
+               '--validation-plugin fuel_health"'
+               ).format(cid=self.container,
+                        mos_version=self.mos_version,
+                        cmd=_cmd)
 
         p = utils.run_cmd(cmd)
         result = p.split("\n")
@@ -182,15 +189,19 @@ class OSTFOnDockerRunner(runner.Runner):
             _cmd = 'run_suite'
             _arg = '--suite'
 
-        cmd = "docker exec -t {container} cloudvalidation-cli "\
-              "--output-file={home}/ostf_report.json "\
-              "--config-file={home}/conf/ostfcfg.conf cloud-health-check {cmd} "\
-              "--validation-plugin-name fuel_health {arg} {task}".format(
-                  home=self.home,
-                  container=self.container,
-                  cmd=_cmd,
-                  arg=_arg,
-                  task=task)
+        cmd = ('docker exec -t {cid} '
+               '/mcv/execute.sh fuel-ostf.{mos_version} '
+               '"cloudvalidation-cli '
+               '--output-file={home}/ostf_report.json '
+               '--config-file={home}/conf/ostfcfg.conf '
+               'cloud-health-check {cmd} '
+               '--validation-plugin-name fuel_health {arg} {task}"'
+               ).format(cid=self.container,
+                        mos_version=self.mos_version,
+                        home=self.home,
+                        cmd=_cmd,
+                        arg=_arg,
+                        task=task)
 
         LOG.debug('Executing command: "%s"' % cmd)
         p = utils.run_cmd(cmd)
