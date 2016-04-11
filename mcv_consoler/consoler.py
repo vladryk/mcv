@@ -165,7 +165,7 @@ class Consoler(object):
                 break
             if self.config.get('times', 'update') == 'True':
                 elapsed_time_by_group[key] = 0
-                f = open('/etc/mcvtimes.json', 'r')
+                f = open('/etc/mcv/times.json', 'r')
                 db = json.loads(f.read())
                 f.close()
 
