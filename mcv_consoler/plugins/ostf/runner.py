@@ -51,7 +51,7 @@ class OSTFOnDockerRunner(runner.Runner):
             LOG.error('No MOS version found in configuration file. '
                       'Please specify it at section "ostf" as an option'
                       '"version"')
-            self.failure_indicator = CAError.CONFIG_Error
+            self.failure_indicator = CAError.CONFIG_ERROR
             return
 
         LOG.debug('Found MOS version: %s' % self.mos_version)
