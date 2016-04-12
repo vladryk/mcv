@@ -19,16 +19,6 @@ from keystoneclient.v2_0 import client as keystone_v2
 from neutronclient.neutron import client as neutron
 import novaclient.client as nova
 
-from requests.packages import urllib3
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.packages.urllib3.exceptions import SNIMissingWarning
-
-
-urllib3.disable_warnings(InsecurePlatformWarning)
-urllib3.disable_warnings(InsecureRequestWarning)
-urllib3.disable_warnings(SNIMissingWarning)
-
 keystone_keys = ('username',
                  'password',
                  'tenant_name',

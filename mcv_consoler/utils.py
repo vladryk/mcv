@@ -12,13 +12,20 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
 import signal
 import subprocess
 
 from mcv_consoler.logger import LOG
 
+warnings = ('SNIMissingWarning',
+            'InsecurePlatformWarning',
+            'InsecureRequestWarning')
+
+
 def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 
 def run_cmd(cmd):
     LOG.debug('Executing command: "%s"' % cmd)
@@ -26,5 +33,7 @@ def run_cmd(cmd):
                                      shell=True,
                                      stderr=subprocess.STDOUT,
                                      preexec_fn=ignore_sigint)
+    result = re.sub(r'/usr/local/.*(%s).*\n' % "|".join(warnings), '', result)
+    result = re.sub(r'  (%s).*\n' % "|".join(warnings), '', result)
     LOG.debug('RESULT: "%s"' % result)
     return result

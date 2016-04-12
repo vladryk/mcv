@@ -19,11 +19,20 @@ import time
 
 import traceback
 
+from requests.packages import urllib3
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import SNIMissingWarning
+
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.errors import CAError
 from mcv_consoler import consoler
 from mcv_consoler.logger import LOG
+
+urllib3.disable_warnings(InsecurePlatformWarning)
+urllib3.disable_warnings(InsecureRequestWarning)
+urllib3.disable_warnings(SNIMissingWarning)
 
 LOG = LOG.getLogger(__name__)
 
