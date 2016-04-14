@@ -57,15 +57,8 @@ general_report = """
 """
 
 
-# TODO(aovchinnikov): this should be done less conceptually
-# and more like fixing a template before passing it to container
 def fix_rally(file_location):
-    cmd = ("sed -i '412 a \     "
-           "<a href=\"../index.html\">"
-           "Back to Index</a>&nbsp;' %s") % file_location
-    LOG.debug('Fixing Rally report. Command: %s' % cmd)
-    result = utils.run_cmd(cmd)
-    LOG.debug('Result: %s' % str(result))
+    pass
 
 
 def fix_shaker(file_location):
