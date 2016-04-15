@@ -82,13 +82,12 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def _do_config_extraction(self):
         LOG.debug("Trying to obtain OSTF configuration file")
-        res = subprocess.Popen(["docker", "exec", "-t",
-                                self.container_id,
-                                "ostf-config-extractor", "-o",
-                                "%s/conf/ostfcfg.conf" % self.home],
-                               stdout=subprocess.PIPE,
-                               preexec_fn=utils.ignore_sigint).stdout.read()
-        LOG.debug("Config extraction resulted in: " + res)
+        cmd = ('docker exec -t {cid} /mcv/execute.sh fuel-ostf.{version} '
+               '"ostf-config-extractor -o {path}"').format(
+                   cid=self.container_id,
+                   version=self.mos_version,
+                   path=os.path.join(self.home, 'conf', 'ostfcfg.conf'))
+        utils.run_cmd(cmd)
 
     def start_container(self):
         LOG.debug("Bringing up OSTF container with credentials")
