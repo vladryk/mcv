@@ -222,7 +222,10 @@ class AccessSteward(object):
     def _delete_floating_ips(self):
         LOG.info("Removing created floating IPs")
         for floating_ip in self.fresh_floating_ips:
-            floating_ip.delete()
+            try:
+                floating_ip.delete()
+            except Exception as e:
+                LOG.debug("Error removing floating IP: %s" % e.message)
 
     def check_docker_images(self):
         res = subprocess.Popen(
