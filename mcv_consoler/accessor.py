@@ -363,34 +363,13 @@ class AccessSteward(object):
                 self.compute += 1
         LOG.debug("Found " + str(self.compute) + " computes.")
 
-    def _get_server_by_ip(self):
-        servers = self._get_novaclient().servers.list()
-        for server in servers:
-            addr = server.addresses
-            for ifaces in addr.values():
-                for iface in ifaces:
-                    if iface['addr'] == self.access_data["instance_ip"]:
-                        LOG.debug("Found a server to attach the new group to")
-                        return server
-        return False
-
     def check_mcv_secgroup(self):
         LOG.debug("Checking for proper security group")
         res = self._get_novaclient().security_groups.list()
         for r in res:
             if r.name == 'mcv-special-group':
                 LOG.debug("Has found one")
-                server = self._get_server_by_ip()
-                if not server:
-                    return -1
-                server_groups = server.list_security_group()
-                group_added = False
-                for sec_group in server_groups:
-                    if sec_group.id == r.id:
-                        group_added = True
-                        break
-                if not group_added:
-                    server.add_security_group(r.id)
+                # TODO ogrytsenko: a group could exist while being not attached
                 return
         LOG.debug("Nope. Has to create one")
         mcvgroup = self._get_novaclient().security_groups.create(
@@ -399,10 +378,15 @@ class AccessSteward(object):
             parent_group_id=mcvgroup.id, ip_protocol='tcp', from_port=5999,
             to_port=6001, cidr='0.0.0.0/0')
         LOG.debug("Finished creating a group and adding rules")
-        server = self._get_server_by_ip()
-        if not server:
-            return -1
-        server.add_security_group(mcvgroup.id)
+        servers = self._get_novaclient().servers.list()
+        # TODO ogrytsenko: refactor or remove a piece of code below
+        for server in servers:
+            addr = server.addresses
+            for network, ifaces in addr.iteritems():
+                for iface in ifaces:
+                    if iface['addr'] == self.access_data["instance_ip"]:
+                        LOG.debug("Found a server to attach the new group to")
+                        server.add_security_group(mcvgroup.id)
         LOG.debug("And they lived happily ever after")
 
     def cleanup(self):
