@@ -119,7 +119,8 @@ class BaseSelfCheckError(BaseError):
     BOARD_NOT_EXISTS = 112
     CONFIG_NOT_EXISTS = 113
     HOSTNAME_NOT_EXISTS = 114
+    FAILED_TEST_LIMIT_EXCESS = 119
 
     @staticmethod
     def range():
-        return 110, 115
+        return (110, 119)

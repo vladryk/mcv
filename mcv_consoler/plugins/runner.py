@@ -20,7 +20,15 @@ import re
 import subprocess
 import time
 
+from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.common.errors import CAError
+from mcv_consoler.common.errors import OSTFError
+from mcv_consoler.common.errors import RallyError
+from mcv_consoler.common.errors import ResourceError
+from mcv_consoler.common.errors import ShakerError
+from mcv_consoler.common.errors import SpeedError
+from mcv_consoler.common.errors import TempestError
+
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
 
@@ -112,14 +120,15 @@ class Runner(object):
 
     def get_error_code(self, tool_name):
 
-        codes = {'rally': 59,
-                 'shaker': 49,
-                 'resources': 39,
-                 'speed': 29,
-                 'ostf': 69,
-                 'tempest': 89}
+        codes = {'ostf': OSTFError.FAILED_TEST_LIMIT_EXCESS,
+                 'rally': RallyError.FAILED_TEST_LIMIT_EXCESS,
+                 'resources': ResourceError.FAILED_TEST_LIMIT_EXCESS,
+                 'selfcheck': BaseSelfCheckError.FAILED_TEST_LIMIT_EXCESS,
+                 'shaker': ShakerError.FAILED_TEST_LIMIT_EXCESS,
+                 'speed': SpeedError.FAILED_TEST_LIMIT_EXCESS,
+                 'tempest': TempestError.FAILED_TEST_LIMIT_EXCESS}
 
-        return codes.get(tool_name, 11)
+        return codes[tool_name]
 
     def seconds_to_time(self, s):
         s = int(round(s))

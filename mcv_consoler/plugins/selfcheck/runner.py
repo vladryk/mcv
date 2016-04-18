@@ -25,6 +25,7 @@ class SelfCheckRunner(run.Runner):
         self.test_failures = []
         super(SelfCheckRunner, self).__init__()
         self.failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
+        self.identity="selfcheck"
 
     def scenario_is_fine(self, scenario):
         return True
