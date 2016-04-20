@@ -18,6 +18,7 @@ import imp
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 import traceback
@@ -272,39 +273,32 @@ class Consoler(object):
             LOG.info(len(results[key]['results']['test_failures']))
             LOG.info("\t\t failed tests")
 
+    def _search_and_remove_group_failed(self, file_to_string):
+        object_for_search = re.compile(r"\[custom_test_group_failed\].*?End\sof.*?\n", re.DOTALL)
+        list_of_strings = object_for_search.findall(file_to_string)
+        if list_of_strings:
+            LOG.debug("Your config contains one or more 'custom_test_group_failed'."
+                      "It will be removed")
+            return re.sub(object_for_search, "", file_to_string)
+        else:
+            return file_to_string
+
     def update_config(self, results):
-        sent = False
+        with open(DEFAULT_CONFIG_FILE, 'r') as f:
+            file_to_string = f.read()
+
+        result = self._search_and_remove_group_failed(file_to_string)
+
+        default_str = ""
         for key in results.iterkeys():
             to_rerun = ",".join(results[key]["results"]["test_failures"])
             if to_rerun != "":
-                LOG.debug("Adding option %(key)s=%(trr)s" % {"key": key,
-                                                             "trr": to_rerun})
-                if not self.config.has_section("custom_test_group_failed"):
-                    LOG.debug("Looks like there is no section "
-                              "'custom_test_group_failed' in %s. "
-                              "Adding one." % self.path_to_config)
-                    self.config.add_section("custom_test_group_failed")
+                default_str = default_str + str(key) + '=' + str(to_rerun) + '\n'
+        if default_str != "":
+            default_str = "\n[custom_test_group_failed]\n" + default_str + "# End of group failed. Don't remove this comment\n"
 
-                self.config.set("custom_test_group_failed", key, to_rerun)
-                sent = True
-            else:
-                if self.config.has_section("custom_test_group_failed") and\
-                   self.config.has_option("custom_test_group_failed", key):
-
-                    LOG.debug("Removing %s from Failed test group" % key)
-                    self.config.remove_option("custom_test_group_failed", key)
-                    sent = True
-        if self.config.has_section("custom_test_group_failed") and\
-                self.config.options("custom_test_group_failed") == []:
-
-            LOG.debug("Removing section 'custom_test_group_failed' "
-                      "since it is empty")
-            self.config.remove_section("custom_test_group_failed")
-            sent = True
-        if sent:
-            LOG.debug("Apparently config has changed. Writing changes down")
-            with open(self.path_to_config, "w") as cf:
-                self.config.write(cf)
+        with open(DEFAULT_CONFIG_FILE, 'w') as f:
+            f.write(result + default_str)
 
     def get_total_failures(self, results):
         t_failures = 0
