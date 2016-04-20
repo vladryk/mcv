@@ -125,7 +125,7 @@ class ResourceSearch(object):
 
 class ErrorResourceSearch(ResourceSearch):
 
-    def __init__(self, accessor, *args, **kwargs):
+    def __init__(self, access_data, *args, **kwargs):
         self.config = kwargs.get('config')
         self.resources = {
             'servers': [],
@@ -133,7 +133,7 @@ class ErrorResourceSearch(ResourceSearch):
             'images': [],
             'ports': []}
 
-        self.init_clients(accessor.os_data)
+        self.init_clients(access_data)
 
     def search_error_servers(self):
         LOG.debug('Collecting error servers data')
@@ -229,10 +229,10 @@ class ErrorResourceSearch(ResourceSearch):
 
 class GeneralResourceSearch(ResourceSearch):
 
-    def __init__(self, accessor, *args, **kwargs):
+    def __init__(self, access_data, *args, **kwargs):
         self.config = kwargs.get('config')
         self.resources = RESOURCES_TEMPLATE
-        self.init_clients(accessor.os_data)
+        self.init_clients(access_data)
 
     def _count_vms(self, flavor_id, vms):
         counter = 0

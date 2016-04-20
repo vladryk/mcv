@@ -26,17 +26,21 @@ LOG = LOG.getLogger(__name__)
 
 class BaseStorageSpeed(object):
 
-    def __init__(self, accessor, *args, **kwargs):
+    def __init__(self, access_data, *args, **kwargs):
         self.config = kwargs.get('config')
-        self.access_data = accessor.access_data
+        self.access_data = access_data
+        protocol = 'https' if self.access_data['insecure'] else 'http'
+        self.glance_url = "{protocol}://{endpoint}:9292/v2".format(
+                              protocol=protocol,
+                              endpoint=self.access_data['ips']['endpoint'])
         self.timeout = 0
         self.test_vm = None
-        self.init_clients(accessor.os_data)
+        self.init_clients()
 
-    def init_clients(self, access_data):
+    def init_clients(self):
         LOG.debug("Trying to obtain authenticated OS clients")
-        self.cinderclient = Clients.get_cinder_client(access_data)
-        self.novaclient = Clients.get_nova_client(access_data)
+        self.cinderclient = Clients.get_cinder_client(self.access_data)
+        self.novaclient = Clients.get_nova_client(self.access_data)
         LOG.debug('Authentication ends well')
 
     def generate_report(self, storage, compute_name, r_res, w_res):
@@ -157,8 +161,8 @@ def block_measure_dec(measure):
 
 class BlockStorageSpeed(BaseStorageSpeed):
 
-    def __init__(self, accessor, *args, **kwargs):
-        super(BlockStorageSpeed, self).__init__(accessor, *args, **kwargs)
+    def __init__(self, access_data, *args, **kwargs):
+        super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
         self.size_str = kwargs.get('volume_size')
         self.size = 0
         self.device = None
@@ -403,8 +407,8 @@ def object_measure_dec(measure):
 
 class ObjectStorageSpeed(BaseStorageSpeed):
 
-    def __init__(self, accessor, *args, **kwargs):
-        super(ObjectStorageSpeed, self).__init__(accessor, *args, **kwargs)
+    def __init__(self, access_data, *args, **kwargs):
+        super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
         self.size_str = kwargs.get('image_size')
         self.size = 0
         self.start_time = 0
@@ -428,16 +432,17 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     def get_token(self):
         self.start_time = time.time()
+
         cmd = ('curl -k -s -w "---%%{http_code}" '
                '-d \'{"auth":{"tenantName": "%s", '
                '"passwordCredentials": {"username": "%s", '
                '"password": "%s"}}}\' -H "Content-type: application/json" '
-               '%s://%s:5000/v2.0/tokens') % (
-            self.access_data['os_tenant_name'],
-            self.access_data['os_username'],
-            self.access_data['os_password'],
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'])
+               '%s/tokens') % (
+            self.access_data['tenant_name'],
+            self.access_data['username'],
+            self.access_data['password'],
+            self.access_data['auth_url'])
+
         res = self.run_ssh_cmd(cmd)
         out = res['out']
         ret = res['ret']
@@ -463,10 +468,10 @@ class ObjectStorageSpeed(BaseStorageSpeed):
                '-H \'Content-Type: application/json\' '
                '-d \'{"name": "speedtest", "container_format": "bare", '
                '"disk_format": "raw"}\' '
-               '%s://%s:9292/v2/images') % (
+               '%s/images') % (
             token,
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'])
+            self.glance_url)
+
         res = self.run_ssh_cmd(cmd)
         out = res['out']
         ret = res['ret']
@@ -489,16 +494,17 @@ class ObjectStorageSpeed(BaseStorageSpeed):
     @object_measure_dec
     def upload_image(self, image_id, token):
         LOG.info('Uploading image')
+
         cmd = ('dd if=/dev/zero bs=32k count=%d | '
                'curl -k -s -w "---%%{http_code}" -X PUT -H '
                '\'X-Auth-Token: %s\' '
                '-H \'Content-Type: application/octet-stream\' '
-               '-T - %s://%s:9292/v2/images/%s/file') % (
+               '-T - %s/images/%s/file') % (
             int(self.size * 32),
             token,
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'],
+            self.glance_url,
             image_id)
+
         res = self.run_ssh_cmd(cmd)
         out = res['out']
         ret = res['ret']
@@ -511,12 +517,12 @@ class ObjectStorageSpeed(BaseStorageSpeed):
     @object_measure_dec
     def download_image(self, image_id, token):
         LOG.info('Downloading image')
+
         cmd = ('curl -k -s -w "---%%{http_code}" '
                '-X GET -H \'X-Auth-Token: %s\' '
-               '%s://%s:9292/v2/images/%s/file -o /dev/null') % (
+               '%s/images/%s/file -o /dev/null') % (
             token,
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'],
+            self.glance_url,
             image_id)
         res = self.run_ssh_cmd(cmd)
         out = res['out']
@@ -530,10 +536,9 @@ class ObjectStorageSpeed(BaseStorageSpeed):
     def delete_image(self, image_id, token):
         cmd = ('curl -k -s -w "---%%{http_code}" '
                '-X DELETE -H \'X-Auth-Token: %s\' '
-               '%s://%s:9292/v2/images/%s') % (
+               '%s/images/%s') % (
             token,
-            self.config.get('basic', 'auth_protocol'),
-            self.access_data['auth_endpoint_ip'],
+            self.glance_url,
             image_id)
         res = self.run_ssh_cmd(cmd)
         out = res['out']

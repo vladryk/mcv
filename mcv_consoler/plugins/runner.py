@@ -168,7 +168,7 @@ class Runner(object):
 
         # Note(ayasakov): the database execution time of each test.
         # In the first run for each test tool calculate the multiplier,
-        # which shows the difference of execution time between testing 
+        # which shows the difference of execution time between testing
         # on our cloud and the current cloud.
 
         db = kwargs.get('db')

@@ -60,42 +60,51 @@ class AccessSteward(object):
                       re.X)
 
     def __init__(self, config):
-        self.access_data = {"controller_ip": None,
-                            "instance_ip": None,
-                            "os_username": None,
-                            "os_tenant_name": None,
-                            "os_password": None,
-                            "auth_endpoint_ip": None,
-                            "nailgun_host": None,
-                            "region_name": None,
-                            "cluster_id": None,
-                            "auth_fqdn": None}
-
         self.config = config
-        for key in self.access_data.keys():
+
+        def _GET(key, section="basic"):
             try:
-                self.access_data[key] = self.config.get('basic', key)
+                value = self.config.get(section, key)
             except NoOptionError:
-                LOG.warning('Option {opt} missed in config file. '
+                LOG.warning('Option {opt} missed in configuration file. '
                             'It may be dangerous'.format(opt=key))
+                value = None
+            return value
 
         self.novaclient = None
         self.keystoneclient = None
 
-        # @albartash: hard hack
-        self.os_data = {'username': self.access_data['os_username'],
-                        'password': self.access_data['os_password'],
-                        'tenant_name': self.access_data['os_tenant_name'],
-                        'auth_url': self.config.get('basic', 'auth_protocol') +
-                                    "://" +
-                                    str(self.access_data['auth_endpoint_ip']) +
-                                    ":5000/v2.0",
-                        'insecure': True,
-                        'region_name': self.access_data['region_name'],
+        protocol = _GET('auth_protocol')
+        endpoint_ip = _GET('auth_endpoint_ip')
+        auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
+        tenant_name = _GET('os_tenant_name')
+        password = _GET('os_password')
+
+        self.os_data = {'username': _GET('os_username'),
+                        'password': password,
+                        'tenant_name': tenant_name,
+                        'auth_fqdn': _GET('auth_fqdn'),
+
+                        'ips': {
+                            'controller': _GET('controller_ip'),
+                            'endpoint': endpoint_ip,
+                            'instance': _GET('instance_ip')},
+
+                        'fuel': {
+                            'nailgun_host': _GET('nailgun_host'),
+                            'nailgun_port': 8000,
+                            'cluster_id': _GET('cluster_id')},
+
+                        'auth_url': auth_url_tpl.format(hprot=protocol,
+                                                        ip=endpoint_ip,
+                                                        port=5000,
+                                                        version="2.0"),
+                        'insecure': protocol == "https",
+                        'region_name': _GET('region_name'),
                         # nova tenant
-                        'project_id': self.access_data['os_tenant_name'],
+                        'project_id': tenant_name,
                         # nova and cinder passwd
-                        'api_key': self.access_data['os_password'],
+                        'api_key': password,
                         'debug': DEBUG
                         }
         self.fresh_floating_ips = []
@@ -116,7 +125,7 @@ class AccessSteward(object):
 
     def _verify_access_data_is_set(self):
         access = True
-        for key, value in self.access_data.iteritems():
+        for key, value in self.os_data.iteritems():
             if value is None:
                 LOG.error('Config value %s is not set, please provide '
                           'required data in /etc/mcv/mcv.conf' % key)
@@ -145,22 +154,21 @@ class AccessSteward(object):
         return str(full_url.split('/')[2].split(':')[0])
 
     def _make_sure_controller_name_could_be_resolved(self):
-        a_fqdn = self.access_data["auth_fqdn"]
-        if a_fqdn != "":
-            LOG.debug("FQDN is specified.")
+        a_fqdn = self.os_data["auth_fqdn"]
+        if a_fqdn:
+            LOG.debug("FQDN is specified. Value=%s" % a_fqdn)
             f = open('/etc/hosts', 'a+r')
             for line in f.readlines():
                 if line.find(a_fqdn) != -1:
                     return
-            f.write(
-                self.access_data['auth_endpoint_ip'] + ' ' + self.access_data[
-                    'auth_fqdn'] + "\n")
+            f.write(' '.join([self.os_data['ips']['endpoint'],
+                       self.os_data['auth_fqdn'], "\n"]))
             f.close()
 
     def _restore_hosts_config(self):
-        a_fqdn = self.access_data["auth_fqdn"]
-        if a_fqdn != "":
-            LOG.info("Restoring hosts config")
+        a_fqdn = self.os_data["auth_fqdn"]
+        if a_fqdn:
+            LOG.debug("Restoring hosts config")
             f = open("/etc/hosts", "r+")
             lines = f.readlines()
             f.seek(0)
@@ -180,18 +188,17 @@ class AccessSteward(object):
         try:
             self._get_novaclient().authenticate()
         except nexc.ConnectionRefused:
-            LOG.error("Apparently authentication endpoint address is not valid."
-                      " Current value is %s" % self.access_data[
-                          "auth_endpoint_ip"])
+            LOG.error("Apparently authentication endpoint address is invalid."
+                      " Current value is %s" % self.os_data["ips"]["endpoint"])
             return False
         except nexc.Unauthorized:
             LOG.error("Apparently OS user credentials are incorrect.\n"
                       "Current os-username is: %s\n"
                       "Current os-password is: %s \n"
                       "Current os-tenant is: %s \n"
-                      % (self.access_data["os_username"],
-                         self.access_data["os_password"],
-                         self.access_data["os_tenant_name"]
+                      % (self.os_data["username"],
+                         self.os_data["password"],
+                         self.os_data["tenant_name"]
                          ))
             return False
         except (Timeout, ConnectionError) as conn_e:
@@ -241,14 +248,10 @@ class AccessSteward(object):
             self.check_docker_images()
 
     def _check_and_fix_iptables_rule(self):
-        # Since this is needed for both Rally and Shaker it is better to keep
-        # it in accessor.
-        # Let's patch cloud controller first. Be prepared to provide root
-        # access to the controller. Mwa-ha-ha.
         # TODO: divide this some day
         # TODO: this might change so it is much wiser to do actual check
         keystone_private_endpoint_ip = self._get_private_endpoint_ip()
-        port_substitution = {"cnt_ip": self.access_data["controller_ip"],
+        port_substitution = {"cnt_ip": self.os_data["ips"]["controller"],
                              "kpeip": keystone_private_endpoint_ip,
                              }
         mk_rule = ("iptables -I INPUT 1 -p tcp -m tcp --dport 7654 -j ACCEPT "
@@ -262,7 +265,7 @@ class AccessSteward(object):
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            ssh.connect(hostname="%(controller_ip)s" % self.access_data,
+            ssh.connect(hostname=self.os_data["ips"]["controller"],
                         username=self.config.get('basic', 'controller_uname'),
                         password=self.config.get('basic', 'controller_pwd'),
                         timeout=10)
@@ -330,7 +333,7 @@ class AccessSteward(object):
                                     self._get_private_endpoint_ip(), "-p",
                                     "tcp", "--dport", "35357", "-j", "DNAT",
                                     "--to-destination", "%s:7654" % \
-                                    self.access_data["controller_ip"],
+                                    self.os_data["ips"]["controller"],
                                     "-m", "comment", "--comment",
                                     "\'MCV_instance\'"],
                                    stdout=subprocess.PIPE,
@@ -343,7 +346,7 @@ class AccessSteward(object):
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            ssh.connect(hostname="%(controller_ip)s" % self.access_data,
+            ssh.connect(hostname=self.os_data["ips"]["controller"],
                         username=self.config.get('basic', 'controller_uname'),
                         password=self.config.get('basic', 'controller_pwd'))
         except Exception:
@@ -372,22 +375,27 @@ class AccessSteward(object):
         for r in res:
             if r.name == 'mcv-special-group':
                 LOG.debug("Has found one")
-                # TODO ogrytsenko: a group could exist while being not attached
+
+                # TODO(ogrytsenko): a group could exist while being not attached
                 return
+
         LOG.debug("Nope. Has to create one")
         mcvgroup = self._get_novaclient().security_groups.create(
             'mcv-special-group', 'mcvgroup')
+
         self._get_novaclient().security_group_rules.create(
             parent_group_id=mcvgroup.id, ip_protocol='tcp', from_port=5999,
             to_port=6001, cidr='0.0.0.0/0')
+
         LOG.debug("Finished creating a group and adding rules")
         servers = self._get_novaclient().servers.list()
-        # TODO ogrytsenko: refactor or remove a piece of code below
+
+        # TODO(ogrytsenko): refactor or remove a piece of code below
         for server in servers:
             addr = server.addresses
             for network, ifaces in addr.iteritems():
                 for iface in ifaces:
-                    if iface['addr'] == self.access_data["instance_ip"]:
+                    if iface['addr'] == self.os_data["ips"]["instance"]:
                         LOG.debug("Found a server to attach the new group to")
                         server.add_security_group(mcvgroup.id)
         LOG.debug("And they lived happily ever after")
@@ -403,7 +411,7 @@ class AccessSteward(object):
             self._restore_hosts_config()
             return False
         if self.check_mcv_secgroup() == -1:
-            LOG.error('Cant not find MCV server by ip to add security group')
+            LOG.error('Cannot find MCV server by ip to add security group')
             self._restore_hosts_config()
             return False
         if not no_tunneling:

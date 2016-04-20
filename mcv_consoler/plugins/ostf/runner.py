@@ -40,7 +40,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs["config"]
-        self.accessor = accessor
+        self.access_data = accessor.os_data
         self.path = path
         self.identity = "ostf"
         self.config_section = "ostf"
@@ -98,33 +98,32 @@ class OSTFOnDockerRunner(runner.Runner):
             return False
 
         add_host = ""
-        if self.config.has_option("basic", "auth_fqdn") and \
-           self.config.get("basic", "auth_fqdn") != '':
-
+        if self.access_data["auth_fqdn"]:
             add_host = "--add-host={fqdn}:{endpoint}".format(
-                       fqdn=self.config.get("basic", "auth_fqdn"),
-                       endpoint=self.accessor.access_data["auth_endpoint_ip"])
+                       fqdn=self.access_data["auth_fqdn"],
+                       endpoint=self.access_data["ips"]["endpoint"])
+
+        protocol = "https" if self.access_data['insecure'] else 'http'
 
         LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true", ] +
             [add_host]*(add_host != "") +
             ["-p", "8080:8080",
-             "-e", "OS_TENANT_NAME=" +
-             self.accessor.access_data["os_tenant_name"],
-             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
+             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
+             "-e", "OS_USERNAME=" + self.access_data["username"],
              "-e", "PYTHONWARNINGS=ignore",
              "-e",
-             "NAILGUN_PROTOCOL=" + self.config.get('basic', 'auth_protocol'),
-             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+             "NAILGUN_PROTOCOL=" + protocol,
+             "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "NAILGUN_HOST=" + self.accessor.access_data["nailgun_host"],
-             "-e", "NAILGUN_PORT=8000",
-             "-e", "CLUSTER_ID=" + self.accessor.access_data["cluster_id"],
-             "-e",
-             "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-e", "NAILGUN_HOST=" + self.access_data["fuel"]["nailgun_host"],
+             "-e", "NAILGUN_PORT=" + self.access_data["fuel"]["nailgun_port"],
+             "-e", "CLUSTER_ID=" + self.access_data["fuel"]["cluster_id"],
+             "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
-             "-t", "mcv-ostf"], stdout=subprocess.PIPE,
+             "-t", "mcv-ostf"],
+            stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting OSTF container. Result: %s' % str(res))

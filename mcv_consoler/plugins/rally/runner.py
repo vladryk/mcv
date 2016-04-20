@@ -164,15 +164,21 @@ class RallyOnDockerRunner(RallyRunner):
         self.config = kwargs["config"]
         self.path = path
         self.container = None
-        self.accessor = accessor
+        self.access_data = accessor.os_data
+
+        # NOTE(albartash): This method is the reason why we need
+        # whole accessor as an argument
+        self.check_computes = accessor.check_computes
+
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
 
         super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
         self.failure_indicator = RallyError.NO_RUNNER_ERROR
 
-        self.glanceclient = Clients.get_glance_client(accessor.os_data)
-        self.neutronclient = Clients.get_neutron_client(accessor.os_data)
+        self.glanceclient = Clients.get_glance_client(self.access_data)
+        self.neutronclient = Clients.get_neutron_client(self.access_data)
+        self.novaclient = Clients.get_nova_client(self.access_data)
 
     def create_fedora_image(self):
         path = os.path.join(os.path.join(self.homedir, "images"),
@@ -200,24 +206,24 @@ class RallyOnDockerRunner(RallyRunner):
 
     def start_container(self):
         LOG.debug("Starting Rally container")
-        protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
-        if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host=" + self.config.get("basic", "auth_fqdn")\
-                       + ":" + self.accessor.access_data["auth_endpoint_ip"]
+        if self.access_data["auth_fqdn"] != '':
+            add_host = "--add-host={fqdn}:{endpoint}".format(
+                           fqdn=self.access_data["auth_fqdn"],
+                           endpoint=self.access_data["ips"]["endpoint"])
 
         res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
             [add_host]*(add_host != "") +
-            ["-p", "6000:6000", "-e", "OS_AUTH_URL=" + protocol +"://" +
-             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-             "-e", "OS_TENANT_NAME=" +
-             self.accessor.access_data["os_tenant_name"],
-             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
+            ["-p", "6000:6000",
+             "-e", "OS_AUTH_URL=" + self.access_data['auth_url'],
+             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
+             "-e", "OS_USERNAME=" + self.access_data["username"],
+             "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+             "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
              "-v", self.homedir+":"+self.home, "-w", self.home,
-             "-t", "mcv-rally"], stdout=subprocess.PIPE,
+             "-t", "mcv-rally"],
+            stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting Rally container. Result: {result}'.format(
@@ -252,8 +258,8 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug('Start patching hosts')
         cmd = """docker exec -t %s sudo sed -i "61s/.*/            sudo sh -c 'echo %s %s >> \/etc\/hosts'/" %s""" % \
               (self.container_id,
-               self.config.get("basic", 'auth_endpoint_ip'),
-               self.config.get("basic", 'auth_fqdn'),
+               self.access_data['ips']['endpoint'],
+               self.access_data['auth_fqdn'],
                template_path)
 
         res = utils.run_cmd(cmd)
@@ -276,22 +282,23 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug("Apparently there is no flavor suitable for running rally. "
                   "Creating one...")
 
-        self.accessor._get_novaclient().flavors.create(name='m1.nano', ram=128,
-                                                       vcpus=1, disk=1,
-                                                       flavorid=42)
+        self.novaclient.flavors.create(name='m1.nano', ram=128, vcpus=1,
+                                       disk=1, flavorid=42)
+
         time.sleep(3)
         return self._check_and_fix_flavor()
 
     def create_rally_json(self):
-        auth_protocol = self.config.get("basic", "auth_protocol")
-        insecure = "true" if auth_protocol == "https" else "false"
-        credentials = {"ip_address": self.accessor.access_data["auth_endpoint_ip"],
-                       "region": self.accessor.access_data["region_name"],
-                       "uname": self.accessor.access_data["os_username"],
-                       "upass": self.accessor.access_data["os_password"],
-                       "uten": self.accessor.access_data["os_tenant_name"],
+        auth_protocol = 'https' if self.access_data['insecure'] else 'http'
+
+        credentials = {"ip_address": self.access_data["ips"]["endpoint"],
+                       "region": self.access_data["region_name"],
+                       "uname": self.access_data["username"],
+                       "upass": self.access_data["password"],
+                       "uten": self.access_data["tenant_name"],
                        "auth_protocol": auth_protocol,
-                       "insecure": insecure}
+                       "insecure": str(self.access_data['insecure']).lower()}
+
         f = open(os.path.join(self.homedir, "conf", "existing.json"), "w")
         f.write(rally_json_template % credentials)
         f.close()
@@ -333,7 +340,7 @@ class RallyOnDockerRunner(RallyRunner):
         self._rally_deployment_check()
 
     def _setup_rally_on_docker(self):
-        self.accessor.check_computes()
+        self.check_computes()
         self._verify_rally_container_is_up()
         self._check_rally_setup()
 

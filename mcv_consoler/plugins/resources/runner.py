@@ -24,7 +24,7 @@ class ResourceReportRunner(run.Runner):
 
     def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs.get("config")
-        self.accessor = accessor
+        self.access_data = accessor.os_data
         self.identity = "resources"
         self.config_section = "resources"
         self.path = path
@@ -61,7 +61,7 @@ class ResourceReportRunner(run.Runner):
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')
             return False
-        reporter = reporter_class(self.accessor, config=self.config)
+        reporter = reporter_class(self.access_data, config=self.config)
         res = reporter.search_resources()
         self.generate_report(res, task)
         return True

@@ -14,6 +14,7 @@
 
 from ConfigParser import NoOptionError
 import os.path
+# TODO(albartash): replace with traceback2
 import traceback
 
 from mcv_consoler.common.errors import SpeedError
@@ -28,7 +29,7 @@ LOG = LOG.getLogger(__name__)
 class SpeedTestRunner(run.Runner):
     def __init__(self, accessor, path, *args, **kwargs):
         # Need accessor for access data
-        self.accessor = accessor
+        self.access_data = accessor.os_data
         self.identity = "speed"
         self.config_section = "speed"
         self.config = kwargs.get('config')
@@ -63,7 +64,7 @@ class SpeedTestRunner(run.Runner):
         return res
 
     def get_preparer(self):
-        return Preparer(self.accessor.os_data)
+        return Preparer(self.access_data)
 
     def _prepare_vms(self):
         preparer = self.get_preparer()
@@ -146,7 +147,7 @@ class SpeedTestRunner(run.Runner):
             LOG.error('Incorrect task')
             return False
         try:
-            reporter = speed_class(self.accessor, image_size=i_s,
+            reporter = speed_class(self.access_data, image_size=i_s,
                                    volume_size=v_s, *args, **kwargs)
         except Exception:
             LOG.error('Error creating class %s. Please check mcvconsoler logs '

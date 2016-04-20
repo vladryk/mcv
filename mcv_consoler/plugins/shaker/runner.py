@@ -134,14 +134,14 @@ class ShakerOnDockerRunner(ShakerRunner):
     def __init__(self, accessor, path, *args, **kwargs):
         self.config = kwargs["config"]
         self.container_id = None
-        self.accessor = accessor
+        self.access_data = accessor.os_data
         self.path = path
         self.list_speed_tests = ['same_node.yaml', 'different_nodes.yaml',
                                  'floating_ip.yaml']
         super(ShakerOnDockerRunner, self).__init__()
 
-        self.glance = Clients.get_glance_client(accessor.os_data)
-        self.heat = Clients.get_heat_client(accessor.os_data)
+        self.glance = Clients.get_glance_client(self.access_data)
+        self.heat = Clients.get_heat_client(self.access_data)
 
     def _check_shaker_setup(self):
         LOG.info("Checking Shaker setup. If this is the first run of "
@@ -183,24 +183,24 @@ class ShakerOnDockerRunner(ShakerRunner):
                                 preexec_fn=utils.ignore_sigint).stdout.read()
 
     def start_container(self):
-        LOG.debug( "Bringing up Shaker container with credentials")
+        LOG.debug("Bringing up Shaker container with credentials")
 
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
 
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host="+self.config.get("basic", "auth_fqdn") +\
-                       ":" + self.accessor.access_data["auth_endpoint_ip"]
+            add_host = "--add-host={fqdn}:{endpoint}".format(
+                           fqdn=self.access_data["auth_fqdn"],
+                           endpoint=self.access_data["ips"]["endpoint"])
 
         res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
                                [add_host]*(add_host != "") +
-            ["-p", "5999:5999", "-e", "OS_AUTH_URL="+protocol+"://" +
-             self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-             "-e", "OS_TENANT_NAME=" +
-             self.accessor.access_data["os_tenant_name"],
-             "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-             "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
-             "-e", "OS_REGION_NAME=" + self.accessor.access_data["region_name"],
+            ["-p", "5999:5999",
+             "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
+             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
+             "-e", "OS_USERNAME=" + self.access_data["username"],
+             "-e", "OS_PASSWORD=" + self.access_data["password"],
+             "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
@@ -233,12 +233,9 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
-        insecure = ""
-        if self.config.get("basic", "auth_protocol") == "https":
-            insecure = " --os-insecure"
-        self.endpoint = self.accessor.access_data['auth_endpoint_ip']
+        insecure = " --os-insecure" if self.access_data['insecure'] else ""
         cmd = "docker exec -t %s shaker-image-builder --image-name " \
-              "shaker-image" % self.container
+              "shaker-image %s" % (self.container, insecure)
 
         p = utils.run_cmd(cmd + insecure)
 
@@ -256,7 +253,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "{task}.json --log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
-                        sep=self.accessor.access_data["instance_ip"],
+                        sep=self.access_data['ips']["instance"],
                         task=task,
                         home=self.home)
 

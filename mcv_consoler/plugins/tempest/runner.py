@@ -30,20 +30,16 @@ LOG = LOG.getLogger(__name__)
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
-    """Runner to run Tempest via Rally.
-
-    The same container which is used for running Rally tests is used for
-    running Tempest via Rally. Tempest must be cloned to a proper location
-    inside the container.
-    """
 
     def __init__(self, accessor, path, *args, **kwargs):
-        super(TempestOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
+        super(TempestOnDockerRunner, self).__init__(accessor,
+                                                    path,
+                                                    *args,
+                                                    **kwargs)
 
         self.config = kwargs["config"]
         self.path = path
         self.container = None
-        self.accessor = accessor
         self.failed_cases = 0
         self.home = '/mcv'
         self.homedir = '/home/mcv/toolbox/tempest'
@@ -63,21 +59,23 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
-            add_host = "--add-host="+self.config.get("basic", "auth_fqdn")\
-                       +":" + self.accessor.access_data["auth_endpoint_ip"]
+            add_host = "--add-host={fqdn}:{endpoint}".format(
+                           fqdn=self.access_data["auth_fqdn"],
+                           endpoint=self.access_data["ips"]["endpoint"])
+
         res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
             [add_host]*(add_host != "") +
-            ["-p", "6001:6001", "-e", "OS_AUTH_URL=" + protocol +"://" +
-            self.accessor.access_data["auth_endpoint_ip"] + ":5000/v2.0/",
-            "-e", "OS_TENANT_NAME=" +
-            self.accessor.access_data["os_tenant_name"],
-            "-e", "OS_REGION_NAME" + self.accessor.access_data["region_name"],
-            "-e", "OS_USERNAME=" + self.accessor.access_data["os_username"],
-            "-e", "OS_PASSWORD=" + self.accessor.access_data["os_password"],
-            "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-            "-v", '%s:/home/rally/.rally/tempest' % self.homedir,
-            "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
-            "-t", "mcv-tempest"], stdout=subprocess.PIPE,
+            ["-p", "6001:6001",
+             "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
+             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
+             "-e", "OS_REGION_NAME" + self.access_data["region_name"],
+             "-e", "OS_USERNAME=" + self.access_data["username"],
+             "-e", "OS_PASSWORD=" + self.access_data["password"],
+             "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+             "-v", '%s:/home/rally/.rally/tempest' % self.homedir,
+             "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
+             "-t", "mcv-tempest"],
+            stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
         self._verify_rally_container_is_up()
 
