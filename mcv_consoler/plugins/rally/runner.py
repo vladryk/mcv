@@ -25,7 +25,6 @@ from mcv_consoler.logger import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 
-nevermind = None
 
 config = config_parser
 LOG = LOG.getLogger(__name__)
@@ -47,8 +46,6 @@ rally_json_template = """{
 
 class RallyRunner(runner.Runner):
 
-    valid_staarten = ("yaml", "json")
-
     def __init__(self, config_location=None, *args, **kwargs):
         super(RallyRunner, self).__init__()
         self.config = kwargs["config"]
@@ -58,11 +55,6 @@ class RallyRunner(runner.Runner):
         # so let's leave it as is for now.
         # TODO(albartash): todo smth with this property
         self.test_failures = []
-
-    def _it_ends_well(self, something):
-        if something.split('.')[-1] in self.valid_staarten:
-            return True
-        return False
 
     def _setup_rally(self):
         # since it is assumed that we are running a preconfigured rally
@@ -274,7 +266,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         # Note: Nova client can't search flavours by name,
         # so manually search in list.
-        res = self.accessor._get_novaclient().flavors.list()
+        res = self.novaclient.flavors.list()
         for f in res:
             if f.name == 'm1.nano':
                 LOG.debug("Proper flavor for rally has been found")

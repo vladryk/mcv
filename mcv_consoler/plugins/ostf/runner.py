@@ -31,7 +31,6 @@ from mcv_consoler.plugins import runner
 
 from mcv_consoler import utils
 
-nevermind = None
 
 LOG = LOG.getLogger(__name__)
 

@@ -28,7 +28,6 @@ LOG = LOG.getLogger(__name__)
 
 class SpeedTestRunner(run.Runner):
     def __init__(self, accessor, path, *args, **kwargs):
-        # Need accessor for access data
         self.access_data = accessor.os_data
         self.identity = "speed"
         self.config_section = "speed"
@@ -42,12 +41,6 @@ class SpeedTestRunner(run.Runner):
 
         # TODO(albartash): Make a single place for images!
         self.imagedir = '/home/mcv/toolbox/rally/images'
-
-    def scenario_is_fine(self, scenario):
-        return True
-
-    def _it_ends_well(self, scenario):
-        return True
 
     def _evaluate_task_results(self, task_results):
         res = True

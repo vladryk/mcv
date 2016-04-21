@@ -33,8 +33,6 @@ from mcv_consoler.logger import LOG
 from mcv_consoler import utils
 
 
-nevermind = None
-
 LOG = LOG.getLogger(__name__)
 
 
@@ -46,27 +44,6 @@ class Runner(object):
         self.test_not_found = []
         self.failure_indicator = CAError.NO_RUNNER_ERROR
         super(Runner, self).__init__()
-
-    def _it_ends_well(self, scenario):
-        raise NotImplementedError
-
-    def scenario_is_fine(self, scenario):
-        # TODO(albartash): Perhaps, we shall remove this method at all
-
-        scenario = scenario.lstrip('\n')
-        entry_point = os.path.dirname(__file__)  # should be modified
-        where_is_wally = os.path.join(entry_point, self.identity,
-                                      'tests', scenario)
-        if os.path.exists(where_is_wally) and self._it_ends_well(scenario):
-            return True
-
-        #@TODO(albartash): here we need this block, as this mechanism
-        # should be restructured completely
-        # In fact, if Rally scenarios are at the place they're expected to be,
-        # Certification Task scenarios must be there too
-        if scenario == 'certification':
-                return True
-        return False
 
     def run_individual_task(self, task, *args, **kwargs):
         """Runs a single task.
@@ -108,15 +85,6 @@ class Runner(object):
                          'Please check container name.')
 
         return container_id
-
-    def check_task_list(self, tasks):
-        fine_to_run = filter(self.scenario_is_fine, tasks)
-        rejected_tasks = [x for x in tasks if x not in fine_to_run and x != '']
-        self.test_not_found = rejected_tasks
-        map(tasks.remove, rejected_tasks)
-        LOG.info("The following tests will be run: %s" % ", ".join(fine_to_run)) if fine_to_run else \
-             LOG.error("Looks like not a single test will be run for group %s" % self.identity)
-        LOG.warning("The following tasks have not been found: %s. Skipping them" % ", ".join(rejected_tasks))if rejected_tasks else nevermind
 
     def get_error_code(self, tool_name):
 
@@ -161,7 +129,8 @@ class Runner(object):
         except NoOptionError:
             max_failed_tests = int(config.get('basic', 'max_failed_tests'))
 
-        self.check_task_list(tasks)
+        LOG.debug("The following tests will be run:")
+        LOG.debug("\n".join(tasks))
         self.total_checks = len(tasks)
 
         failures = 0

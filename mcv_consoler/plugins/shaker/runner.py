@@ -26,16 +26,13 @@ from mcv_consoler.logger import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 
-nevermind = None
 
 config = config_parser
 LOG = LOG.getLogger(__name__)
 
 
 class ShakerRunner(runner.Runner):
-
-    valid_staarten = ("yaml", "json")
-
+    
     def __init__(self, accessor=None, config_location=None, *args, **kwargs):
         super(ShakerRunner, self).__init__()
         self.identity = "shaker"
@@ -48,14 +45,6 @@ class ShakerRunner(runner.Runner):
         self.failure_indicator = ShakerError.NO_RUNNER_ERROR
         self.homedir = '/home/mcv/toolbox/shaker'
         self.home = '/mcv'
-
-    def scenario_is_fine(self, scenario):
-        return True
-
-    def _it_ends_well(self, something):
-        if something.split('.')[-1] in self.valid_staarten:
-            return True
-        return False
 
     def _evaluate_task_result(self, task, resulting_dict):
         status = True

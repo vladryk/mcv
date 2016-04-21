@@ -32,12 +32,6 @@ class ResourceReportRunner(run.Runner):
         super(ResourceReportRunner, self).__init__()
         self.failure_indicator = ResourceError.NO_RUNNER_ERROR
 
-    def scenario_is_fine(self, scenario):
-        return True
-
-    def _it_ends_well(self, scenario):
-        return True
-
     def _evaluate_task_results(self, task_results):
         return True
 

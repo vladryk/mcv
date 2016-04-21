@@ -27,12 +27,6 @@ class SelfCheckRunner(run.Runner):
         self.failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
         self.identity="selfcheck"
 
-    def scenario_is_fine(self, scenario):
-        return True
-
-    def _it_ends_well(self, scenario):
-        return True
-
     def _evaluate_task_results(self, task_results):
         for task_result in task_results:
             if task_result is not True:
