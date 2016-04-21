@@ -373,13 +373,27 @@ class AccessSteward(object):
                 self.compute += 1
         LOG.debug("Found " + str(self.compute) + " computes.")
 
+    def _is_cloud_instance(self):
+        """ Check if mcv image is running as an instance of a cloud that
+        we are going to test """
+        all_floating_ips = self._get_novaclient().floating_ips.list()
+        for ip_obj in all_floating_ips:
+            if not ip_obj.instance_id:  # IP is not assigned to any instance
+                continue
+            if ip_obj.ip == self.os_data['ips']['instance']:
+                return True
+
     def check_mcv_secgroup(self):
+        if not self._is_cloud_instance():
+            LOG.debug("Looks like mcv image is not running as an instance "
+                      "of a cloud. Skipping creation of 'mcv-special-group'")
+            return
+
         LOG.debug("Checking for proper security group")
         res = self._get_novaclient().security_groups.list()
         for r in res:
             if r.name == 'mcv-special-group':
                 LOG.debug("Has found one")
-
                 # TODO(ogrytsenko): a group could exist while being
                 # not attached
                 return
@@ -387,23 +401,26 @@ class AccessSteward(object):
         LOG.debug("Nope. Has to create one")
         mcvgroup = self._get_novaclient().security_groups.create(
             'mcv-special-group', 'mcvgroup')
-
+        LOG.debug("Created new security group 'mcv-special-group'. "
+                  "Group id: %s" % mcvgroup.id)
         self._get_novaclient().security_group_rules.create(
             parent_group_id=mcvgroup.id, ip_protocol='tcp', from_port=5999,
             to_port=6001, cidr='0.0.0.0/0')
 
         LOG.debug("Finished creating a group and adding rules")
-        servers = self._get_novaclient().servers.list()
 
-        # TODO(ogrytsenko): refactor or remove a piece of code below
+        LOG.debug('Trying to attach our mcv-instance to created group')
+        servers = self._get_novaclient().servers.list()
         for server in servers:
             addr = server.addresses
             for network, ifaces in addr.iteritems():
                 for iface in ifaces:
                     if iface['addr'] == self.os_data["ips"]["instance"]:
-                        LOG.debug("Found a server to attach the new group to")
                         server.add_security_group(mcvgroup.id)
-        LOG.debug("And they lived happily ever after")
+                        LOG.debug("Added security group {gid} to an "
+                                  "instance {sid}".
+                                  format(gid=mcvgroup.id, sid=server.id))
+        LOG.debug("Finished setting-up security groups")
 
     def cleanup(self):
         self._stop_forwarding()
