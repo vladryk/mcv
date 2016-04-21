@@ -201,10 +201,11 @@ class RallyOnDockerRunner(RallyRunner):
         add_host = ""
         if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
-                           fqdn=self.access_data["auth_fqdn"],
-                           endpoint=self.access_data["ips"]["endpoint"])
+                fqdn=self.access_data["auth_fqdn"],
+                endpoint=self.access_data["ips"]["endpoint"])
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
+        res = subprocess.Popen(
+            ["docker", "run", "-d", "-P=true"] +
             [add_host]*(add_host != "") +
             ["-p", "6000:6000",
              "-e", "OS_AUTH_URL=" + self.access_data['auth_url'],
@@ -236,23 +237,31 @@ class RallyOnDockerRunner(RallyRunner):
                       '/openstack/services/heat/main.py')
         cmd = ("docker exec -t {cid} sudo sed -i "
                "'53s/.*/            timeout=10000,/' {path}").format(
-                   cid=self.container_id, path=rally_path)
+            cid=self.container_id, path=rally_path)
 
         res = utils.run_cmd(cmd)
         siege_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins/'
                       'workload/siege.py')
-        cmd = """docker exec -t %s sudo sed -i '26s/.*/SIEGE_RE = re.compile(r"^(Throughput|Transaction rate|Failed transactions|Successful transactions):\s+(\d+\.?\d*).*")' %s"""\
-              % (self.container_id, siege_path)
+        cmd = ("docker exec -t %s "
+               "sudo sed -i "
+               """'26s/.*/SIEGE_RE = re.compile(r"^(Throughput|"""
+               """Transaction rate|Failed transactions|"""
+               """Successful transactions):\s+(\d+\.?\d*).*")' %s""") % (
+            self.container_id, siege_path)
+
         # TODO(mcv-team): Found out how to pass re through sed
         template_path = os.path.join(self.home,
                                      'tests/templates/wp_instances.yaml')
 
         LOG.debug('Start patching hosts')
-        cmd = """docker exec -t %s sudo sed -i "61s/.*/            sudo sh -c 'echo %s %s >> \/etc\/hosts'/" %s""" % \
-              (self.container_id,
-               self.access_data['ips']['endpoint'],
-               self.access_data['auth_fqdn'],
-               template_path)
+        cmd = ("""docker exec -t %s """
+               """sudo sed -i "61s/.*/"""
+               """            sudo sh -c 'echo %s %s >> """
+               """\/etc\/hosts'/" %s""") % (
+            self.container_id,
+            self.access_data['ips']['endpoint'],
+            self.access_data['auth_fqdn'],
+            template_path)
 
         res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
@@ -322,7 +331,7 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug('Trying to use Rally deployment')
         cmd = ("docker exec -t {cid} "
                "sudo rally deployment use existing").format(
-                   cid=self.container_id)
+            cid=self.container_id)
         LOG.debug('Run "{cmd}"'.format(cmd=cmd))
         p = utils.run_cmd(cmd)
         LOG.debug('Result: {res}'.format(res=p))
@@ -383,10 +392,10 @@ class RallyOnDockerRunner(RallyRunner):
                    " task start"
                    " {location}/certification/openstack/task.yaml"
                    " --task-args '{task_args}'").format(
-                       home=self.home,
-                       container=self.container_id,
-                       location=os.path.join(self.home, "tests"),
-                       task_args=json.dumps(task_args))
+                home=self.home,
+                container=self.container_id,
+                location=os.path.join(self.home, "tests"),
+                task_args=json.dumps(task_args))
 
         elif task == 'workload.yaml':
             task_args = self.prepare_workload_task()
@@ -396,36 +405,38 @@ class RallyOnDockerRunner(RallyRunner):
                    " task start"
                    " {location}/workload.yaml"
                    " --task-args '{task_args}'").format(
-                       home=self.home,
-                       container=self.container_id,
-                       location=os.path.join(self.home, "tests"),
-                       task_args=json.dumps(task_args))
+                home=self.home,
+                container=self.container_id,
+                location=os.path.join(self.home, "tests"),
+                task_args=json.dumps(task_args))
         else:
             LOG.info("Starting task %s" % task)
-            cmd = "docker exec -t %(container)s sudo rally"\
-                  " --log-file %(home)s/log/rally.log --rally-debug"\
-                  " task start"\
-                  " %(location)s/%(task)s --task-args '{\"compute\":"\
-                  "%(compute)s, \"concurrency\":%(concurrency)s,"\
-                  "\"current_path\": %(location)s, \"gre_enabled\":%(gre_enabled)s,"\
-                  "\"vlan_amount\":%(vlan_amount)s}'" %\
-                  {"home": self.home,
-                   "container": self.container_id,
-                   "compute": kwargs["compute"],
-                   "concurrency": kwargs["concurrency"],
-                   "gre_enabled": kwargs["gre_enabled"],
-                   "vlan_amount": kwargs["vlan_amount"],
-                   "task": task,
-                   "location": os.path.join(self.home, 'tests')}
+            cmd = ("docker exec -t %(container)s sudo rally"
+                   " --log-file %(home)s/log/rally.log --rally-debug"
+                   " task start"
+                   " %(location)s/%(task)s --task-args '{\"compute\":"
+                   "%(compute)s, \"concurrency\":%(concurrency)s,"
+                   "\"current_path\": %(location)s, "
+                   "\"gre_enabled\":%(gre_enabled)s,"
+                   "\"vlan_amount\":%(vlan_amount)s}'") % {
+                "home": self.home,
+                "container": self.container_id,
+                "compute": kwargs["compute"],
+                "concurrency": kwargs["concurrency"],
+                "gre_enabled": kwargs["gre_enabled"],
+                "vlan_amount": kwargs["vlan_amount"],
+                "task": task,
+                "location": os.path.join(self.home, 'tests')}
 
         p = utils.run_cmd(cmd)
         original_output = p
 
         failed = False
         if task == 'workload.yaml':
-            cmd = "docker exec -t %(container)s rally task results" \
-              % {"container": self.container_id}
+            cmd = "docker exec -t {cid} rally task results".format(
+                cid=self.container_id)
             p = utils.run_cmd(cmd)
+
             try:
                 res = json.loads(p)
             except ValueError:
@@ -439,14 +450,17 @@ class RallyOnDockerRunner(RallyRunner):
                 LOG.info('Workload test failed')
                 failed = True
             else:
-                a = res[0]['result'][0]['output']['complete'][0]['data']['rows']
+                a = res[0]['result'][0]['output']
+                a = a['complete'][0]['data']['rows']
                 LOG.info('Workload results:')
                 for row in a:
                     LOG.info("%s: %s" % (row[0], row[1]))
         p = original_output
         out = p.split('\n')[-3].lstrip('\t')
-        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
+                             '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
+                             '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
         ret_val = None
 
         for candidate in result_candidates:
@@ -458,18 +472,18 @@ class RallyOnDockerRunner(RallyRunner):
 
         if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
-        LOG.debug("Received results for a task %s, those are '%s'" % (task,
-                          out.rstrip('\r')))
-        cmd = ("docker exec -t {container} sudo rally task report"
+        LOG.debug("Received results for a task %s, those are '%s'" %
+                  (task, out.rstrip('\r')))
+        cmd = ("docker exec -t {cid} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
-                   home=self.home,
-                   container=self.container_id,
-                   task=task)
+            cid=self.container_id,
+            home=self.home,
+            task=task)
 
         p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {fld}/reports/{task}.html {pth}".format(
-                  fld=self.homedir, task=task, pth=self.path)
+            fld=self.homedir, task=task, pth=self.path)
 
         p = utils.run_cmd(cmd)
 
@@ -482,7 +496,7 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = "docker exec -t %s %s" % (self.container_id, task_id)
         p = utils.run_cmd(cmd)
 
-        if task_id.find("detailed") ==-1:
+        if task_id.find("detailed") == -1:
             try:
                 res = json.loads(p)[0]  # actual test result as a dictionary
                 return res
@@ -501,7 +515,8 @@ class RallyOnDockerRunner(RallyRunner):
         try:
             task_id = self._run_rally_on_docker(task, *args, **kwargs)
             if task_id['failed'] and len(task_id.keys()) == 1:
-                LOG.warning("Task %s has failed for some instrumental issues" % (task))
+                LOG.warning("Task %s has failed for some instrumental issues" %
+                            (task))
                 self.test_failures.append(task)
                 return False
         except subprocess.CalledProcessError as e:
@@ -509,7 +524,8 @@ class RallyOnDockerRunner(RallyRunner):
             self.test_failures.append(task)
             return False
         else:
-            task_result = self._get_task_result_from_docker(task_id['next_command'])
+            task_result = self._get_task_result_from_docker(
+                task_id['next_command'])
 
             if type(task_result) == dict and\
                     self._evaluate_task_result(task, task_result):

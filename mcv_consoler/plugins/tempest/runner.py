@@ -50,14 +50,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def start_container(self):
         LOG.debug("Bringing up Tempest container with credentials")
-        protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
         if self.config.get("basic", "auth_fqdn") != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
-                           fqdn=self.access_data["auth_fqdn"],
-                           endpoint=self.access_data["ips"]["endpoint"])
+                fqdn=self.access_data["auth_fqdn"],
+                endpoint=self.access_data["ips"]["endpoint"])
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true",] +
+        res = subprocess.Popen(
+            ["docker", "run", "-d", "-P=true"] +
             [add_host]*(add_host != "") +
             ["-p", "6001:6001",
              "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
@@ -71,6 +71,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
              "-t", "mcv-tempest"],
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
+
+        LOG.debug('Finish bringing up Tempest container.'
+                  'ID = %s' % str(res))
+
         self._verify_rally_container_is_up()
 
     def _patch_tempest_conf(self):
@@ -78,30 +82,29 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         if config:
             config = config[0]
             cmd = """sudo sed -i "70s/.*/operator_role = admin/" %s""" % config
-            p = utils.run_cmd(cmd)
-
+            utils.run_cmd(cmd)
 
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
-                          os.path.join(self.home,
-                                       "images",
-                                       "cirros-0.3.4-x86_64-disk.img")],
-                          stdout=subprocess.PIPE,
-                          preexec_fn=utils.ignore_sigint).stdout.read()
+                         os.path.join(self.home,
+                                      "images",
+                                      "cirros-0.3.4-x86_64-disk.img")],
+                         stdout=subprocess.PIPE,
+                         preexec_fn=utils.ignore_sigint).stdout.read()
 
         cmd = "mkdir " + os.path.join(self.homedir, "data")
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         # TODO(albartash): Replace cp with ln if possible
         cmd = ("sudo cp {homedir}/images/cirros-0.3.4-x86_64-disk.img "
-              "{homedir}/data").format(homedir=self.homedir)
+               "{homedir}/data").format(homedir=self.homedir)
 
         cmd = shlex.split(cmd)
 
         subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                          preexec_fn=utils.ignore_sigint).stdout.read()
+                         preexec_fn=utils.ignore_sigint).stdout.read()
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         LOG.info("Searching for installed tempest")
@@ -109,8 +112,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         install = glob.glob(self.homedir + '/for-deployment-*')
         if not install:
             LOG.info("No installation found. Installing tempest")
-            cmd = "docker exec -t %(container)s sudo rally verify install --deployment existing --source /tempest" %\
-                  {"container": self.container_id}
+            cmd = ("docker exec -t {cid} "
+                   "sudo rally verify install "
+                   "--deployment existing --source /tempest").format(
+                cid=self.container_id)
 
             p = utils.run_cmd(cmd)
             cmd = "docker exec -t %(container)s sudo rally verify genconfig" %\
@@ -124,14 +129,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info("Starting verification")
         cmd = ("docker exec -t {cid} sudo rally "
                "--log-file {home}/log/tempest.log --rally-debug"
-               " verify start --set {_set}").format(
-                   cid=self.container_id,
-                   home=self.home,
-                   _set=task)
+               " verify start --set {_set}").format(cid=self.container_id,
+                                                    home=self.home,
+                                                    _set=task)
         p = utils.run_cmd(cmd)
 
         cmd = "docker exec -t {cid} rally verify list".format(
-                  cid=self.container_id)
+            cid=self.container_id)
+
         try:
             p = utils.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
@@ -148,23 +153,25 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info('Generating html report')
         cmd = ("docker exec -t {cid} sudo rally verify results --html "
                "--out={home}/reports/{task}.html").format(
-                   cid=self.container_id, home=self.home, task=task)
+            cid=self.container_id, home=self.home, task=task)
 
         p = utils.run_cmd(cmd)
 
         cmd = ('docker exec -it {cid} sudo cp {home}/reports/{task}.html '
-               '/home/rally/.rally/tempest').format(
-                   cid=self.container_id, home=self.home, task=task)
+               '/home/rally/.rally/tempest').format(cid=self.container_id,
+                                                    home=self.home,
+                                                    task=task)
 
         p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.html {path}".format(
-                  homedir=self.homedir, task=task, path=self.path)
+            homedir=self.homedir, task=task, path=self.path)
         p = utils.run_cmd(cmd)
 
         cmd = "docker exec -t {cid} rally verify results --json".format(
-                  cid=self.container_id)
+            cid=self.container_id)
         p = utils.run_cmd(cmd)
+
         return p
 
     def parse_results(self, res, task):
@@ -173,17 +180,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.info("Results of test set '%s': FAILURE" % task)
             self.failure_indicator = TempestError.VERIFICATION_FAILED
             return False
+
         try:
             self.task = json.loads(res)
         except ValueError:
-            LOG.info("Results of test set '%s': FAILURE, gotten not-JSON object."
-                     " Please see logs" % task)
+            LOG.info("Results of test set '%s': "
+                     "FAILURE, gotten not-JSON object. "
+                     "Please see logs" % task)
             LOG.debug("Not-JSON object: %s", res)
             return False
+
         failures = self.task.get('failures')
         success = self.task.get('success')
         self.failed_cases += failures
-        LOG. info("Results of test set '%s': SUCCESS: %d FAILURES: %d" % (task, success, failures))
+        LOG.info("Results of test set '%s': "
+                 "SUCCESS: %d FAILURES: %d" % (task, success, failures))
         if not failures:
             self.test_success.append(task)
             return True
@@ -208,9 +219,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         current_time = 0
 
         try:
-            max_failed_tests = int(self.config.get('tempest', 'max_failed_tests'))
+            max_failed_tests = int(self.config.get('tempest',
+                                                   'max_failed_tests'))
         except NoOptionError:
-            max_failed_tests = int(self.config.get('basic', 'max_failed_tests'))
+            max_failed_tests = int(self.config.get('basic',
+                                                   'max_failed_tests'))
 
         self._setup_rally_on_docker()
         t = []

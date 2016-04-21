@@ -30,9 +30,11 @@ class BaseStorageSpeed(object):
         self.config = kwargs.get('config')
         self.access_data = access_data
         protocol = 'https' if self.access_data['insecure'] else 'http'
+
         self.glance_url = "{protocol}://{endpoint}:9292/v2".format(
-                              protocol=protocol,
-                              endpoint=self.access_data['ips']['endpoint'])
+            protocol=protocol,
+            endpoint=self.access_data['ips']['endpoint'])
+
         self.timeout = 0
         self.test_vm = None
         self.init_clients()
@@ -123,9 +125,11 @@ class BaseStorageSpeed(object):
         err = ''.join(stderr_data)
         session.close()
         if status != 0:
-            LOG.info('Command "%s" finished with exit code %d' % (cmd, status))
+            LOG.info('Command "%s" finished with exit code %d' % (cmd,
+                                                                  status))
         else:
-            LOG.debug('Command "%s" finished with exit code %d' % (cmd, status))
+            LOG.debug('Command "%s" finished with exit code %d' % (cmd,
+                                                                   status))
         LOG.debug('Stdout: %s' % out)
         LOG.debug('Stderr: %s' % err)
         return {'ret': status, 'out': out, 'err': err}
@@ -188,9 +192,13 @@ class BlockStorageSpeed(BaseStorageSpeed):
                 break
             time.sleep(3)
 
-        attach = self.novaclient.volumes.create_server_volume(self.test_vm.id,
-                                                              self.vol.id,
-                                                              device='/dev/vdb')
+        attach = self.novaclient.volumes.create_server_volume(
+            self.test_vm.id,
+            self.vol.id,
+            device='/dev/vdb')
+
+        LOG.debug('Result of creating volume: %s' % str(attach))
+
         path = '/dev/vdb'
         cmd = "test -e %s && echo 1" % path
         for i in range(0, 20):
@@ -310,7 +318,8 @@ class BlockStorageSpeed(BaseStorageSpeed):
             self.run_ssh_cmd("free -m | awk 'FNR == 3 {print $4}'")['out']) - 1
         if max_mem < self.size:
             self.max_thr = max_mem
-            self.thr_count = int(math.ceil(float(self.size) / float(self.max_thr)))
+            self.thr_count = int(math.ceil(float(self.size) /
+                                           float(self.max_thr)))
             self.thr_size = int(self.max_thr * self.thr_count)
         else:
             self.max_thr = self.size

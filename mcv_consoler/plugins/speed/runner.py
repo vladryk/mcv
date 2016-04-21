@@ -76,8 +76,8 @@ class SpeedTestRunner(run.Runner):
             flavor_req = 'ram:64,vcpus:1'
         supported_req = ['ram', 'vcpus', 'disk']
         flavor_req = dict((k.strip(), int(v.strip())) for k, v in
-                          (item.split(':') for item in flavor_req.split(',')) if
-                          (k and v) and (k in supported_req))
+                          (item.split(':') for item in flavor_req.split(',')
+                           ) if (k and v) and (k in supported_req))
         return preparer.prepare_instances(image_path, flavor_req)
 
     def _remove_vms(self):

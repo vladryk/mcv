@@ -32,7 +32,7 @@ LOG = LOG.getLogger(__name__)
 
 
 class ShakerRunner(runner.Runner):
-    
+
     def __init__(self, accessor=None, config_location=None, *args, **kwargs):
         super(ShakerRunner, self).__init__()
         self.identity = "shaker"
@@ -50,11 +50,12 @@ class ShakerRunner(runner.Runner):
         status = True
         errors = ''
         if type(resulting_dict) != dict:
-            LOG.debug("Task %s has failed with the following error: %s" % (task, resulting_dict))
+            LOG.debug("Task %s has failed with the following error: %s" %
+                      (task, resulting_dict))
             return False
         if resulting_dict == []:
             errors = 'Timeout Error with shaker. Process was killed.'
-            LOG.warning("Task %s has failed with the following error: %s" % \
+            LOG.warning("Task %s has failed with the following error: %s" %
                         (task, errors))
             return False
 
@@ -69,7 +70,7 @@ class ShakerRunner(runner.Runner):
         if status:
             LOG.info("Task %s has completed successfully." % task)
         else:
-            LOG.warning("Task %s has failed with the following error: %s" % \
+            LOG.warning("Task %s has failed with the following error: %s" %
                         (task, errors))
             return status
         return status
@@ -164,26 +165,31 @@ class ShakerOnDockerRunner(ShakerRunner):
                                       min_disk=3, min_ram=512)
         else:
             LOG.debug("Shaker image exists")
+
         LOG.debug("Run shaker-image-builder")
-        res = subprocess.Popen(["docker", "exec", "-t",
-                                self.container_id,
-                                "shaker-image-builder --image-name shaker-image" + insecure],
-                                stdout=subprocess.PIPE,
-                                preexec_fn=utils.ignore_sigint).stdout.read()
+        res = subprocess.Popen(
+            ["docker", "exec", "-t",
+             self.container_id,
+             "shaker-image-builder --image-name shaker-image" + insecure],
+            stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
+
+        LOG.debug('Finish running shaker-image-builder.'
+                  'Result: %s' % str(res))
 
     def start_container(self):
         LOG.debug("Bringing up Shaker container with credentials")
 
-        protocol = self.config.get('basic', 'auth_protocol')
         add_host = ""
 
         if self.config.get("basic", "auth_fqdn") != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
-                           fqdn=self.access_data["auth_fqdn"],
-                           endpoint=self.access_data["ips"]["endpoint"])
+                fqdn=self.access_data["auth_fqdn"],
+                endpoint=self.access_data["ips"]["endpoint"])
 
-        res = subprocess.Popen(["docker", "run", "-d", "-P=true"] +
-                               [add_host]*(add_host != "") +
+        res = subprocess.Popen(
+            ["docker", "run", "-d", "-P=true"] +
+            [add_host]*(add_host != "") +
             ["-p", "5999:5999",
              "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
@@ -196,6 +202,9 @@ class ShakerOnDockerRunner(ShakerRunner):
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
+        LOG.debug('Finish bringing up Shaker container. '
+                  'ID = %s' % str(res))
+
     def _setup_shaker_on_docker(self):
         self.verify_container_is_up("shaker")
         self._check_shaker_setup()
@@ -206,6 +215,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             if elements[1].find("shaker") != -1:
                 self.container = elements[0]
                 status = elements[4]
+                LOG.debug('Container status: %s' % str(status))
                 break
 
     def _create_task_in_docker(self, task):
@@ -267,7 +277,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.json {path}".format(
-                  homedir=self.homedir, task=task, path=self.path)
+            homedir=self.homedir, task=task, path=self.path)
         p = utils.run_cmd(cmd)
 
         temp = open('%s/%s.json' % (self.path, task), 'r')
@@ -281,7 +291,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             return "Not-JSON object"
 
         cmd = "sudo cp {homedir}/{task}.html {path}".format(
-                  homedir=self.homedir, task=task, path=self.path)
+            homedir=self.homedir, task=task, path=self.path)
 
         p = utils.run_cmd(cmd)
 
@@ -470,13 +480,11 @@ class ShakerOnDockerRunner(ShakerRunner):
                     self.clear_shaker_image()
                     self.test_failures.append(task)
                     LOG.debug("Task {task} has failed with {res}".format(
-                                  task=task, res=task_result))
+                        task=task, res=task_result))
                     return False
 
                 row, report_status = self._generate_one_row_report(
-                                         task_result,
-                                         internal_task,
-                                         threshold)
+                    task_result, internal_task, threshold)
                 output += row
                 success &= report_status
             self._generate_report_network_speed(threshold, task, output)

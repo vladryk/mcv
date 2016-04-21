@@ -176,13 +176,11 @@ class Consoler(object):
                                               key, "runner.py")
                 m = imp.load_source("runner"+key, path_to_runner)
             except IOError as e:
-                major_crash = 1
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             except Exception:
-                major_crash = 1
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("Something went wrong. "
                           "Please check mcvconsoler logs")
@@ -191,35 +189,39 @@ class Consoler(object):
             else:
                 path = os.path.join(self.results_vault, key)
                 os.mkdir(path)
-                runner = getattr(m, self.config.get(key, 'runner'))(self.access_helper, path, config=self.config)
+                runner = getattr(m, self.config.get(key, 'runner')
+                                 )(self.access_helper,
+                                   path,
+                                   config=self.config)
 
                 batch = [x for x in (''.join(test_dict[key].split()
                                              ).split(',')) if x]
 
                 LOG.debug("Running {batch} for {key}".format(
-                              batch=str(len(batch)),
-                              key=key))
+                          batch=str(len(batch)),
+                          key=key))
 
                 try:
                     run_failures = runner.run_batch(
-                                       batch,
-                                       compute="1",
-                                       event=self.event,
-                                       concurrency=self.concurrency,
-                                       config=self.config,
-                                       tool_name=key,
-                                       db=db,
-                                       all_time=self.all_time,
-                                       elapsed_time=elapsed_time_by_group[key],
-                                       gre_enabled=self.gre_enabled,
-                                       vlan_amount=self.vlan_amount,
-                                       test_group=kwargs.get('testgroup'))
+                        batch,
+                        compute="1",
+                        event=self.event,
+                        concurrency=self.concurrency,
+                        config=self.config,
+                        tool_name=key,
+                        db=db,
+                        all_time=self.all_time,
+                        elapsed_time=elapsed_time_by_group[key],
+                        gre_enabled=self.gre_enabled,
+                        vlan_amount=self.vlan_amount,
+                        test_group=kwargs.get('testgroup'))
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == CAError.NO_ERROR:
                             self.failure_indicator = runner.failure_indicator
                         else:
-                            self.failure_indicator = ComplexError.SOME_SUITES_FAILED
+                            self.failure_indicator = \
+                                ComplexError.SOME_SUITES_FAILED
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 127:
                         LOG.debug(("It looks like you are trying to use a "
@@ -289,7 +291,7 @@ class Consoler(object):
                 if self.config.has_section("custom_test_group_failed") and\
                    self.config.has_option("custom_test_group_failed", key):
 
-                    LOG.debug("Removing %s from custom_test_group_failed" % key)
+                    LOG.debug("Removing %s from Failed test group" % key)
                     self.config.remove_option("custom_test_group_failed", key)
                     sent = True
         if self.config.has_section("custom_test_group_failed") and\
@@ -381,11 +383,11 @@ class Consoler(object):
 
             try:
                 run_results = getattr(self, "do_" + self.args.run[0])(
-                                  *self.args.run[1:])
+                    *self.args.run[1:])
             except TypeError as e:
                 run_name = "do_" + self.args.run[0]
                 expected_arglist = inspect.getargspec(
-                                       getattr(self, run_name)).args
+                    getattr(self, run_name)).args
 
                 scolding = {"supplied_args": ", ".join(self.args.run[1:]),
                             "function": self.args.run[0],
@@ -393,9 +395,9 @@ class Consoler(object):
                             "error": e}
 
                 temessage = ("Somehow \'%(supplied_args)s\' is not enough for "
-                            "\'%(function)s\'\n\'%(function)s\' actually "
-                            "expects the folowing arguments: \'"
-                            "%(expected_args)s\' Reply: \'%(error)s\'")
+                             "\'%(function)s\'\n\'%(function)s\' actually "
+                             "expects the folowing arguments: \'"
+                             "%(expected_args)s\' Reply: \'%(error)s\'")
 
                 LOG.error(temessage % scolding)
             except ValueError as e:
@@ -412,13 +414,14 @@ class Consoler(object):
         elif self.args.test is not None:
             arguments = ' '.join(i for i in self.args.test)
             subprocess.call(('/opt/mcv-consoler/tests/'
-                             'tmux_mcv_tests_runner.sh "({0})"').format(
-                                 arguments),
-                             shell=True,
-                             preexec_fn=utils.ignore_sigint)
+                             'tmux_mcv_tests_runner.sh '
+                             '"({0})"').format(arguments),
+                            shell=True,
+                            preexec_fn=utils.ignore_sigint)
             return 1
         r_helper = do_finalization(run_results)
         self.access_helper.cleanup()
         result.append(self.failure_indicator)
         if run_results is not None:
-            LOG.info("One page report could be found in /tmp/mcv_run_%s.tar.gz" % r_helper)
+            LOG.info("One page report could be found in "
+                     "/tmp/mcv_run_%s.tar.gz" % r_helper)

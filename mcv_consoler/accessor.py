@@ -115,9 +115,10 @@ class AccessSteward(object):
 
     def _address_is_reachable(self, address):
         responce = subprocess.Popen(
-                ["/bin/ping", "-c1", "-w30", address],
-                stdout=subprocess.PIPE,
-                preexec_fn=utils.ignore_sigint)
+            ["/bin/ping", "-c1", "-w30", address],
+            stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint)
+
         responce.communicate()[0]
         if responce.returncode == 0:
             return True
@@ -146,7 +147,8 @@ class AccessSteward(object):
         return self.keystoneclient
 
     def _get_private_endpoint_ip(self):
-        """Get Private endpoint-ip from keystone (it is internalURL in keystone).
+        """Get Private endpoint-ip from Keystone.
+        (it is internalURL in Keystone)
         InternalURL - is always the same for any service.
         """
         full_url = self._get_keystoneclient().service_catalog.get_endpoints(
@@ -162,7 +164,7 @@ class AccessSteward(object):
                 if line.find(a_fqdn) != -1:
                     return
             f.write(' '.join([self.os_data['ips']['endpoint'],
-                       self.os_data['auth_fqdn'], "\n"]))
+                    self.os_data['auth_fqdn'], "\n"]))
             f.close()
 
     def _restore_hosts_config(self):
@@ -202,7 +204,7 @@ class AccessSteward(object):
                          ))
             return False
         except (Timeout, ConnectionError) as conn_e:
-            LOG.error("Apparently authentication endpoint address is not valid."
+            LOG.error("Apparently auth endpoint address is not valid."
                       " %s" % str(conn_e))
             return False
         LOG.info("Access data looks valid.")
@@ -311,15 +313,16 @@ class AccessSteward(object):
                 ssh.exec_command(mk_port)
                 time.sleep(5)
             else:
-                LOG.debug( "Apparently port forwarding on the "
-                           "controller is set")
+                LOG.debug("Apparently port forwarding on the "
+                          "controller is set")
+
         ssh.exec_command("rm " + rkname + "*")
 
         res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-L -n", ],
-                                shell=False, stdout=subprocess.PIPE,
-                                stdin=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                preexec_fn=utils.ignore_sigint).stdout.read()
+                               shell=False, stdout=subprocess.PIPE,
+                               stdin=subprocess.PIPE,
+                               stderr=subprocess.PIPE,
+                               preexec_fn=utils.ignore_sigint).stdout.read()
         if re.search("DNAT.*7654\n", res) is not None:
             # leave slowly, don't wake it up
             LOG.debug("Local iptables rule is set.")
@@ -328,16 +331,17 @@ class AccessSteward(object):
             "sudo iptables -L -n -t nat --line-numbers | grep MCV_instance",
             shell=True) == 1
         if out:
+            destination = "%s:7654" % self.os_data["ips"]["controller"]
             res = subprocess.Popen(["sudo", "iptables", "-t", "nat", "-I",
                                     "PREROUTING", "1", "-d",
                                     self._get_private_endpoint_ip(), "-p",
                                     "tcp", "--dport", "35357", "-j", "DNAT",
-                                    "--to-destination", "%s:7654" % \
-                                    self.os_data["ips"]["controller"],
+                                    "--to-destination", destination,
                                     "-m", "comment", "--comment",
                                     "\'MCV_instance\'"],
                                    stdout=subprocess.PIPE,
-                                   preexec_fn=utils.ignore_sigint).stdout.read()
+                                   preexec_fn=utils.ignore_sigint
+                                   ).stdout.read()
             LOG.debug("Now local iptables rule is set.")
 
     def _stop_forwarding(self):
@@ -376,7 +380,8 @@ class AccessSteward(object):
             if r.name == 'mcv-special-group':
                 LOG.debug("Has found one")
 
-                # TODO(ogrytsenko): a group could exist while being not attached
+                # TODO(ogrytsenko): a group could exist while being
+                # not attached
                 return
 
         LOG.debug("Nope. Has to create one")

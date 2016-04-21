@@ -24,9 +24,9 @@ LOG = LOG.getLogger(__name__)
 
 class Preparer(object):
     def __init__(self, access_data):
-       super(Preparer, self).__init__()
-       self.nova = Clients.get_nova_client(access_data)
-       self.glance = Clients.get_glance_client(access_data)
+        super(Preparer, self).__init__()
+        self.nova = Clients.get_nova_client(access_data)
+        self.glance = Clients.get_glance_client(access_data)
 
     def _check_image(self, image_path):
         LOG.info('Check cirros-image in glance')

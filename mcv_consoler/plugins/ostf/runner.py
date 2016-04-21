@@ -83,9 +83,9 @@ class OSTFOnDockerRunner(runner.Runner):
         LOG.debug("Trying to obtain OSTF configuration file")
         cmd = ('docker exec -t {cid} /mcv/execute.sh fuel-ostf.{version} '
                '"ostf-config-extractor -o {path}"').format(
-                   cid=self.container_id,
-                   version=self.mos_version,
-                   path=os.path.join(self.home, 'conf', 'ostfcfg.conf'))
+            cid=self.container_id,
+            version=self.mos_version,
+            path=os.path.join(self.home, 'conf', 'ostfcfg.conf'))
         utils.run_cmd(cmd)
 
     def start_container(self):

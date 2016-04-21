@@ -147,7 +147,8 @@ class Runner(object):
 
         for task in tasks:
             if kwargs.get('event').is_set():
-                LOG.info("Caught keyboard interrupt. Task %s won't start" % task)
+                LOG.info("Caught keyboard interrupt. "
+                         "Task %s won't start" % task)
                 break
             time_start = datetime.datetime.utcnow()
             LOG.info("Running " + task)
