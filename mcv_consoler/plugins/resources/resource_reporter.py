@@ -195,7 +195,7 @@ class ErrorResourceSearch(ResourceSearch):
                      'name': p['name'],
                      'status': p['status'],
                      'fixed_ips': [ip['ip_address'] for ip in p['fixed_ips']]
-                    })
+                     })
 
     def search_resources(self):
         self.search_error_servers()
@@ -211,16 +211,25 @@ class ErrorResourceSearch(ResourceSearch):
         temp.close()
         servers = ''
         for s in self.resources['servers']:
-            servers += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Reason {reason}</td><tr>\n'.format(**s)
+            servers += ('<tr><td>ID {id}:</td><td align="right">'
+                        'Name {name} Status {status} Reason {reason}'
+                        '</td><tr>\n').format(**s)
         images = ''
         for i in self.resources['images']:
-            images += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Updated at {updated_at}</td>\n'.format(**i)
+            images += ('<tr><td>ID {id}:</td><td align="right">'
+                       'Name {name} Status {status} Updated at '
+                       '{updated_at}</td>\n').format(**i)
         volumes = ''
         for v in self.resources['volumes']:
-            volumes += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Is bootable {bootable}</td>\n'.format(**v)
+            volumes += ('<tr><td>ID {id}:</td><td align="right">'
+                        'Name {name} Status {status} Is bootable '
+                        '{bootable}</td>\n').format(**v)
         ports = ''
         for p in self.resources['ports']:
-            ports += '<tr><td>ID {id}:</td><td align="right">Name {name} Status {status} Fixed IPs {fixed_ips}</td>\n'.format(**p)
+            ports += ('<tr><td>ID {id}:</td><td align="right">'
+                      'Name {name} Status {status} Fixed IPs '
+                      '{fixed_ips}</td>\n').format(**p)
+
         return template.format(servers=servers,
                                images=images,
                                ports=ports,
@@ -263,19 +272,24 @@ class GeneralResourceSearch(ResourceSearch):
         self.resources['flavors'] = res
         active_vms = [v for v in vms if v.status == 'ACTIVE']
         paused_vms = [v for v in vms if v.status == 'PAUSED']
-        self.resources['active_flavors'] = {f.name: self._count_vms(f.id, active_vms) 
-                                                    for f in flavors
-                                                    if self._count_vms(f.id, active_vms) != 0}
-        self.resources['paused_flavors'] = {f.name: self._count_vms(f.id, paused_vms)
-                                                    for f in flavors
-                                                    if self._count_vms(f.id, paused_vms) != 0}
+        self.resources['active_flavors'] = {f.name: self._count_vms(f.id,
+                                                                    active_vms)
+                                            for f in flavors
+                                            if self._count_vms(f.id,
+                                                               active_vms)}
+
+        self.resources['paused_flavors'] = {f.name: self._count_vms(f.id,
+                                                                    paused_vms)
+                                            for f in flavors
+                                            if self._count_vms(f.id,
+                                                               paused_vms)}
 
         all_keys = [k for k in self.resources['active_flavors'].keys()
                     + self.resources['paused_flavors'].keys()]
         total_usage = {
             k: self.resources['active_flavors'].get(k) or 0
-               + self.resources['paused_flavors'].get(k) or 0
-               for k in all_keys}
+            + self.resources['paused_flavors'].get(k) or 0
+            for k in all_keys}
 
         most_used = self._count_usage(total_usage)
         self.resources['most_used_flavors'] = most_used
@@ -362,15 +376,15 @@ class GeneralResourceSearch(ResourceSearch):
         routers = self.neutronclient.list_routers()['routers']
         self.resources['routers'] = len(routers)
         all_agents = self.neutronclient.list_agents()['agents']
-        dhcp_agents = [a for a in all_agents \
+        dhcp_agents = [a for a in all_agents
                        if a['agent_type'] == 'DHCP agent']
 
         subnets = sum(a['configurations']['subnets'] for a in dhcp_agents)
         self.resources['subnets'] = subnets
         floating_ips = self.neutronclient.list_floatingips()['floatingips']
         unattached = [ip for ip in floating_ips if not ip['tenant_id']]
-        unassociated = [ip for ip in floating_ips if not ip['port_id'] and\
-                                                     ip not in unattached]
+        unassociated = [ip for ip in floating_ips if not ip['port_id'] and
+                        ip not in unattached]
         self.resources['unassociated_ips'] = len(unassociated)
         self.resources['unattached_ips'] = len(unattached)
 
