@@ -107,7 +107,7 @@ class ShakerRunner(runner.Runner):
             return "Not-JSON object"
 
     def run_batch(self, tasks, *args, **kwargs):
-        return super(ShakerRunner, self).run_batch(tasks, *args,  **kwargs)
+        return super(ShakerRunner, self).run_batch(tasks, *args, **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         # runs a set of commands
@@ -189,7 +189,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
-            [add_host]*(add_host != "") +
+            [add_host] * (add_host != "") +
             ["-p", "5999:5999",
              "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],

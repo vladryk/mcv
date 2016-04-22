@@ -175,7 +175,7 @@ class Consoler(object):
                 spawn_point = os.path.dirname(__file__)
                 path_to_runner = os.path.join(spawn_point, self.plugin_dir,
                                               key, "runner.py")
-                m = imp.load_source("runner"+key, path_to_runner)
+                m = imp.load_source("runner" + key, path_to_runner)
             except IOError as e:
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
@@ -260,7 +260,7 @@ class Consoler(object):
     def describe_results(self, results):
         """Pretty printer for results"""
         LOG.info('\n')
-        LOG.info("-"*40)
+        LOG.info("-" * 40)
         LOG.info("The run resulted in:")
         for key in results.iterkeys():
             LOG.info("For %s:", key)
@@ -274,10 +274,14 @@ class Consoler(object):
             LOG.info("\t\t failed tests")
 
     def _search_and_remove_group_failed(self, file_to_string):
-        object_for_search = re.compile(r"\[custom_test_group_failed\].*?End\sof.*?\n", re.DOTALL)
+        object_for_search = re.compile(
+            r"\[custom_test_group_failed\].*?End\sof.*?\n",
+            re.DOTALL)
+
         list_of_strings = object_for_search.findall(file_to_string)
         if list_of_strings:
-            LOG.debug("Your config contains one or more 'custom_test_group_failed'."
+            LOG.debug("Your config contains one or more "
+                      "'custom_test_group_failed'."
                       "It will be removed")
             return re.sub(object_for_search, "", file_to_string)
         else:
@@ -293,9 +297,12 @@ class Consoler(object):
         for key in results.iterkeys():
             to_rerun = ",".join(results[key]["results"]["test_failures"])
             if to_rerun != "":
-                default_str = default_str + str(key) + '=' + str(to_rerun) + '\n'
+                default_str = (default_str + str(key) + '=' +
+                               str(to_rerun) + '\n')
         if default_str != "":
-            default_str = "\n[custom_test_group_failed]\n" + default_str + "# End of group failed. Don't remove this comment\n"
+            default_str = ("\n[custom_test_group_failed]\n" +
+                           default_str + "# End of group failed. Don't remove"
+                           + "this comment\n")
 
         with open(DEFAULT_CONFIG_FILE, 'w') as f:
             f.write(result + default_str)

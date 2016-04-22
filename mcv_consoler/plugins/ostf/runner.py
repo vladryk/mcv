@@ -108,7 +108,7 @@ class OSTFOnDockerRunner(runner.Runner):
         LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true", ] +
-            [add_host]*(add_host != "") +
+            [add_host] * (add_host != "") +
             ["-p", "8080:8080",
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
              "-e", "OS_USERNAME=" + self.access_data["username"],

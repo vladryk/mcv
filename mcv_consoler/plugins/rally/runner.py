@@ -206,7 +206,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
-            [add_host]*(add_host != "") +
+            [add_host] * (add_host != "") +
             ["-p", "6000:6000",
              "-e", "OS_AUTH_URL=" + self.access_data['auth_url'],
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
@@ -214,7 +214,7 @@ class RallyOnDockerRunner(RallyRunner):
              "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
-             "-v", self.homedir+":"+self.home, "-w", self.home,
+             "-v", ':'.join([self.homedir, self.home]), "-w", self.home,
              "-t", "mcv-rally"],
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
@@ -226,7 +226,8 @@ class RallyOnDockerRunner(RallyRunner):
 
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
-                         self.homedir+"/images/cirros-0.3.1-x86_64-disk.img"],
+                         self.homedir +
+                         "/images/cirros-0.3.1-x86_64-disk.img"],
                          stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
@@ -317,9 +318,9 @@ class RallyOnDockerRunner(RallyRunner):
             res = subprocess.Popen(["docker", "exec", "-t",
                                     self.container_id, "rally",
                                     "deployment", "create",
-                                    "--file="+os.path.join(self.home,
-                                                           "conf",
-                                                           "existing.json"),
+                                    "--file=" + os.path.join(self.home,
+                                                             "conf",
+                                                             "existing.json"),
                                     # "--fromenv",
                                     "--name=existing"],
                                    stdout=subprocess.PIPE,
@@ -509,7 +510,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(RallyRunner, self).run_batch(tasks, *args,  **kwargs)
+        return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
         try:

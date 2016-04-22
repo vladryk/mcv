@@ -1,2 +1,8 @@
 mock>=1.0
+pytz
+testtools
+extras
+python-subunit
 hacking>=0.8.0
+testrepository>=0.0.3
+

@@ -341,13 +341,13 @@ class GeneralResourceSearch(ResourceSearch):
         used_size_id = [v.image['id'] for v in vms]
         used_size = [i for i in all_images if i.id in used_size_id]
         for i in used_size:
-            if i.size < 10*1000000000:
+            if i.size < 10 * 1000000000:
                 self.resources['images']['<10Gb'] += 1
-            elif i.size < 50*1000000000:
+            elif i.size < 50 * 1000000000:
                 self.resources['images']['<50Gb'] += 1
-            elif i.size < 100*1000000000:
+            elif i.size < 100 * 1000000000:
                 self.resources['images']['<100Gb'] += 1
-            elif i.size < 500*1000000000:
+            elif i.size < 500 * 1000000000:
                 self.resources['images']['<500Gb'] += 1
             else:
                 self.resources['images']['>500Gb'] += 1

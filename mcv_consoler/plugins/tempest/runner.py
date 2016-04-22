@@ -12,17 +12,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ConfigParser import NoOptionError
 import datetime
+import glob
+import json
+import os.path
 import shlex
 import subprocess
-import json
-import glob
-import os.path
-from ConfigParser import NoOptionError
 
 from mcv_consoler.common.errors import TempestError
-from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler.logger import LOG
+from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler import utils
 
 
@@ -58,7 +58,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
-            [add_host]*(add_host != "") +
+            [add_host] * (add_host != "") +
             ["-p", "6001:6001",
              "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
@@ -245,7 +245,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                          (task,
                           self.seconds_to_time(current_time * multiplier)))
 
-            self.run_individual_task(task, *args,  **kwargs)
+            self.run_individual_task(task, *args, **kwargs)
 
             time_end = datetime.datetime.utcnow()
             time = time_end - time_start

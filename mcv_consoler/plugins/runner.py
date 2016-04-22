@@ -46,9 +46,6 @@ class Runner(object):
         super(Runner, self).__init__()
 
     def run_individual_task(self, task, *args, **kwargs):
-        """Runs a single task.
-
-        This function has to be defined in a subclass!"""
         raise NotImplementedError
 
     def verify_container_is_up(self, container_name):

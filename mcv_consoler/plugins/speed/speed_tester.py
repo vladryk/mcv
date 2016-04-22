@@ -243,13 +243,13 @@ class BlockStorageSpeed(BaseStorageSpeed):
         read = ''
         for i in range(len(r_res)):
             read += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                     'MB/s</td><tr>\n').format(i+1, round(r_res[i], 2))
+                     'MB/s</td><tr>\n').format(i + 1, round(r_res[i], 2))
         w_res = [float(self.size) / i for i in w_res]
         w_average = round(sum(w_res) / float(len(w_res)), 2)
         write = ''
         for i in range(len(w_res)):
             write += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                      'MB/s</td><tr>\n').format(i+1, round(w_res[i], 2))
+                      'MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
 
         # Throughput
         r_res_thr = [float(self.thr_size) / i for i in r_res_thr]
@@ -257,14 +257,14 @@ class BlockStorageSpeed(BaseStorageSpeed):
         read_thr = ''
         for i in range(len(r_res_thr)):
             read_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i+1,
+                         ' MB/s</td><tr>\n').format(i + 1,
                                                     round(r_res_thr[i], 2))
         w_res_thr = [float(self.thr_size) / i for i in w_res_thr]
         w_average_thr = round(sum(w_res_thr) / float(len(w_res_thr)), 2)
         write_thr = ''
         for i in range(len(w_res_thr)):
             write_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                          'MB/s</td><tr>\n').format(i+1,
+                          'MB/s</td><tr>\n').format(i + 1,
                                                     round(w_res_thr[i], 2))
 
         # IOPs
@@ -273,14 +273,14 @@ class BlockStorageSpeed(BaseStorageSpeed):
         read_iop = ''
         for i in range(len(r_res_iop)):
             read_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i+1,
+                         ' MB/s</td><tr>\n').format(i + 1,
                                                     round(r_res_iop[i], 2))
         w_res_iop = [float(self.size) / i for i in w_res_iop]
         w_average_iop = round(sum(w_res_iop) / float(len(w_res_iop)), 2)
         write_iop = ''
         for i in range(len(w_res_iop)):
             write_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                          ' MB/s</td><tr>\n').format(i+1,
+                          ' MB/s</td><tr>\n').format(i + 1,
                                                      round(w_res_iop[i], 2))
 
         # Average

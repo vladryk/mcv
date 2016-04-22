@@ -250,8 +250,9 @@ class AccessSteward(object):
             self.check_docker_images()
 
     def _check_and_fix_iptables_rule(self):
-        # TODO: divide this some day
-        # TODO: this might change so it is much wiser to do actual check
+        # TODO(aovchinnikov): divide this some day
+        # TODO(aovchinnikov): this might change so it is much wiser
+        # to do actual check
         keystone_private_endpoint_ip = self._get_private_endpoint_ip()
         port_substitution = {"cnt_ip": self.os_data["ips"]["controller"],
                              "kpeip": keystone_private_endpoint_ip,
@@ -374,8 +375,10 @@ class AccessSteward(object):
         LOG.debug("Found " + str(self.compute) + " computes.")
 
     def _is_cloud_instance(self):
-        """ Check if mcv image is running as an instance of a cloud that
-        we are going to test """
+        """Check if MCV image is running as an instance of a cloud that
+        we are going to test.
+        """
+
         all_floating_ips = self._get_novaclient().floating_ips.list()
         for ip_obj in all_floating_ips:
             if not ip_obj.instance_id:  # IP is not assigned to any instance

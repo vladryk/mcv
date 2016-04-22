@@ -37,7 +37,7 @@ class BasicSelfCheck(object):
         # as we now have Consoler installed into system.
         # For now this test will be disabled.
 
-        #self.results.append(True if os.path.isdir(
+        # self.results.append(True if os.path.isdir(
         #    '/opt/mcv-consoler') else BaseSelfCheckError.CONSOLER_NOT_EXISTS)
         self.results.append(True)
 

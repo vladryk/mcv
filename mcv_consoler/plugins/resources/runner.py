@@ -12,10 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import mcv_consoler.plugins.runner as run
 from mcv_consoler.common.errors import ResourceError
-from mcv_consoler.plugins.resources import resource_reporter as resources
 from mcv_consoler.logger import LOG
+from mcv_consoler.plugins.resources import resource_reporter as resources
+import mcv_consoler.plugins.runner as run
 
 LOG = LOG.getLogger(__name__)
 
