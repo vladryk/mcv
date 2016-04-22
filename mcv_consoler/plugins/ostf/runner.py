@@ -104,6 +104,7 @@ class OSTFOnDockerRunner(runner.Runner):
                        endpoint=self.access_data["ips"]["endpoint"])
 
         protocol = "https" if self.access_data['insecure'] else 'http'
+        nailgun_port = str(self.access_data["fuel"]["nailgun_port"])
 
         LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
@@ -113,12 +114,11 @@ class OSTFOnDockerRunner(runner.Runner):
              "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
              "-e", "OS_USERNAME=" + self.access_data["username"],
              "-e", "PYTHONWARNINGS=ignore",
-             "-e",
-             "NAILGUN_PROTOCOL=" + protocol,
+             "-e", "NAILGUN_PROTOCOL=" + protocol,
              "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "NAILGUN_HOST=" + self.access_data["fuel"]["nailgun_host"],
-             "-e", "NAILGUN_PORT=" + self.access_data["fuel"]["nailgun_port"],
+             "-e", "NAILGUN_PORT=" + nailgun_port,
              "-e", "CLUSTER_ID=" + self.access_data["fuel"]["cluster_id"],
              "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
