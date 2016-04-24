@@ -126,17 +126,17 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.container_id = None
         self.access_data = accessor.os_data
         self.path = path
-        self.list_speed_tests = ['same_node.yaml', 'different_nodes.yaml',
+        self.list_speed_tests = ['same_node.yaml',
+                                 'different_nodes.yaml',
                                  'floating_ip.yaml']
+
         super(ShakerOnDockerRunner, self).__init__()
 
         self.glance = Clients.get_glance_client(self.access_data)
         self.heat = Clients.get_heat_client(self.access_data)
 
     def _check_shaker_setup(self):
-        LOG.info("Checking Shaker setup. If this is the first run of "
-                 "mcvconsoler on this cloud go grab some coffee, it will "
-                 "take a while.")
+        LOG.debug("Checking Shaker setup.")
 
         insecure = ""
         if self.config.get("basic", "auth_protocol") == "https":
@@ -159,6 +159,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             if im.name == 'shaker-image':
                 image = True
         if not image:
+            LOG.info("No Shaker image found in Glance. Uploading it...")
             LOG.debug('Creating shaker image')
             self.glance.images.create(name='shaker-image', disk_format="qcow2",
                                       container_format="bare", data=open(path),
@@ -218,18 +219,6 @@ class ShakerOnDockerRunner(ShakerRunner):
                 LOG.debug('Container status: %s' % str(status))
                 break
 
-    def _create_task_in_docker(self, task):
-        test_location = os.path.join(os.path.dirname(__file__), "tests", task)
-        shaker_test_locations = '/usr/local/lib/python2.7/dist-packages' \
-                                '/shaker/scenarios/networking/'
-
-        LOG.info("Preparing to task %s" % task)
-        cmd = r"docker cp %s %s:%s" % (test_location,
-                                       self.container,
-                                       shaker_test_locations)
-        utils.run_cmd(cmd)
-        LOG.info("Successfully prepared to task %s" % task)
-
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
         insecure = " --os-insecure" if self.access_data['insecure'] else ""
@@ -238,16 +227,12 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         p = utils.run_cmd(cmd + insecure)
 
-        if (task in self.list_speed_tests):
-            self._create_task_in_docker(task)
-
         # TODO(albartash): make port for Shaker configurable some day
 
         timeout = self.config.get("shaker", "timeout")
         cmd = ("docker exec -t {cid} timeout {tout} shaker --server-endpoint "
                "{sep}:5999 --agent-join-timeout 3600 --scenario "
-               "/usr/local/lib/python2.7/dist-packages/shaker/"
-               "scenarios/networking/{task} "
+               "{home}/tests/networking/{task} "
                "--debug --output {task}.out --report-template json --report "
                "{task}.json --log-file {home}/log/shaker.log"
                ).format(cid=self.container,
