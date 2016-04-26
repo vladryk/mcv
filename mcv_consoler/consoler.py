@@ -425,4 +425,4 @@ class Consoler(object):
         result.append(self.failure_indicator)
         if run_results is not None:
             LOG.info("One page report could be found in "
-                     "/tmp/mcv_run_%s.tar.gz" % r_helper)
+                     "/tmp/mcv_run_%s.tar.gz" % r_helper['timestamp'])
