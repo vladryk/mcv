@@ -231,30 +231,38 @@ class RallyOnDockerRunner(RallyRunner):
                          stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
+    @staticmethod
+    def _os_patch(target, patch, container_id=None):
+        """
+        Silently patch a file. Errors are ignored
+        params:
+         'target' - absolute system path to a file that needs to be changed
+         'patch' - absolute system path to a .patch file
+         'container_id' (optional). If provided - perform an operation
+        inside a docker container
+        """
+        tmp = 'sudo patch -N -r - --no-backup-if-mismatch {target} -i {patch}'
+        if container_id:
+            tmp = 'docker exec -t {cid} ' + tmp
+        cmd = tmp.format(cid=container_id, target=target, patch=patch)
+        try:
+            return utils.run_cmd(cmd)
+        except subprocess.CalledProcessError as e:
+            LOG.error(str(e))
+            e.output and LOG.debug(e.output)
+
     def _patch_rally(self):
-        # Fix hardcoded timeout and siege regex
-        # TODO(mcv-team): Remove it with newest rally version (?)
-        rally_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins'
-                      '/openstack/services/heat/main.py')
-        cmd = ("docker exec -t {cid} sudo sed -i "
-               "'53s/.*/            timeout=10000,/' {path}").format(
-            cid=self.container_id, path=rally_path)
+        from os.path import join
 
-        res = utils.run_cmd(cmd)
-        siege_path = ('/usr/local/lib/python2.7/dist-packages/rally/plugins/'
-                      'workload/siege.py')
-        cmd = ("docker exec -t %s "
-               "sudo sed -i "
-               """'26s/.*/SIEGE_RE = re.compile(r"^(Throughput|"""
-               """Transaction rate|Failed transactions|"""
-               """Successful transactions):\s+(\d+\.?\d*).*")' %s""") % (
-            self.container_id, siege_path)
+        dist = '/usr/local/lib/python2.7/dist-packages/'
 
-        # TODO(mcv-team): Found out how to pass re through sed
-        template_path = os.path.join(self.home,
-                                     'tests/templates/wp_instances.yaml')
+        LOG.debug('Patching rally.siege regex')
+        siege = join(dist, 'rally/plugins/workload/siege.py')
+        siege_patch = '/mcv/custom_patches/rally_siege_regex.patch'
+        self._os_patch(siege, siege_patch, self.container_id)
 
         LOG.debug('Start patching hosts')
+        template_path = join(self.home, 'tests/templates/wp_instances.yaml')
         cmd = ("""docker exec -t %s """
                """sudo sed -i "61s/.*/"""
                """            sudo sh -c 'echo %s %s >> """
@@ -266,7 +274,6 @@ class RallyOnDockerRunner(RallyRunner):
 
         res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
-        return
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("rally")
