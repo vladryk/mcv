@@ -66,6 +66,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
         self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
+        self.config_filename = 'ostfcfg.conf'
 
         super(OSTFOnDockerRunner, self).__init__()
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
@@ -80,12 +81,20 @@ class OSTFOnDockerRunner(runner.Runner):
             self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
     def _do_config_extraction(self):
+        LOG.debug("Checking for existing OSTF configuration file...")
+        path = os.path.join(self.home, 'conf', self.config_filename)
+        if os.path.isfile(path):
+            LOG.debug("File '%s' exists. Skip extraction." %
+                      self.config_filename)
+            return
+
+        LOG.debug("File '%s' does not exist." % self.config_filename)
         LOG.debug("Trying to obtain OSTF configuration file")
         cmd = ('docker exec -t {cid} /mcv/execute.sh fuel-ostf.{version} '
                '"ostf-config-extractor -o {path}"').format(
             cid=self.container_id,
             version=self.mos_version,
-            path=os.path.join(self.home, 'conf', 'ostfcfg.conf'))
+            path=path,
         utils.run_cmd(cmd)
 
     def start_container(self):
@@ -190,12 +199,13 @@ class OSTFOnDockerRunner(runner.Runner):
                '/mcv/execute.sh fuel-ostf.{mos_version} '
                '"cloudvalidation-cli '
                '--output-file={home}/ostf_report.json '
-               '--config-file={home}/conf/ostfcfg.conf '
+               '--config-file={home}/conf/{conf_fname} '
                'cloud-health-check {cmd} '
                '--validation-plugin-name fuel_health {arg} {task}"'
                ).format(cid=self.container,
                         mos_version=self.mos_version,
                         home=self.home,
+                        conf_fname=self.config_filename,
                         cmd=_cmd,
                         arg=_arg,
                         task=task)
@@ -225,17 +235,17 @@ class OSTFOnDockerRunner(runner.Runner):
                 LOG.error(('Error while parsing report file: {'
                            'err_msg}').format(err_msg=str(e)))
 
-            for result in results:
-                if result['result'] == 'Passed':
-                    self.success.append(result['suite'])
-                elif result['result'] == 'Failed':
-                    self.failures.append(result['suite'])
-
             def fix_suite(result):
                 result['suite'] = result['suite'].split(':')[1]
                 return result
 
             map(fix_suite, results)
+
+            for result in results:
+                if result['result'] == 'Passed':
+                    self.success.append(result['suite'])
+                elif result['result'] == 'Failed':
+                    self.failures.append(result['suite'])
 
             reporter = Reporter(os.path.dirname(__file__))
             reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
