@@ -12,9 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+from ConfigParser import NoOptionError
 import time
 
+from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.logger import LOG
 from novaclient import exceptions
@@ -27,6 +28,7 @@ class Preparer(object):
         super(Preparer, self).__init__()
         self.nova = Clients.get_nova_client(access_data)
         self.glance = Clients.get_glance_client(access_data)
+        self.config = config_parser
 
     def _check_image(self, image_path):
         LOG.info('Check cirros-image in glance')
@@ -109,11 +111,14 @@ class Preparer(object):
         LOG.info('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
-        # TODO(ekudryashova): make network name configurable
         try:
-            network = self.nova.networks.find(label="net04")
+            network_name = self.config.get("speed", "network_name")
+            network = self.nova.networks.find(label=network_name)
         except exceptions.NotFound:
             LOG.error('No networks with default label was found')
+            raise RuntimeError
+        except NoOptionError:
+            LOG.error('No network name was found. Please check your config.')
             raise RuntimeError
 
         compute_hosts = [host for host in self.nova.hosts.list(
