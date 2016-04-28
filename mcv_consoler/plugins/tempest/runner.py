@@ -97,9 +97,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cmd = "mkdir " + os.path.join(self.homedir, "data")
         utils.run_cmd(cmd)
 
-        # TODO(albartash): Replace cp with ln if possible
-        cmd = ("sudo cp {homedir}/images/cirros-0.3.4-x86_64-disk.img "
-               "{homedir}/data").format(homedir=self.homedir)
+        cmd = ("sudo ln -s {homedir}/images/cirros-0.3.4-x86_64-disk.img "
+               "{homedir}/data/").format(homedir=self.homedir)
 
         cmd = shlex.split(cmd)
 
