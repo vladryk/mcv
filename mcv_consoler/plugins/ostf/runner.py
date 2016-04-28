@@ -94,7 +94,7 @@ class OSTFOnDockerRunner(runner.Runner):
                '"ostf-config-extractor -o {path}"').format(
             cid=self.container_id,
             version=self.mos_version,
-            path=path,
+            path=path)
         utils.run_cmd(cmd)
 
     def start_container(self):

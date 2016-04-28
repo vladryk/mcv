@@ -79,6 +79,8 @@ class AccessSteward(object):
         auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
         tenant_name = _GET('os_tenant_name')
         password = _GET('os_password')
+        insecure = (protocol == "https")
+        nailgun_port = 8443 if insecure else 8000
 
         self.os_data = {'username': _GET('os_username'),
                         'password': password,
@@ -92,14 +94,14 @@ class AccessSteward(object):
 
                         'fuel': {
                             'nailgun_host': _GET('nailgun_host'),
-                            'nailgun_port': 8000,
+                            'nailgun_port': nailgun_port,
                             'cluster_id': _GET('cluster_id')},
 
                         'auth_url': auth_url_tpl.format(hprot=protocol,
                                                         ip=endpoint_ip,
                                                         port=5000,
                                                         version="2.0"),
-                        'insecure': protocol == "https",
+                        'insecure': insecure,
                         'region_name': _GET('region_name'),
                         # nova tenant
                         'project_id': tenant_name,
