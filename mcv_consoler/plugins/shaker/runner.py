@@ -188,6 +188,12 @@ class ShakerOnDockerRunner(ShakerRunner):
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["ips"]["endpoint"])
 
+        try:
+            network_name = self.config.get("network_speed", "network_name")
+        except NoOptionError:
+            LOG.error('No network name was found. Please check your config.')
+            raise RuntimeError
+
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
             [add_host] * (add_host != "") +
@@ -197,6 +203,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "OS_USERNAME=" + self.access_data["username"],
              "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
+             "-e", "SHAKER_EXTERNAL_NET=" + network_name,
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],

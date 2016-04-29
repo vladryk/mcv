@@ -112,7 +112,7 @@ class Preparer(object):
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
         try:
-            network_name = self.config.get("speed", "network_name")
+            network_name = self.config.get("network_speed", "network_name")
             network = self.nova.networks.find(label=network_name)
         except exceptions.NotFound:
             LOG.error('No networks with default label was found')
