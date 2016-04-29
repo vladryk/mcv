@@ -138,6 +138,9 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _check_shaker_setup(self):
         LOG.debug("Checking Shaker setup.")
 
+        insecure = ""
+        if self.config.get("basic", "auth_protocol") == "https":
+            insecure = " --os-insecure"
         path = os.path.join(self.homedir, 'images')
 
         for f in os.listdir(path):
@@ -163,6 +166,17 @@ class ShakerOnDockerRunner(ShakerRunner):
                                       min_disk=3, min_ram=512)
         else:
             LOG.debug("Shaker image exists")
+
+        LOG.debug("Run shaker-image-builder")
+        res = subprocess.Popen(
+            ["docker", "exec", "-t",
+             self.container_id,
+             "shaker-image-builder --image-name shaker-image" + insecure],
+            stdout=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint).stdout.read()
+
+        LOG.debug('Finish running shaker-image-builder.'
+                  'Result: %s' % str(res))
 
     def start_container(self):
         LOG.debug("Bringing up Shaker container with credentials")
@@ -208,6 +222,10 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
         insecure = " --os-insecure" if self.access_data['insecure'] else ""
+        cmd = "docker exec -t %s shaker-image-builder --image-name " \
+              "shaker-image %s" % (self.container, insecure)
+
+        p = utils.run_cmd(cmd + insecure)
 
         # TODO(albartash): make port for Shaker configurable some day
 
@@ -216,12 +234,11 @@ class ShakerOnDockerRunner(ShakerRunner):
                "{sep}:5999 --agent-join-timeout 3600 --scenario "
                "{home}/tests/networking/{task} "
                "--debug --output {task}.out --report-template json --report "
-               "{task}.json --image-name {image} --log-file {home}/log/shaker.log"
+               "{task}.json --log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
                         sep=self.access_data['ips']["instance"],
                         task=task,
-                        image=self.config.get("shaker", "image_name"),
                         home=self.home)
 
         proc = subprocess.Popen(shlex.split(cmd + insecure),
