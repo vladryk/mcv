@@ -1,0 +1,48 @@
+---
+  SaharaJob.create_launch_job_sequence:
+    -
+      args:
+        jobs:
+          -
+            job_type: "Java"
+            configs:
+              configs:
+                edp.java.main_class: "org.apache.hadoop.examples.terasort.TeraGen"
+              args:
+               - "{{ file_size }}"
+               - "/tmp/test_data"
+          -
+            job_type: "Java"
+            configs:
+              configs:
+                edp.java.main_class: "org.apache.hadoop.examples.terasort.TeraSort"
+              args:
+               - "/tmp/test_data"
+               - "/tmp/test_sorted"
+
+      runner:
+        type: "constant"
+        times: 1
+        concurrency: 1
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 1
+        sahara_image:
+          image_url: "http://sahara-files.mirantis.com/mos80/sahara-liberty-vanilla-2.7.1-ubuntu-14.04.qcow2"
+          username: "ubuntu"
+          plugin_name: "vanilla"
+          hadoop_version: "2.7.1"
+        sahara_job_binaries:
+          libs:
+            -
+              name: "examples.jar"
+              download_url: "http://repo1.maven.org/maven2/org/apache/hadoop/hadoop-mapreduce-examples/2.7.1/hadoop-mapreduce-examples-2.7.1.jar"
+        sahara_cluster:
+          master_flavor_id: {{ flavor_id }}
+          worker_flavor_id: {{ flavor_id }}
+          workers_count: {{ workers_count }}
+          plugin_name: "vanilla"
+          hadoop_version: "2.7.1"
+          auto_security_group: True
+        network: {}

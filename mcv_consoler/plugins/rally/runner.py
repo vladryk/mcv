@@ -173,6 +173,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.novaclient = Clients.get_nova_client(self.access_data)
 
     def create_fedora_image(self):
+        # TODO(ekudryashova): use more mcv name for image
         path = os.path.join(os.path.join(self.homedir, "images"),
                             'Fedora-Cloud-Base-23-20151030.x86_64.qcow2')
         i_list = self.glanceclient.images.list()
@@ -186,6 +187,31 @@ class RallyOnDockerRunner(RallyRunner):
                                             is_public=True,
                                             container_format="bare",
                                             data=open(path))
+
+    def cleanup_fedora_image(self):
+        LOG.info('Cleaning up test image')
+        i_list = self.glanceclient.images.list()
+        for im in i_list:
+            if im.name == 'fedora':
+                self.glanceclient.images.delete(im.id)
+
+    def create_or_get_flavor(self):
+        flavors = self.novaclient.flavors.list()
+        for flav in flavors:
+            if flav.name == 'mcv-workload-test-flavor':
+                return flav.id
+        ram = utils.GET(self.config, 'ram', 'workload')
+        disc = utils.GET(self.config, 'disc', 'workload')
+        vcpu = utils.GET(self.config, 'vcpu', 'workload')
+        flavor = self.novaclient.flavors.create('mcv-workload-test-flavor', ram, vcpu,  disc, 'auto')
+        return flavor.id
+
+    def cleanup_test_flavor(self):
+        LOG.info('Cleaning up test flavor')
+        flavors = self.novaclient.flavors.list()
+        for flav in flavors:
+            if flav.name == 'mcv-workload-test-flavor':
+                self.novaclient.flavors.delete(flav.id)
 
     def get_network_router_id(self):
         networks = self.neutronclient.list_networks(
@@ -357,7 +383,7 @@ class RallyOnDockerRunner(RallyRunner):
         args = {}
 
         def _ADD(argname):
-            args[argname] = self.config.get('certification', argname)
+            args[argname] = utils.GET(self.config, argname, 'certification')
 
         _ADD("tenants_amount")
         _ADD("users_amount")
@@ -371,16 +397,17 @@ class RallyOnDockerRunner(RallyRunner):
         args["flavor_name"] = "m1.tiny"
         args["image_name"] = "^(cirros.*uec|TestVM)$"
         args["glance_image_location"] = ""
-        args["service_list"] = self.config.get('certification',
-                                               'services').split(',')
+        args["service_list"] = utils.GET(self.config,
+                                         'services',
+                                         'certification').split(',')
         return args
 
     def prepare_workload_task(self):
         self._patch_rally()
         self.create_fedora_image()
         net, rou = self.get_network_router_id()
-        concurrency = self.config.get('workload', 'concurrency')
-        instance_count = self.config.get('workload', 'instance_count')
+        concurrency = utils.GET(self.config, 'concurrency', 'workload')
+        instance_count = utils.GET(self.config, 'instance_count', 'workload')
         task_args = {
             'network_id': net,
             'router_id': rou,
@@ -390,98 +417,86 @@ class RallyOnDockerRunner(RallyRunner):
 
         return task_args
 
+    def prepare_big_data_task(self):
+        flavor_id = self.create_or_get_flavor()
+        file_size = utils.GET(self.config, 'file_size', 'workload')
+        worker = utils.GET(self.config, 'workers_count', 'workload')
+        task_args = {
+            'file_size': file_size,
+            'workers_count': worker,
+            'flavor_id': flavor_id,
+        }
+
+        return task_args
+
+    def create_cmd_for_task(self, location, task_args):
+        cmd = ("docker exec -t {container} sudo rally"
+               " --log-file {home}/log/rally.log --rally-debug"
+               " task start"
+               " {location}"
+               " --task-args '{task_args}'").format(
+            home=self.home,
+            container=self.container_id,
+            location=os.path.join(self.home, location),
+            task_args=json.dumps(task_args))
+        return cmd
+
     def _run_rally_on_docker(self, task, *args, **kwargs):
         if task == 'certification':
             LOG.info("Starting Rally Certification Task")
             task_args = self._prepare_certification_task_args()
-
-            cmd = ("docker exec -t {container} sudo rally"
-                   " --log-file {home}/log/rally.log --rally-debug"
-                   " task start"
-                   " {location}/certification/openstack/task.yaml"
-                   " --task-args '{task_args}'").format(
-                home=self.home,
-                container=self.container_id,
-                location=os.path.join(self.home, "tests"),
-                task_args=json.dumps(task_args))
+            location = "tests/certification/openstack/task.yaml"
+            cmd = self.create_cmd_for_task(location, task_args)
 
         elif task == 'workload.yaml':
             task_args = self.prepare_workload_task()
+            location = os.path.join(self.home, "tests/workload.yaml")
+            cmd = self.create_cmd_for_task(location, task_args)
 
-            cmd = ("docker exec -t {container} sudo rally"
-                   " --log-file {home}/log/rally.log --rally-debug"
-                   " task start"
-                   " {location}/workload.yaml"
-                   " --task-args '{task_args}'").format(
-                home=self.home,
-                container=self.container_id,
-                location=os.path.join(self.home, "tests"),
-                task_args=json.dumps(task_args))
+        elif task == 'big-data-workload.yaml':
+            task_args = self.prepare_big_data_task()
+            location = os.path.join(self.home, "tests/big-data-workload.yaml")
+            cmd = self.create_cmd_for_task(location, task_args)
+
         else:
             LOG.info("Starting task %s" % task)
-            cmd = ("docker exec -t %(container)s sudo rally"
-                   " --log-file %(home)s/log/rally.log --rally-debug"
-                   " task start"
-                   " %(location)s/%(task)s --task-args '{\"compute\":"
-                   "%(compute)s, \"concurrency\":%(concurrency)s,"
-                   "\"current_path\": %(location)s, "
-                   "\"gre_enabled\":%(gre_enabled)s,"
-                   "\"vlan_amount\":%(vlan_amount)s}'") % {
-                "home": self.home,
-                "container": self.container_id,
-                "compute": kwargs["compute"],
-                "concurrency": kwargs["concurrency"],
-                "gre_enabled": kwargs["gre_enabled"],
-                "vlan_amount": kwargs["vlan_amount"],
-                "task": task,
-                "location": os.path.join(self.home, 'tests')}
+            location = os.path.join(self.home, 'tests/%s' % task)
+            task_args = {"compute": kwargs["compute"],
+                         "concurrency": kwargs["concurrency"],
+                         "current_path": os.path.join(self.home, 'tests'),
+                         "gre_enabled": kwargs["gre_enabled"],
+                         "vlan_amount": kwargs["vlan_amount"],
+                         }
+
+            cmd = self.create_cmd_for_task(location, task_args)
 
         p = utils.run_cmd(cmd)
         original_output = p
 
         failed = False
-        if task == 'workload.yaml':
-            cmd = "docker exec -t {cid} rally task results".format(
-                cid=self.container_id)
-            p = utils.run_cmd(cmd)
 
-            try:
-                res = json.loads(p)
-            except ValueError:
-                LOG.error("Gotten not-JSON object. Please see mcv-log")
-                LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
-                res = False
-            if not res:
-                LOG.info('Workload test failed')
-                failed = True
-            elif not res[0]['result'][0]['output']['complete']:
-                LOG.info('Workload test failed')
-                failed = True
-            else:
-                a = res[0]['result'][0]['output']
-                a = a['complete'][0]['data']['rows']
-                LOG.info('Workload results:')
-                for row in a:
-                    LOG.info("%s: %s" % (row[0], row[1]))
-        p = original_output
-        out = p.split('\n')[-3].lstrip('\t')
-        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
-                             '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
-                             '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
-        ret_val = None
-
-        for candidate in result_candidates:
-            m = re.search(candidate, p)
-            if m is not None:
-                ret_val = m.group(0)
-                if ret_val.find('detailed') != -1:
-                    failed = True
-
-        if out.startswith("For"):
+        if 'workload.yaml' in task:
+            failed = self.proceed_workload_result(task)
+        else:
+            p = original_output
             out = p.split('\n')[-3].lstrip('\t')
-        LOG.debug("Received results for a task %s, those are '%s'" %
-                  (task, out.rstrip('\r')))
+            result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
+                                 '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                                 'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
+                                 '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+            ret_val = None
+
+            for candidate in result_candidates:
+                m = re.search(candidate, p)
+                if m is not None:
+                    ret_val = m.group(0)
+                    if ret_val.find('detailed') != -1:
+                        failed = True
+
+            if out.startswith("For"):
+                out = p.split('\n')[-3].lstrip('\t')
+            LOG.debug("Received results for a task %s, those are '%s'" %
+                      (task, out.rstrip('\r')))
         cmd = ("docker exec -t {cid} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
             cid=self.container_id,
@@ -515,9 +530,57 @@ class RallyOnDockerRunner(RallyRunner):
         else:
             return p.split('\n')[-4:-1]
 
+    def proceed_workload_result(self, task):
+        failed = False
+        cmd = "docker exec -t {cid} rally task results".format(
+            cid=self.container_id)
+
+        p = utils.run_cmd(cmd)
+
+        try:
+            res = json.loads(p)
+        except ValueError:
+            LOG.error("Gotten not-JSON object. Please see mcv-log")
+            LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+            res = False
+        if not res:
+            LOG.info('Workload test failed')
+            return True
+
+        if task == 'big-data-workload.yaml':
+            # TODO(ekudryashova): Proceed failures correctly
+            if not res[0]['sla'][0]['success']:
+                failed = True
+                LOG.info('Workload test failed with reason %s'
+                         % res[0]['sla'][0]['detail'])
+                return failed
+
+            a = res[0]['result'][0]['atomic_actions']
+            total = res[0]['result'][0]['duration']
+            LOG.info('Big Data Workload results:')
+            for k, v in a:
+                LOG.info("%s: %s" % (k, v))
+            LOG.info("Total duration: %s" % total)
+        else:
+            if res[0]['result'][0]['output']['complete']:
+                a = res[0]['result'][0]['output']
+                a = a['complete'][0]['data']['rows']
+                LOG.info('Workload results:')
+                for row in a:
+                    LOG.info("%s: %s" % (row[0], row[1]))
+            else:
+                LOG.info('Workload test failed')
+                failed = True
+
+        return failed
+
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_rally_on_docker()
-        return super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
+        result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
+        self.cleanup_fedora_image()
+        self.cleanup_test_flavor()
+        return result
+
 
     def run_individual_task(self, task, *args, **kwargs):
         try:
