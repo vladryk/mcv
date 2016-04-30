@@ -124,3 +124,14 @@ class BaseSelfCheckError(BaseError):
     @staticmethod
     def range():
         return (110, 119)
+
+
+class NWSpeedError(BaseError):
+    LOW_AVG_SPEED = 122
+    LOW_NODE_SPEED = 123
+    FAILED_TEST_LIMIT_EXCESS = 129
+    NO_RUNNER_ERROR = 120
+
+    @staticmethod
+    def range():
+        return (120, 129)

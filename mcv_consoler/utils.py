@@ -45,7 +45,7 @@ def run_cmd(cmd, quiet=False):
     return result
 
 
-def GET(config, key, section="basic"):
+def GET(config, key, section="basic", default=None):
     try:
         value = config.get(section, key)
     except NoSectionError:
@@ -55,5 +55,8 @@ def GET(config, key, section="basic"):
     except NoOptionError:
         LOG.warning('Option {opt} missed in configuration file. '
                     'It may be dangerous'.format(opt=key))
-        value = None
+        if default is not None:
+            LOG.info('Setting {opt} to default value {val}'.format(opt=key,
+                                                                   val=default))
+        value = default
     return value
