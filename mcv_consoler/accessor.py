@@ -28,8 +28,8 @@ from requests.exceptions import Timeout
 
 from novaclient import exceptions as nexc
 
+from mcv_consoler.auth.router import IRouter
 from mcv_consoler.common import clients as Clients
-from mcv_consoler.common.config import DEBUG
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
 
@@ -61,56 +61,12 @@ class AccessSteward(object):
 
     def __init__(self, config):
         self.config = config
-
-        def _GET(key, section="basic"):
-            try:
-                value = self.config.get(section, key)
-            except NoOptionError:
-                LOG.warning('Option {opt} missed in configuration file. '
-                            'It may be dangerous'.format(opt=key))
-                value = None
-            return value
+        self.router = IRouter(config=self.config)
 
         self.novaclient = None
         self.keystoneclient = None
 
-        protocol = _GET('auth_protocol')
-        endpoint_ip = _GET('auth_endpoint_ip')
-        auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
-        tenant_name = _GET('os_tenant_name')
-        password = _GET('os_password')
-        insecure = (protocol == "https")
-        nailgun_port = 8443 if insecure else 8000
-        ca_certificate = _GET('ca_certificate')
-
-        self.os_data = {'username': _GET('os_username'),
-                        'password': password,
-                        'tenant_name': tenant_name,
-                        'auth_fqdn': _GET('auth_fqdn'),
-
-                        'ips': {
-                            'controller': _GET('controller_ip'),
-                            'endpoint': endpoint_ip,
-                            'instance': _GET('instance_ip')},
-
-                        'fuel': {
-                            'nailgun_host': _GET('nailgun_host'),
-                            'nailgun_port': nailgun_port,
-                            'cluster_id': _GET('cluster_id')},
-
-                        'auth_url': auth_url_tpl.format(hprot=protocol,
-                                                        ip=endpoint_ip,
-                                                        port=5000,
-                                                        version="2.0"),
-                        'insecure': insecure,
-                        'region_name': _GET('region_name'),
-                        # nova tenant
-                        'project_id': tenant_name,
-                        # nova and cinder passwd
-                        'api_key': password,
-                        'debug': DEBUG,
-                        'ca_certificate': ca_certificate
-                        }
+        self.os_data = self.router.get_os_data()
         self.fresh_floating_ips = []
 
     def _validate_ip(self, ip):

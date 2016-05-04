@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ConfigParser import NoOptionError
 import re
 import signal
 import subprocess
@@ -37,3 +38,13 @@ def run_cmd(cmd):
     result = re.sub(r'  (%s).*\n' % "|".join(warnings), '', result)
     LOG.debug('RESULT: "%s"' % result)
     return result
+
+
+def GET(config, key, section="basic"):
+    try:
+        value = config.get(section, key)
+    except NoOptionError:
+        LOG.warning('Option {opt} missed in configuration file. '
+                    'It may be dangerous'.format(opt=key))
+        value = None
+    return value
