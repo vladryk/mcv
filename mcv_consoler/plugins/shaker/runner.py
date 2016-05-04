@@ -203,6 +203,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "SHAKER_EXTERNAL_NET=" + network_name,
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
+             "-e", "SHAKER_REPORT_TEMPLATE=json",
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,
@@ -237,7 +238,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         cmd = ("docker exec -t {cid} timeout {tout} shaker --server-endpoint "
                "{sep}:5999 --agent-join-timeout 3600 --scenario "
                "{home}/tests/networking/{task} "
-               "--debug --output {task}.out --report-template json --report "
+               "--debug --output {task}.out --report "
                "{task}.json --log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
