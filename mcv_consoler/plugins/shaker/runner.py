@@ -138,9 +138,6 @@ class ShakerOnDockerRunner(ShakerRunner):
     def _check_shaker_setup(self):
         LOG.debug("Checking Shaker setup.")
 
-        insecure = ""
-        if self.config.get("basic", "auth_protocol") == "https":
-            insecure = " --os-insecure"
         path = os.path.join(self.homedir, 'images')
 
         for f in os.listdir(path):
@@ -171,7 +168,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         res = subprocess.Popen(
             ["docker", "exec", "-t",
              self.container_id,
-             "shaker-image-builder --image-name shaker-image" + insecure],
+             "shaker-image-builder --image-name shaker-image"],
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
@@ -205,6 +202,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
              "-e", "SHAKER_EXTERNAL_NET=" + network_name,
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
+             "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,
@@ -228,11 +226,10 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
-        insecure = " --os-insecure" if self.access_data['insecure'] else ""
         cmd = "docker exec -t %s shaker-image-builder --image-name " \
-              "shaker-image %s" % (self.container, insecure)
+              "shaker-image" % self.container
 
-        p = utils.run_cmd(cmd + insecure)
+        p = utils.run_cmd(cmd)
 
         # TODO(albartash): make port for Shaker configurable some day
 
@@ -248,7 +245,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                         task=task,
                         home=self.home)
 
-        proc = subprocess.Popen(shlex.split(cmd + insecure),
+        proc = subprocess.Popen(shlex.split(cmd),
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT,
                                 preexec_fn=utils.ignore_sigint)
