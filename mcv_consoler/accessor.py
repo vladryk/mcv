@@ -81,6 +81,7 @@ class AccessSteward(object):
         password = _GET('os_password')
         insecure = (protocol == "https")
         nailgun_port = 8443 if insecure else 8000
+        ca_certificate = _GET('ca_certificate')
 
         self.os_data = {'username': _GET('os_username'),
                         'password': password,
@@ -107,7 +108,8 @@ class AccessSteward(object):
                         'project_id': tenant_name,
                         # nova and cinder passwd
                         'api_key': password,
-                        'debug': DEBUG
+                        'debug': DEBUG,
+                        'ca_certificate': ca_certificate
                         }
         self.fresh_floating_ips = []
 

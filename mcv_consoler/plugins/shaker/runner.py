@@ -204,6 +204,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
              "-e", "SHAKER_REPORT_TEMPLATE=json",
+             "-e", "OS_CACERT=" + self.access_data["ca_certificate"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,
