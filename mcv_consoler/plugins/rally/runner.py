@@ -248,7 +248,7 @@ class RallyOnDockerRunner(RallyRunner):
         try:
             return utils.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
-            LOG.error(str(e))
+            LOG.debug(str(e))
             e.output and LOG.debug(e.output)
 
     def _patch_rally(self):
