@@ -37,7 +37,9 @@ class IRouter(Router):
         tenant_name = GET(self.config, 'os_tenant_name')
         password = GET(self.config, 'os_password')
         insecure = (protocol == "https")
-        nailgun_port = 8443 if insecure else 8000
+
+        # NOTE(albartash): port 8443 is not ready to use somehow
+        nailgun_port = 8000
 
         os_data = {'username': GET(self.config, 'os_username'),
                    'password': password,
