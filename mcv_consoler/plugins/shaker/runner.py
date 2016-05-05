@@ -35,6 +35,7 @@ class ShakerRunner(runner.Runner):
 
     def __init__(self, accessor=None, config_location=None, *args, **kwargs):
         super(ShakerRunner, self).__init__()
+        self.config = kwargs["config"]
         self.identity = "shaker"
         self.config_section = "shaker"
 
@@ -130,50 +131,28 @@ class ShakerOnDockerRunner(ShakerRunner):
                                  'different_nodes.yaml',
                                  'floating_ip.yaml']
 
-        super(ShakerOnDockerRunner, self).__init__()
+        self.image_name = utils.GET(
+            self.config, 'image_name', 'shaker') or 'shaker-image'
+        self.flavor_name = utils.GET(
+            self.config, 'flavor_name', 'shaker') or 'shaker-flavor'
 
-        self.glance = Clients.get_glance_client(self.access_data)
+        super(ShakerOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
+
         self.heat = Clients.get_heat_client(self.access_data)
 
     def _check_shaker_setup(self):
-        LOG.debug("Checking Shaker setup.")
+        LOG.info("Start shaker-image-builder. Creating infrastructure. Please wait")
+        cmd = "docker exec -t %s shaker-image-builder --image-name %s " \
+              "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
+        p = utils.run_cmd(cmd)
+        if 'ERROR' in p:
+            LOG.debug("shaker-image-builder failed")
+            for stack in self.heat.stacks.list():
+                if 'shaker' in stack.stack_name:
+                    stack.delete()
+            raise RuntimeError
 
-        path = os.path.join(self.homedir, 'images')
-
-        for f in os.listdir(path):
-            if f.endswith(".ss.img"):
-                path = os.path.join(path, f)
-                break
-
-        if path.endswith('shaker'):
-            LOG.error('No shaker image available')
-            return
-
-        LOG.debug('Authenticating in glance')
-        i_list = self.glance.images.list()
-        image = False
-        for im in i_list:
-            if im.name == 'shaker-image':
-                image = True
-        if not image:
-            LOG.info("No Shaker image found in Glance. Uploading it...")
-            LOG.debug('Creating shaker image')
-            self.glance.images.create(name='shaker-image', disk_format="qcow2",
-                                      container_format="bare", data=open(path),
-                                      min_disk=3, min_ram=512)
-        else:
-            LOG.debug("Shaker image exists")
-
-        LOG.debug("Run shaker-image-builder")
-        res = subprocess.Popen(
-            ["docker", "exec", "-t",
-             self.container_id,
-             "shaker-image-builder --image-name shaker-image"],
-            stdout=subprocess.PIPE,
-            preexec_fn=utils.ignore_sigint).stdout.read()
-
-        LOG.debug('Finish running shaker-image-builder.'
-                  'Result: %s' % str(res))
+        LOG.debug('Finish running shaker-image-builder.')
 
     def start_container(self):
         LOG.debug("Bringing up Shaker container with credentials")
@@ -226,24 +205,28 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _run_shaker_on_docker(self, task):
         LOG.info("Starting task %s" % task)
-        cmd = "docker exec -t %s shaker-image-builder --image-name " \
-              "shaker-image" % self.container
-
-        p = utils.run_cmd(cmd)
 
         # TODO(albartash): make port for Shaker configurable some day
 
         timeout = self.config.get("shaker", "timeout")
-        cmd = ("docker exec -t {cid} timeout {tout} shaker --server-endpoint "
-               "{sep}:5999 --agent-join-timeout 3600 --scenario "
-               "{home}/tests/networking/{task} "
-               "--debug --output {task}.out --report "
-               "{task}.json --log-file {home}/log/shaker.log"
+        cmd = ("docker exec -t {cid} timeout {tout} shaker "
+               "--image-name {image} "
+               "--flavor-name {flavor} "
+               "--server-endpoint {sep}:5999 "
+               "--agent-join-timeout 3600 "
+               "--scenario {home}/tests/networking/{task} "
+               "--debug --output {task}.out "
+               "--report {task}.json "
+               "--log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
+                        image=self.image_name,
+                        flavor=self.flavor_name,
                         sep=self.access_data['ips']["instance"],
                         task=task,
                         home=self.home)
+
+        LOG.debug('Executing command: "%s"' % cmd)
 
         proc = subprocess.Popen(shlex.split(cmd),
                                 stdout=subprocess.PIPE,
@@ -287,16 +270,15 @@ class ShakerOnDockerRunner(ShakerRunner):
         # Note: function 'clear_image' will run after completing
         # all of speed scenarios
         if not (task in self.list_speed_tests):
-            self.clear_shaker_image()
+            self.clear_shaker()
         return result
 
-    def clear_shaker_image(self):
-        clear_image = self.config.get('shaker', 'clear_image')
-        if clear_image == 'True':
-            i_list = self.glance.images.list()
-            for im in i_list:
-                if im.name == 'shaker-image':
-                    self.glance.images.delete(im)
+    def clear_shaker(self):
+        cleanup = utils.GET(self.config, 'cleanup', 'shaker') or 'True'
+        if cleanup == 'True':
+            cmd = "docker exec -t %s shaker-cleanup --image-name %s " \
+              "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
+            p = utils.run_cmd(cmd)
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
@@ -466,7 +448,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
                 check = self._evaluate_task_result(task, task_result)
                 if not check:
-                    self.clear_shaker_image()
+                    self.clear_shaker()
                     self.test_failures.append(task)
                     LOG.debug("Task {task} has failed with {res}".format(
                         task=task, res=task_result))
@@ -477,7 +459,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 output += row
                 success &= report_status
             self._generate_report_network_speed(threshold, task, output)
-            self.clear_shaker_image()
+            self.clear_shaker()
 
             if success:
                 return True
