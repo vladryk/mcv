@@ -185,11 +185,11 @@ class ShakerOnDockerRunner(ShakerRunner):
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["ips"]["endpoint"])
 
-        try:
-            network_name = self.config.get("network_speed", "network_name")
-        except NoOptionError:
-            LOG.error('No network name was found. Please check your config.')
-            raise RuntimeError
+        network_name = utils.GET(self.config, "network_speed", "network_name")
+        if not network_name:
+            LOG.error("Failed to get option 'network_speed:network_name' from "
+                      "configuration file. Using default value 'net04'")
+            network_name = 'net04'
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +

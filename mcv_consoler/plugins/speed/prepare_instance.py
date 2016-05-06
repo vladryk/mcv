@@ -18,6 +18,7 @@ import time
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.logger import LOG
+from mcv_consoler import utils
 from novaclient import exceptions
 
 LOG = LOG.getLogger(__name__)
@@ -111,14 +112,15 @@ class Preparer(object):
         LOG.info('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
+        network_name = utils.GET(self.config, "network_speed", "network_name")
+        if not network_name:
+            LOG.error("Failed to get option 'network_speed:network_name' from "
+                      "configuration file. Using default value 'net04'")
+            network_name = 'net04'
         try:
-            network_name = self.config.get("network_speed", "network_name")
             network = self.nova.networks.find(label=network_name)
         except exceptions.NotFound:
             LOG.error('No networks with default label was found')
-            raise RuntimeError
-        except NoOptionError:
-            LOG.error('No network name was found. Please check your config.')
             raise RuntimeError
 
         compute_hosts = [host for host in self.nova.hosts.list(
