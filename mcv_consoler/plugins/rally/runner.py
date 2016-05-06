@@ -477,26 +477,26 @@ class RallyOnDockerRunner(RallyRunner):
 
         if 'workload.yaml' in task:
             failed = self.proceed_workload_result(task)
-        else:
-            p = original_output
+
+        p = original_output
+        out = p.split('\n')[-3].lstrip('\t')
+        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
+                             '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
+                             '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        ret_val = None
+
+        for candidate in result_candidates:
+            m = re.search(candidate, p)
+            if m is not None:
+                ret_val = m.group(0)
+                if ret_val.find('detailed') != -1:
+                    failed = True
+
+        if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
-            result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
-                                 '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-                                 'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
-                                 '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
-            ret_val = None
-
-            for candidate in result_candidates:
-                m = re.search(candidate, p)
-                if m is not None:
-                    ret_val = m.group(0)
-                    if ret_val.find('detailed') != -1:
-                        failed = True
-
-            if out.startswith("For"):
-                out = p.split('\n')[-3].lstrip('\t')
             LOG.debug("Received results for a task %s, those are '%s'" %
-                      (task, out.rstrip('\r')))
+                     (task, out.rstrip('\r')))
         cmd = ("docker exec -t {cid} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
             cid=self.container_id,
@@ -549,7 +549,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         if task == 'big-data-workload.yaml':
             # TODO(ekudryashova): Proceed failures correctly
-            if not res[0]['sla'][0]['success']:
+            if res[0]['sla']:
                 failed = True
                 LOG.info('Workload test failed with reason %s'
                          % res[0]['sla'][0]['detail'])
@@ -558,7 +558,7 @@ class RallyOnDockerRunner(RallyRunner):
             a = res[0]['result'][0]['atomic_actions']
             total = res[0]['result'][0]['duration']
             LOG.info('Big Data Workload results:')
-            for k, v in a:
+            for (k, v) in a.iteritems():
                 LOG.info("%s: %s" % (k, v))
             LOG.info("Total duration: %s" % total)
         else:
