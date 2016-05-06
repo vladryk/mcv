@@ -20,6 +20,7 @@ import os.path
 import shlex
 import subprocess
 
+from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.logger import LOG
 from mcv_consoler.plugins.rally import runner as rrunner
@@ -51,7 +52,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def start_container(self):
         LOG.debug("Bringing up Tempest container with credentials")
         add_host = ""
-        if self.config.get("basic", "auth_fqdn") != '':
+        # TODO(albartash): Refactor this place!
+        if self.config.get("auth", "auth_fqdn") != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["ips"]["endpoint"])
@@ -221,8 +223,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             max_failed_tests = int(self.config.get('tempest',
                                                    'max_failed_tests'))
         except NoOptionError:
-            max_failed_tests = int(self.config.get('basic',
-                                                   'max_failed_tests'))
+            max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
         self._setup_rally_on_docker()
         t = []

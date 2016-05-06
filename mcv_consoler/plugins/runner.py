@@ -20,6 +20,7 @@ import re
 import subprocess
 import time
 
+from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
@@ -124,7 +125,7 @@ class Runner(object):
         try:
             max_failed_tests = int(config.get(tool_name, 'max_failed_tests'))
         except NoOptionError:
-            max_failed_tests = int(config.get('basic', 'max_failed_tests'))
+            max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
         LOG.debug("The following tests will be run:")
         LOG.debug("\n".join(tasks))

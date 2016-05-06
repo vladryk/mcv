@@ -229,8 +229,8 @@ class AccessSteward(object):
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             ssh.connect(hostname=self.os_data["ips"]["controller"],
-                        username=self.config.get('basic', 'controller_uname'),
-                        password=self.config.get('basic', 'controller_pwd'),
+                        username=self.config.get('auth', 'controller_uname'),
+                        password=self.config.get('auth', 'controller_pwd'),
                         timeout=10)
         except NoOptionError:
             LOG.critical("SSH authorization credentials "
@@ -312,8 +312,8 @@ class AccessSteward(object):
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             ssh.connect(hostname=self.os_data["ips"]["controller"],
-                        username=self.config.get('basic', 'controller_uname'),
-                        password=self.config.get('basic', 'controller_pwd'))
+                        username=self.config.get('auth', 'controller_uname'),
+                        password=self.config.get('auth', 'controller_pwd'))
         except Exception:
             LOG.critical("Oh noes, ssh is broken")
             return

@@ -71,13 +71,10 @@ class OSTFOnDockerRunner(runner.Runner):
         super(OSTFOnDockerRunner, self).__init__()
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
-        if self.config.has_option(self.config_section, 'max_failed_tests'):
+        try:
             self.max_failed_tests = int(self.config.get(self.config_section,
                                                         'max_failed_tests'))
-        elif self.config.has_option('basic', 'max_failed_tests'):
-            self.max_failed_tests = int(self.config.get('basic',
-                                                        'max_failed_tests'))
-        else:
+        except NoOptionError:
             self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
     def _do_config_extraction(self):

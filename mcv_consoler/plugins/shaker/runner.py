@@ -180,7 +180,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         add_host = ""
 
-        if self.config.get("basic", "auth_fqdn") != '':
+        # TODO(albartash): Refactor this place!
+        if self.config.get("auth", "auth_fqdn") != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["ips"]["endpoint"])
@@ -201,7 +202,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
              "-e", "SHAKER_REPORT_TEMPLATE=json",
-             "-e", "OS_CACERT=" + str(self.access_data["fuel"]["ca_cert"]),
+             "-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,

@@ -102,7 +102,6 @@ class Consoler(object):
 
     def discover_test_suits(self):
         # TODO(aovchinnikov): generalize discovery
-        self.config.get('basic', 'scenario_dir')
         scenario_dir = os.path.join(os.path.dirname(__file__), self.plugin_dir)
         possible_places = map(lambda x: os.path.join(scenario_dir, x),
                               os.listdir(scenario_dir))
