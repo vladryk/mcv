@@ -112,7 +112,7 @@ class Preparer(object):
         LOG.info('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
-        network_name = utils.GET(self.config, "network_speed", "network_name")
+        network_name = utils.GET(self.config, "network_name", "network_speed")
         if not network_name:
             LOG.error("Failed to get option 'network_speed:network_name' from "
                       "configuration file. Using default value 'net04'")

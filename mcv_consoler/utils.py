@@ -13,6 +13,7 @@
 #    under the License.
 
 from ConfigParser import NoOptionError
+from ConfigParser import NoSectionError
 import re
 import signal
 import subprocess
@@ -43,6 +44,10 @@ def run_cmd(cmd):
 def GET(config, key, section="basic"):
     try:
         value = config.get(section, key)
+    except NoSectionError:
+        LOG.warning('Section {sec} missed in configuration file. '
+                    'It may be dangerous'.format(sec=section))
+        value = None
     except NoOptionError:
         LOG.warning('Option {opt} missed in configuration file. '
                     'It may be dangerous'.format(opt=key))
