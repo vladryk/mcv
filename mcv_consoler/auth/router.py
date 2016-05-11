@@ -54,7 +54,7 @@ class IRouter(Router):
                    'fuel': {
                        'nailgun_host': GET(self.config, 'nailgun_host'),
                        'nailgun_port': nailgun_port,
-                       'cluster_id': GET(self.config, 'cluster_id')
+                       'cluster_id': GET(self.config, 'cluster_id'),
                        # TODO(albartash): fix in router.py (None to "")
                        'ca_cert': ""},
 
