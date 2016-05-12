@@ -203,7 +203,8 @@ class RallyOnDockerRunner(RallyRunner):
         ram = utils.GET(self.config, 'ram', 'workload')
         disc = utils.GET(self.config, 'disc', 'workload')
         vcpu = utils.GET(self.config, 'vcpu', 'workload')
-        flavor = self.novaclient.flavors.create('mcv-workload-test-flavor', ram, vcpu,  disc, 'auto')
+        flavor = self.novaclient.flavors.create('mcv-workload-test-flavor',
+                                                ram, vcpu, disc, 'auto')
         return flavor.id
 
     def cleanup_test_flavor(self):
@@ -496,7 +497,7 @@ class RallyOnDockerRunner(RallyRunner):
         if out.startswith("For"):
             out = p.split('\n')[-3].lstrip('\t')
             LOG.debug("Received results for a task %s, those are '%s'" %
-                     (task, out.rstrip('\r')))
+                      (task, out.rstrip('\r')))
         cmd = ("docker exec -t {cid} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
             cid=self.container_id,
@@ -580,7 +581,6 @@ class RallyOnDockerRunner(RallyRunner):
         self.cleanup_fedora_image()
         self.cleanup_test_flavor()
         return result
-
 
     def run_individual_task(self, task, *args, **kwargs):
         try:

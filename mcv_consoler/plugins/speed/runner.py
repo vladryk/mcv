@@ -112,7 +112,8 @@ class SpeedTestRunner(run.Runner):
                     'Something went wrong when removing VMs. '
                     'Please check mcvconsoler logs')
                 LOG.debug(traceback.format_exc())
-                # TODO(albartash): It's a hard-hack. Refactor this place, please!
+                # TODO(albartash): It's a hard-hack.
+                # Refactor this place, please!
                 # It just prevents us from 'No attribute __getitem__'
                 return res
 
