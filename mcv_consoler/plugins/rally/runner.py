@@ -173,16 +173,15 @@ class RallyOnDockerRunner(RallyRunner):
         self.novaclient = Clients.get_nova_client(self.access_data)
 
     def create_fedora_image(self):
-        # TODO(ekudryashova): use more mcv name for image
         path = os.path.join(os.path.join(self.homedir, "images"),
                             'Fedora-Cloud-Base-23-20151030.x86_64.qcow2')
         i_list = self.glanceclient.images.list()
         image = False
         for im in i_list:
-            if im.name == 'fedora':
+            if im.name == 'mcv-test-fedora':
                 image = True
         if not image:
-            self.glanceclient.images.create(name='fedora',
+            self.glanceclient.images.create(name='mcv-test-fedora',
                                             disk_format="qcow2",
                                             is_public=True,
                                             container_format="bare",
@@ -192,7 +191,7 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.info('Cleaning up test image')
         i_list = self.glanceclient.images.list()
         for im in i_list:
-            if im.name == 'fedora':
+            if im.name == 'mcv-test-fedora':
                 self.glanceclient.images.delete(im.id)
 
     def create_or_get_flavor(self):
@@ -432,11 +431,8 @@ class RallyOnDockerRunner(RallyRunner):
 
     def create_cmd_for_task(self, location, task_args):
         cmd = ("docker exec -t {container} sudo rally"
-               " --log-file {home}/log/rally.log --rally-debug"
-               " task start"
-               " {location}"
+               " --rally-debug task start {location}"
                " --task-args '{task_args}'").format(
-            home=self.home,
             container=self.container_id,
             location=os.path.join(self.home, location),
             task_args=json.dumps(task_args))
