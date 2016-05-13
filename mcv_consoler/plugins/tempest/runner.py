@@ -112,11 +112,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                    "--deployment existing --source /tempest").format(
                 cid=self.container_id)
 
-            p = utils.run_cmd(cmd)
+            p = utils.run_cmd(cmd, quiet=True)
             cmd = "docker exec -t %(container)s sudo rally verify genconfig" %\
                   {"container": self.container_id}
 
-            p = utils.run_cmd(cmd)
+            p = utils.run_cmd(cmd, quiet=True)
             cirros = glob.glob(self.homedir + '/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
@@ -126,11 +126,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                " verify start --set {_set}").format(cid=self.container_id,
                                                     home=self.home,
                                                     _set=task)
-        p = utils.run_cmd(cmd)
+        p = utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify list".format(
             cid=self.container_id)
 
+        # TODO(ogrytsenko): double-check this approach
         try:
             p = utils.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
@@ -142,31 +143,51 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.error('Verification failed, unable to generate report')
             return ''
 
-        run = p.split('\n')[-3].split('|')[1]
-
         LOG.info('Generating html report')
         cmd = ("docker exec -t {cid} sudo rally verify results --html "
                "--out={home}/reports/{task}.html").format(
             cid=self.container_id, home=self.home, task=task)
+        utils.run_cmd(cmd, quiet=True)
 
-        p = utils.run_cmd(cmd)
-
-        cmd = ('docker exec -it {cid} sudo cp {home}/reports/{task}.html '
+        cmd = ('docker exec -t {cid} sudo cp {home}/reports/{task}.html '
                '/home/rally/.rally/tempest').format(cid=self.container_id,
                                                     home=self.home,
                                                     task=task)
+        utils.run_cmd(cmd, quiet=True)
 
-        p = utils.run_cmd(cmd)
+        LOG.debug('Generating detailed report')
+        details_dir = os.path.join(self.home, 'reports/details/')
+        details_file = os.path.join(details_dir, task + '.txt')
 
-        cmd = "sudo cp {homedir}/{task}.html {path}".format(
-            homedir=self.homedir, task=task, path=self.path)
-        p = utils.run_cmd(cmd)
+        cmd = "docker exec -t %(cid)s " \
+              "rally deployment list | grep existing | awk \'{print $2}\'" \
+              % dict(cid=self.container_id)
+        deployment_id = utils.run_cmd(cmd, quiet=True).strip()
+
+        cmd = 'docker exec -t %(cid)s sudo -u mcv /bin/bash -c \"' \
+              'mkdir -p %(out_dir)s; ' \
+              'sudo subunit2pyunit /mcv/for-deployment-%(ID)s/subunit.stream ' \
+              '2> %(out_file)s\"; ' \
+              'exit 0' % dict(cid=self.container_id,
+                              ID=deployment_id,
+                              out_dir=details_dir,
+                              out_file=details_file)
+        utils.run_cmd(cmd, quiet=True)
+        LOG.debug(
+            "Finished creating detailed report for '{task}'. "
+            "File: {details_file}".format(task=task, details_file=details_file)
+        )
+
+        reports_dir = os.path.join(self.homedir, 'reports')
+        cmd = "sudo cp {reports}/{task}.html {path}; " \
+              "sudo mkdir -p {path}/details; " \
+              "sudo cp {reports}/details/{task}.txt {path}/details".\
+            format(reports=reports_dir, task=task, path=self.path)
+        utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify results --json".format(
             cid=self.container_id)
-        p = utils.run_cmd(cmd)
-
-        return p
+        return utils.run_cmd(cmd, quiet=True)
 
     def parse_results(self, res, task):
         LOG.info("Parsing results")

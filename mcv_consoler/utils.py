@@ -29,7 +29,7 @@ def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
-def run_cmd(cmd):
+def run_cmd(cmd, quiet=False):
     LOG.debug('Executing command: "%s"' % cmd)
     result = subprocess.check_output(cmd,
                                      shell=True,
@@ -37,7 +37,7 @@ def run_cmd(cmd):
                                      preexec_fn=ignore_sigint)
     result = re.sub(r'/usr/local/.*(%s).*\n' % "|".join(warnings), '', result)
     result = re.sub(r'  (%s).*\n' % "|".join(warnings), '', result)
-    LOG.debug('RESULT: "%s"' % result)
+    quiet or LOG.debug('RESULT: "%s"' % result)
     return result
 
 

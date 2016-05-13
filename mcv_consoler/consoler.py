@@ -13,7 +13,7 @@
 #    under the License.
 
 from ConfigParser import NoSectionError
-import datetime
+from datetime import datetime
 import imp
 import inspect
 import json
@@ -133,8 +133,7 @@ class Consoler(object):
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
         self.results_vault = "/tmp/mcv_run_{dt}".format(
-                             dt=str(datetime.datetime.utcnow()).replace(" ",
-                                                                        "_"))
+                             dt=str(datetime.utcnow()).replace(" ", "_"))
         os.mkdir(self.results_vault)
 
         f = open('/etc/mcv/times.json', 'r')
@@ -179,6 +178,7 @@ class Consoler(object):
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
+                LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             except Exception:
                 dispatch_result[key]['major_crash'] = 1
@@ -329,34 +329,46 @@ class Consoler(object):
         self.event = event
 
         def do_finalization(run_results):
-            r_helper = {"timestamp": "xxx", "location": "xxx"}
-            if run_results is not None:
-                self.describe_results(run_results)
-                self.update_config(run_results)
-                try:
-                    reporter.brew_a_report(run_results,
-                                           self.results_vault + "/index.html")
-                except Exception:
-                    LOG.warning("Brewing a report has failed.")
-                    return r_helper
+            if run_results is None:
+                LOG.warning("For some reason test tools have returned nothing")
+                return
 
-                r_helper = {
-                    "timestamp": str(datetime.datetime.utcnow()).replace(" ",
-                                                                         "_"),
-                    "location": self.results_vault}
+            self.describe_results(run_results)
+            self.update_config(run_results)
+            try:
+                reporter.brew_a_report(run_results,
+                                       self.results_vault + "/index.html")
+            except Exception as e:
+                LOG.warning("Brewing a report has failed with "
+                            "error: %s" % str(e))
+                LOG.debug(traceback.format_exc())
+                return
 
+            result_dict = {
+                "timestamp": str(datetime.utcnow()).replace(" ", "_"),
+                "location": self.results_vault
+            }
+
+            LOG.info('Creating a .tar.gz archive with test reports')
+            try:
                 cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
-                       " -C %(location)s .") % r_helper
+                       " -C %(location)s .") % result_dict
                 utils.run_cmd(cmd)
 
                 cmd = "rm -rf %(location)s" % {"location": self.results_vault}
                 utils.run_cmd(cmd)
+            except subprocess.CalledProcessError:
+                LOG.warning('Creation of .tar.gz archive has failed. See log '
+                            'for details. You can still get your files from: '
+                            '%s' % self.results_vault)
+                LOG.debug(traceback.format_exc())
+                return
 
-                LOG.debug("Done with report generation.")
-            else:
-                LOG.warning("For some reason test tools "
-                            "have returned nothing.")
-            return r_helper
+            LOG.debug("Finished creating a report.")
+            LOG.info("One page report could be found in "
+                     "/tmp/mcv_run_%(timestamp)s.tar.gz" % result_dict)
+
+            return result_dict
 
         if len(sys.argv) < 2:
             self.parser.print_help()
@@ -378,6 +390,7 @@ class Consoler(object):
                          "and preparing environment")
                 LOG.error("The following error has terminated "
                           "the consoler: %s", repr(e))
+                LOG.debug(traceback.format_exc())
                 result.append(CAError.WRONG_CREDENTIALS)
                 return
 
@@ -404,6 +417,7 @@ class Consoler(object):
                 LOG.error("Some unexpected outer error has terminated "
                           "the tool. Please try rerunning mcvconsoler. "
                           "Reply: %s", e)
+                LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
             except Exception:
                 LOG.error("Something went wrong with the command, "
@@ -419,9 +433,6 @@ class Consoler(object):
                             shell=True,
                             preexec_fn=utils.ignore_sigint)
             return 1
-        r_helper = do_finalization(run_results)
+        do_finalization(run_results)
         self.access_helper.cleanup()
         result.append(self.failure_indicator)
-        if run_results is not None:
-            LOG.info("One page report could be found in "
-                     "/tmp/mcv_run_%s.tar.gz" % r_helper['timestamp'])

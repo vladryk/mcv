@@ -370,9 +370,7 @@ class RallyOnDockerRunner(RallyRunner):
         cmd = ("docker exec -t {cid} "
                "sudo rally deployment use existing").format(
             cid=self.container_id)
-        LOG.debug('Run "{cmd}"'.format(cmd=cmd))
-        p = utils.run_cmd(cmd)
-        LOG.debug('Result: {res}'.format(res=p))
+        utils.run_cmd(cmd, quiet=True)
 
     def _check_rally_setup(self):
         self._check_and_fix_flavor()

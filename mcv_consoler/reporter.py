@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import time
+from datetime import datetime
 
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
@@ -57,26 +57,28 @@ general_report = """
 """
 
 
-def fix_rally(file_location):
-    pass
+class _Dispatcher(object):
+
+    def __call__(self, key, file_location=None):
+        inner_func = 'fix_' + key
+        if not hasattr(self, inner_func):
+            LOG.debug('Fix for \'%s\' report is not implemented.' % key)
+            return
+        return getattr(self, inner_func)(file_location)
+
+    @staticmethod
+    def fix_shaker(file_location):
+        cmd = ("sed -i '/<div\ class=\"container\"\ id=\"container\">/"
+               " a\  <li class=\"active\" style=\"list-style-type: none;\"><a "
+               "href=\"../index.html\">Back to Index</a></li>' "
+               "%s" % file_location)
+
+        LOG.debug('Fixing Shaker report. Command: %s' % cmd)
+        result = utils.run_cmd(cmd, quiet=True)
+        LOG.debug('Result: %s' % str(result))
 
 
-def fix_shaker(file_location):
-    cmd = ("sed -i '/<div\ class=\"container\"\ id=\"container\">/ a\  <li "
-           "class=\"active\" style=\"list-style-type: none;\"><a "
-           "href=\"../index.html\">Back to Index</a></li>' "
-           "%s" % file_location)
-
-    LOG.debug('Fixing Shaker report. Command: %s' % cmd)
-    result = utils.run_cmd(cmd)
-    LOG.debug('Result: %s' % str(result))
-
-
-def fix_ostf(file_location):
-    LOG.debug('Fix for OSTF report is not implemented.')
-
-
-fix_dispatcher = {"rally": fix_rally, "shaker": fix_shaker, "ostf": fix_ostf}
+fix_dispatcher = _Dispatcher()
 
 
 def brew_a_report(stuff, name="mcv_result.html"):
@@ -90,7 +92,7 @@ def brew_a_report(stuff, name="mcv_result.html"):
                                   "testname": el,
                                   "key": key}
 
-            fix_dispatcher[key]("{loc}/{key}/{testname}.html".format(
+            fix_dispatcher(key, "{loc}/{key}/{testname}.html".format(
                 loc=location, testname=el, key=key))
 
             good += 1
@@ -100,7 +102,7 @@ def brew_a_report(stuff, name="mcv_result.html"):
                                   "testname": el,
                                   "key": key}
 
-            fix_dispatcher[key]("{loc}/{key}/{testname}.html".format(
+            fix_dispatcher(key, "{loc}/{key}/{testname}.html".format(
                 loc=location, testname=el, key=key))
 
             notfound += 1
@@ -110,7 +112,7 @@ def brew_a_report(stuff, name="mcv_result.html"):
                                   "testname": el,
                                   "key": key}
 
-            fix_dispatcher[key]("{loc}/{key}/{testname}.html".format(
+            fix_dispatcher(key, "{loc}/{key}/{testname}.html".format(
                 loc=location, testname=el, key=key))
 
             bad += 1
@@ -118,10 +120,11 @@ def brew_a_report(stuff, name="mcv_result.html"):
         result += general_report % {"component_name": key,
                                     "component_list": res}
 
-    out = header % {"datetime_of_run": time.strftime("%a, %d %b %Y %H:%M:%S",
-                                                     time.gmtime()),
-                    "quapla": str(good),
-                    "failure": str(bad)} + result + footer
+    out = header % {
+        "datetime_of_run": datetime.now().strftime("%a, %d %b %Y %H:%M:%S"),
+        "quapla": str(good),
+        "failure": str(bad)
+    } + result + footer
 
     with open(name, "w") as f:
         f.write(out)
