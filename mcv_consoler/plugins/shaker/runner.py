@@ -214,7 +214,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "--flavor-name {flavor} "
                "--server-endpoint {sep}:5999 "
                "--agent-join-timeout 3600 "
-               "--scenario {home}/tests/networking/{task} "
+               "--scenario {home}/tests/openstack/{task} "
                "--debug --output {task}.out "
                "--report {task}.json "
                "--log-file {home}/log/shaker.log"
