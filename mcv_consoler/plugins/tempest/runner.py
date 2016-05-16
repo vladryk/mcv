@@ -78,6 +78,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                   'ID = %s' % str(res))
 
         self._verify_rally_container_is_up()
+        self.copy_config()
 
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')

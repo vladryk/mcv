@@ -250,12 +250,16 @@ class RallyOnDockerRunner(RallyRunner):
 
         self._verify_rally_container_is_up()
 
-        # here we fix glance image issues
-        subprocess.Popen(["sudo", "chmod", "a+r",
-                         self.homedir +
-                         "/images/cirros-0.3.1-x86_64-disk.img"],
-                         stdout=subprocess.PIPE,
-                         preexec_fn=utils.ignore_sigint).stdout.read()
+        cmd = "sudo chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
+        utils.run_cmd(cmd)
+        self.copy_config()
+
+    def copy_config(self):
+        cmd = 'docker exec -t %s sudo mkdir /etc/rally' % self.container_id
+        utils.run_cmd(cmd)
+        cmd = 'docker exec -t %s sudo cp %s/rally.conf /etc/rally/rally.conf' % (self.container_id,
+                                                                                 self.home)
+        utils.run_cmd(cmd)
 
     @staticmethod
     def _os_patch(target, patch, container_id=None):
