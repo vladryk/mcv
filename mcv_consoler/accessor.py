@@ -14,7 +14,6 @@
 
 
 from ConfigParser import NoOptionError
-import operator
 import re
 import socket
 import subprocess
@@ -30,13 +29,13 @@ from novaclient import exceptions as nexc
 
 from mcv_consoler.auth.router import IRouter
 from mcv_consoler.common import clients as Clients
+import mcv_consoler.common.config as app_conf
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
 
 
 LOG = LOG.getLogger(__name__)
 
-image_names = ("mcv-rally", "mcv-shaker", "mcv-ostf")
 
 erepnotf = re.compile('ERROR \(EndpointNotFound\)')
 ernotfou = re.compile('ERROR \(NotFound\)')
@@ -196,18 +195,41 @@ class AccessSteward(object):
             except Exception as e:
                 LOG.debug("Error removing floating IP: %s" % e.message)
 
-    def check_docker_images(self):
-        res = subprocess.Popen(
-            ["docker", "images"],
-            stdout=subprocess.PIPE,
-            preexec_fn=utils.ignore_sigint).stdout.read()
-        flags = map(lambda x: re.search(x, res) is not None, image_names)
-        if reduce(operator.mul, flags):
-            LOG.debug("All images seem to be in place")
-        else:
-            LOG.warning("Some images are still not here. Waiting for them")
-            time.sleep(300)
-            self.check_docker_images()
+    def check_docker_images(self, sleep_for=30, sleep_total=0):
+        if sleep_total == 0:  # first iteration
+            LOG.debug('Validating that all docker images required by '
+                      'the application are available')
+
+        if sleep_total >= app_conf.DOCKER_LOADING_IMAGE_TIMEOUT:
+            LOG.warning('Failed to load one or more docker images. '
+                        'Gave up after %s seconds. See log for more '
+                        'details' % sleep_total)
+            return False
+
+        res = utils.run_cmd("docker images --format {{.Repository}}")
+
+        all_present = all(map(res.count, app_conf.DOCKER_REQUIRED_IMAGES))
+        if all_present:
+            LOG.debug("All docker images seem to be in place")
+            return True
+
+        by_name = lambda img: res.count(img) == 0
+        not_found = filter(by_name, app_conf.DOCKER_REQUIRED_IMAGES)
+
+        formatter = dict(
+            sleep=sleep_for, total=sleep_total,
+            max=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT,
+            left=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT - sleep_total
+        )
+        LOG.debug('One or mode docker images are not present: '
+                  '{missing}.'.format(missing=', '.join(not_found)))
+        LOG.debug('Going to wait {sleep} more seconds for them to load. '
+                  'ETA: already waiting {total} sec; max time {max}; '
+                  '{left} left'.format(**formatter))
+
+        time.sleep(sleep_for)
+        sleep_total += sleep_for
+        return self.check_docker_images(sleep_total=sleep_total)
 
     def _check_and_fix_iptables_rule(self):
         # TODO(aovchinnikov): divide this some day
@@ -391,7 +413,9 @@ class AccessSteward(object):
         self._restore_hosts_config()
 
     def check_and_fix_environment(self, no_tunneling=False):
-        self.check_docker_images()
+        if not self.check_docker_images():
+            self._restore_hosts_config()
+            return False
         if not self.check_and_fix_access_data():
             self._restore_hosts_config()
             return False
