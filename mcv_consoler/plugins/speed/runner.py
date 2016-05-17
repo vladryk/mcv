@@ -176,7 +176,7 @@ class SpeedTestRunner(run.Runner):
                 compute_nodes_quantity = int(compute_nodes_quantity)
             except ValueError:
                 LOG.error("Expected int type of 'compute_nodes_limit' variable, but"
-                           " got %s.".format(type(compute_nodes_quantity)))
+                           " got {}.".format(type(compute_nodes_quantity)))
                 self.test_failures.append(task)
                 return False
             compute_node_ids = self.node_ids[:compute_nodes_quantity]
