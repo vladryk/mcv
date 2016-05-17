@@ -58,8 +58,9 @@ class AccessSteward(object):
                       "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\ \|\ -",
                       re.X)
 
-    def __init__(self, config):
+    def __init__(self, config, event):
         self.config = config
+        self.event = event
         self.router = IRouter(config=self.config)
 
         self.novaclient = None
@@ -221,6 +222,9 @@ class AccessSteward(object):
             max=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT,
             left=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT - sleep_total
         )
+        if self.event.is_set():
+            LOG.warning('Caught Keyboard Interrupt, exiting')
+            return False
         LOG.debug('One or mode docker images are not present: '
                   '{missing}.'.format(missing=', '.join(not_found)))
         LOG.debug('Going to wait {sleep} more seconds for them to load. '
@@ -415,6 +419,7 @@ class AccessSteward(object):
     def check_and_fix_environment(self, no_tunneling=False):
         if not self.check_docker_images():
             self._restore_hosts_config()
+            LOG.warning('Failed to load docker images. Exiting')
             return False
         if not self.check_and_fix_access_data():
             self._restore_hosts_config()

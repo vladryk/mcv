@@ -381,7 +381,7 @@ class Consoler(object):
         run_results = None
 
         if self.args.run is not None:
-            self.access_helper = accessor.AccessSteward(self.config)
+            self.access_helper = accessor.AccessSteward(self.config, self.event)
             try:
                 res = self.access_helper.check_and_fix_environment(
                     self.args.no_tunneling)
