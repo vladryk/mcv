@@ -349,20 +349,13 @@ class RallyOnDockerRunner(RallyRunner):
                                 "rally", "deployment", "check"],
                                stdout=subprocess.PIPE,
                                preexec_fn=utils.ignore_sigint).stdout.read()
-        if res.startswith("There is no") or res.startswith('Deployment'):
+        if "There is no" in res:
             LOG.debug("It is not. Trying to set up rally deployment.")
             self.create_rally_json()
-            res = subprocess.Popen(["docker", "exec", "-t",
-                                    self.container_id, "rally",
-                                    "deployment", "create",
-                                    "--file=" + os.path.join(self.home,
-                                                             "conf",
-                                                             "existing.json"),
-                                    # "--fromenv",
-                                    "--name=existing"],
-                                   stdout=subprocess.PIPE,
-                                   preexec_fn=utils.ignore_sigint
-                                   ).stdout.read()
+            cmd = "docker exec -t %s rally deployment create " \
+                  "--file=%s/conf/existing.json --name=existing" % \
+                  (self.container_id, self.home)
+            utils.run_cmd(cmd)
         else:
             LOG.debug("Seems like it is present.")
 
