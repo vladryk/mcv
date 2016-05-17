@@ -201,10 +201,13 @@ class Consoler(object):
                           batch=str(len(batch)),
                           key=key))
 
+                if isinstance(self.concurrency, basestring):
+                    self.concurrency = int(self.concurrency)
+
                 try:
                     run_failures = runner.run_batch(
                         batch,
-                        compute="1",
+                        compute=1,
                         event=self.event,
                         concurrency=self.concurrency,
                         config=self.config,

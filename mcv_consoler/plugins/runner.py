@@ -115,6 +115,14 @@ class Runner(object):
 
         return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
 
+    def _validate_test_params(self, **params):
+        for key in 'compute', 'concurrency':
+            if not key not in params:
+                continue
+            if not isinstance(params[key], int):
+                LOG.warning("Type mismatch. Parameter '%s' expected to be "
+                            "an %s. Got: %s" % (key, int, type(key)))
+
     def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
 
@@ -142,6 +150,8 @@ class Runner(object):
         first_run = True
         multiplier = 1.0
         current_time = 0
+
+        self._validate_test_params(**kwargs)
 
         for task in tasks:
             if kwargs.get('event').is_set():
