@@ -25,6 +25,7 @@ from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.logger import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
+import mcv_consoler.common.config as app_conf
 
 
 config = config_parser
@@ -127,10 +128,6 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.container_id = None
         self.access_data = accessor.os_data
         self.path = path
-        self.list_speed_tests = ['same_node.yaml',
-                                 'different_nodes.yaml',
-                                 'floating_ip.yaml']
-
         self.image_name = utils.GET(
             self.config, 'image_name', 'shaker') or 'shaker-image'
         self.flavor_name = utils.GET(
@@ -180,7 +177,6 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "SHAKER_EXTERNAL_NET=" + str(network_name),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
-             "-e", "SHAKER_REPORT_TEMPLATE=interactive",
              "-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
@@ -216,6 +212,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "--agent-join-timeout 3600 "
                "--scenario {home}/tests/openstack/{task} "
                "--debug --output {task}.out "
+               "--report-template json "
                "--report {task}.json "
                "--log-file {home}/log/shaker.log"
                ).format(cid=self.container,
@@ -269,8 +266,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         # Note: function 'clear_image' will run after completing
         # all of speed scenarios
-        if not (task in self.list_speed_tests):
-            self.clear_shaker()
+        # if not (task in self.list_speed_tests):
+        #     self.clear_shaker()
         return result
 
     def clear_shaker(self):
@@ -310,7 +307,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         speeds = []
         for i in report['records']:
             try:
-                speed = report['records'][i]['stats']['tcp_download']['mean']
+                speed = report['records'][i]['stats']['tcp_download']['avg']
                 speeds.append(speed)
                 speeds_dict[report['records'][i]['node']] = speed
             except KeyError:
@@ -427,37 +424,34 @@ class ShakerOnDockerRunner(ShakerRunner):
                                                            **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
-        if (task == 'network_speed'):
+        if task:
             self.failure_indicator = SpeedError.LOW_AVG_SPEED
 
-            try:
-                threshold = self.config.get('network_speed', 'threshold')
-                LOG.info('Threshold is %s Gb/s' % threshold)
-            except NoOptionError:
-                LOG.info('Default threshold is 7 Gb/s')
-                threshold = 7
+            threshold = utils.GET(
+                self.config, 'threshold', 'network_speed') or app_conf.DEFAULT_SHAKER_THRESHOLD
+            LOG.info('Threshold is %s Gb/s' % threshold)
 
             output = ''
             success = True
 
-            for internal_task in self.list_speed_tests:
-                try:
-                    task_result = self._run_shaker_on_docker(internal_task)
-                except subprocess.CalledProcessError as e:
-                    LOG.error("Task %s failed with: %s" % (task, e))
+            try:
+                task_result = self._run_shaker_on_docker(task)
+            except subprocess.CalledProcessError as e:
+                LOG.error("Task %s failed with: %s" % (task, e))
 
-                check = self._evaluate_task_result(task, task_result)
-                if not check:
-                    self.clear_shaker()
-                    self.test_failures.append(task)
-                    LOG.debug("Task {task} has failed with {res}".format(
-                        task=task, res=task_result))
-                    return False
+            check = self._evaluate_task_result(task, task_result)
 
-                row, report_status = self._generate_one_row_report(
-                    task_result, internal_task, threshold)
-                output += row
-                success &= report_status
+            if not check:
+                self.clear_shaker()
+                self.test_failures.append(task)
+                LOG.debug("Task {task} has failed with {res}".format(
+                    task=task, res=task_result))
+                return False
+
+            row, report_status = self._generate_one_row_report(
+                task_result, task, threshold)
+            output += row
+            success &= report_status
             self._generate_report_network_speed(threshold, task, output)
             self.clear_shaker()
 
@@ -469,15 +463,6 @@ class ShakerOnDockerRunner(ShakerRunner):
                 self.test_failures.append(task)
                 return False
 
-        try:
-            task_result = self._run_shaker_on_docker(task)
-        except subprocess.CalledProcessError:
-            task_result = False
-
-        if type(task_result) == dict and\
-                self._evaluate_task_result(task, task_result):
-            return True
         else:
-            LOG.debug("Task %s has failed with %s" % (task, task_result))
-            self.test_failures.append(task)
+            LOG.info("Haven't found any tasks in your conf")
             return False

@@ -46,3 +46,7 @@ DOCKER_CHECK_INTERVAL = 20
 
 # Default value for 'attempts' parameter to measure object/storage speed
 SPEED_STORAGE_ATTEMPTS = 3
+
+# Default threshold value for Shaker
+DEFAULT_SHAKER_THRESHOLD = 7
+

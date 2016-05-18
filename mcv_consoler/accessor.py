@@ -79,7 +79,7 @@ class AccessSteward(object):
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint)
 
-        responce.communicate()[0]
+        responce.communicate()
         if responce.returncode == 0:
             return True
         return False
@@ -92,9 +92,6 @@ class AccessSteward(object):
                           'required data in /etc/mcv/mcv.conf' % key)
                 access = False
         return access
-
-    def _verify_shaker_container_is_up(self):
-        self._verify_container_is_up("shaker")
 
     def _get_novaclient(self):
         if self.novaclient is None:
