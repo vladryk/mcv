@@ -42,3 +42,4 @@ MOS_VERSIONS = ['6.1', '7.0', '8.0']
 # thees are used when verifying that docker images are up and running
 DOCKER_REQUIRED_IMAGES = ("mcv-rally", "mcv-shaker", "mcv-ostf", 'mcv-tempest')
 DOCKER_LOADING_IMAGE_TIMEOUT = 60 * 20  # 20 min
+DOCKER_CHECK_INTERVAL = 20

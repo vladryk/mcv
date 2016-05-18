@@ -196,44 +196,47 @@ class AccessSteward(object):
             except Exception as e:
                 LOG.debug("Error removing floating IP: %s" % e.message)
 
-    def check_docker_images(self, sleep_for=30, sleep_total=0):
-        if sleep_total == 0:  # first iteration
-            LOG.debug('Validating that all docker images required by '
-                      'the application are available')
+    def check_docker_images(self):
+        LOG.debug('Validating that all docker images required by '
+                  'the application are available')
 
-        if sleep_total >= app_conf.DOCKER_LOADING_IMAGE_TIMEOUT:
-            LOG.warning('Failed to load one or more docker images. '
-                        'Gave up after %s seconds. See log for more '
-                        'details' % sleep_total)
-            return False
+        sleep_total = 0
+        sleep_for = app_conf.DOCKER_CHECK_INTERVAL
+        timeout = app_conf.DOCKER_LOADING_IMAGE_TIMEOUT
 
-        res = utils.run_cmd("docker images --format {{.Repository}}")
+        while True:
+            if self.event.is_set():
+                LOG.warning('Caught Keyboard Interrupt, exiting')
+                return False
 
-        all_present = all(map(res.count, app_conf.DOCKER_REQUIRED_IMAGES))
-        if all_present:
-            LOG.debug("All docker images seem to be in place")
-            return True
+            if sleep_total >= timeout:
+                LOG.warning('Failed to load one or more docker images. '
+                            'Gave up after %s seconds. See log for more '
+                            'details' % sleep_total)
+                return False
 
-        by_name = lambda img: res.count(img) == 0
-        not_found = filter(by_name, app_conf.DOCKER_REQUIRED_IMAGES)
+            res = utils.run_cmd("docker images --format {{.Repository}}")
 
-        formatter = dict(
-            sleep=sleep_for, total=sleep_total,
-            max=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT,
-            left=app_conf.DOCKER_LOADING_IMAGE_TIMEOUT - sleep_total
-        )
-        if self.event.is_set():
-            LOG.warning('Caught Keyboard Interrupt, exiting')
-            return False
-        LOG.debug('One or mode docker images are not present: '
-                  '{missing}.'.format(missing=', '.join(not_found)))
-        LOG.debug('Going to wait {sleep} more seconds for them to load. '
-                  'ETA: already waiting {total} sec; max time {max}; '
-                  '{left} left'.format(**formatter))
+            all_present = all(map(res.count, app_conf.DOCKER_REQUIRED_IMAGES))
+            if all_present:
+                LOG.debug("All docker images seem to be in place")
+                return True
 
-        time.sleep(sleep_for)
-        sleep_total += sleep_for
-        return self.check_docker_images(sleep_total=sleep_total)
+            by_name = lambda img: res.count(img) == 0
+            not_found = filter(by_name, app_conf.DOCKER_REQUIRED_IMAGES)
+
+            formatter = dict(
+                sleep=sleep_for, total=sleep_total,
+                max=timeout, left=timeout - sleep_total
+            )
+            LOG.debug('One or mode docker images are not present: '
+                      '{missing}.'.format(missing=', '.join(not_found)))
+            LOG.debug('Going to wait {sleep} more seconds for them to load. '
+                      'ETA: already waiting {total} sec; max time {max}; '
+                      '{left} left'.format(**formatter))
+
+            time.sleep(sleep_for)
+            sleep_total += sleep_for
 
     def _check_and_fix_iptables_rule(self):
         # TODO(aovchinnikov): divide this some day
