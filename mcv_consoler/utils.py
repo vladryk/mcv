@@ -31,10 +31,14 @@ def ignore_sigint():
 
 def run_cmd(cmd, quiet=False):
     LOG.debug('Executing command: "%s"' % cmd)
-    result = subprocess.check_output(cmd,
-                                     shell=True,
-                                     stderr=subprocess.STDOUT,
-                                     preexec_fn=ignore_sigint)
+    try:
+        result = subprocess.check_output(cmd,
+                                         shell=True,
+                                         stderr=subprocess.STDOUT,
+                                         preexec_fn=ignore_sigint)
+    except subprocess.CalledProcessError as e:
+        LOG.debug('ERROR: %s' % e.output)
+        raise
     result = re.sub(r'/usr/local/.*(%s).*\n' % "|".join(warnings), '', result)
     result = re.sub(r'  (%s).*\n' % "|".join(warnings), '', result)
     quiet or LOG.debug('RESULT: "%s"' % result)
