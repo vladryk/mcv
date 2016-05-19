@@ -158,10 +158,6 @@ class RallyOnDockerRunner(RallyRunner):
         self.container = None
         self.access_data = accessor.os_data
 
-        # NOTE(albartash): This method is the reason why we need
-        # whole accessor as an argument
-        self.check_computes = accessor.check_computes
-
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
 
@@ -171,6 +167,15 @@ class RallyOnDockerRunner(RallyRunner):
         self.glanceclient = Clients.get_glance_client(self.access_data)
         self.neutronclient = Clients.get_neutron_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
+
+    def check_computes(self):
+        # TODO(albartash): Do we really need this method?
+        services = self.novaclient.services.list()
+        self.compute = 0
+        for service in services:
+            if service.binary == 'nova-compute':
+                self.compute += 1
+        LOG.debug("Found " + str(self.compute) + " computes.")
 
     def create_fedora_image(self):
         path = os.path.join(os.path.join(self.homedir, "images"),

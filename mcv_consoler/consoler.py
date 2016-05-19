@@ -381,12 +381,15 @@ class Consoler(object):
         run_results = None
 
         if self.args.run is not None:
-            self.access_helper = accessor.AccessSteward(self.config, self.event)
+            self.access_helper = accessor.AccessSteward(
+                self.config,
+                self.event,
+                not self.args.no_tunneling)
             try:
-                res = self.access_helper.check_and_fix_environment(
-                    self.args.no_tunneling)
+                res = self.access_helper.check_and_fix_environment()
                 if not res:
                     result.append(CAError.WRONG_CREDENTIALS)
+                    self.access_helper.cleanup()
                     return
             except Exception as e:
                 LOG.info("Something went wrong with checking credentials "

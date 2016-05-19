@@ -51,12 +51,12 @@ def GET(config, key, section="basic", default=None):
     except NoSectionError:
         LOG.warning('Section {sec} missed in configuration file. '
                     'It may be dangerous'.format(sec=section))
-        value = None
+        value = default
     except NoOptionError:
         LOG.warning('Option {opt} missed in configuration file. '
                     'It may be dangerous'.format(opt=key))
         if default is not None:
-            LOG.info('Setting {opt} to default value {val}'.format(opt=key,
-                                                                   val=default))
+            LOG.info('Setting {opt} to default value {val}'.format(
+                opt=key, val=default))
         value = default
     return value

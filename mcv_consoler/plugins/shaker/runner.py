@@ -135,17 +135,21 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.output = None
         self.success = None
         self.threshold = utils.GET(
-             self.config, 'threshold', 'network_speed'
-            ) or app_conf.DEFAULT_SHAKER_THRESHOLD
+             self.config,
+             'threshold',
+             'network_speed', app_conf.DEFAULT_SHAKER_THRESHOLD)
 
-        super(ShakerOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
+        super(ShakerOnDockerRunner, self).__init__(accessor, path, *args,
+                                                   **kwargs)
 
         self.heat = Clients.get_heat_client(self.access_data)
 
     def _check_shaker_setup(self):
-        LOG.info("Start shaker-image-builder. Creating infrastructure. Please wait")
+        LOG.info("Start shaker-image-builder. Creating infrastructure. "
+                 "Please wait")
         cmd = "docker exec -t %s shaker-image-builder --image-name %s " \
-              "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
+              "--flavor-name %s" % (self.container_id, self.image_name,
+                                    self.flavor_name)
         p = utils.run_cmd(cmd)
         if 'ERROR' in p:
             LOG.debug("shaker-image-builder failed")
@@ -276,8 +280,9 @@ class ShakerOnDockerRunner(ShakerRunner):
         if cleanup == 'True':
             LOG.info("Removing shaker's image and flavor")
             cmd = "docker exec -t %s shaker-cleanup --image-name %s " \
-                "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
-            p = utils.run_cmd(cmd)
+              "--flavor-name %s" % (self.container_id, self.image_name,
+                                    self.flavor_name)
+            utils.run_cmd(cmd)
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
@@ -427,7 +432,9 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.success = True
         result = super(ShakerOnDockerRunner, self).run_batch(
             tasks, *args, **kwargs)
-        self._generate_report_network_speed(self.threshold, 'network_speed', self.output)
+        self._generate_report_network_speed(self.threshold,
+                                            'network_speed',
+                                            self.output)
         self.clear_shaker()
         return result
 
@@ -439,6 +446,8 @@ class ShakerOnDockerRunner(ShakerRunner):
                 task_result = self._run_shaker_on_docker(task)
             except subprocess.CalledProcessError as e:
                 LOG.error("Task %s failed with: %s" % (task, e))
+                # NOTE(albartash): Maybe, refactor this later
+                task_result = None
 
             check = self._evaluate_task_result(task, task_result)
 
