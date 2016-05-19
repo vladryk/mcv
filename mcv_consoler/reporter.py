@@ -16,6 +16,7 @@ from datetime import datetime
 
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
+import os
 
 # The very basic one-page reporter for MCV. Answers the question 'why do you
 # call it beta?'.
@@ -68,14 +69,14 @@ class _Dispatcher(object):
 
     @staticmethod
     def fix_shaker(file_location):
+        LOG.debug('Fixing Shaker report')
+        if not os.path.isfile(file_location):
+            return LOG.debug('File not found %s' % file_location)
         cmd = ("sed -i '/<div\ class=\"container\"\ id=\"container\">/"
                " a\  <li class=\"active\" style=\"list-style-type: none;\"><a "
                "href=\"../index.html\">Back to Index</a></li>' "
                "%s" % file_location)
-
-        LOG.debug('Fixing Shaker report. Command: %s' % cmd)
-        result = utils.run_cmd(cmd, quiet=True)
-        LOG.debug('Result: %s' % str(result))
+        utils.run_cmd(cmd)
 
 
 fix_dispatcher = _Dispatcher()
