@@ -132,6 +132,11 @@ class ShakerOnDockerRunner(ShakerRunner):
             self.config, 'image_name', 'shaker') or 'shaker-image'
         self.flavor_name = utils.GET(
             self.config, 'flavor_name', 'shaker') or 'shaker-flavor'
+        self.output = None
+        self.success = None
+        self.threshold = utils.GET(
+             self.config, 'threshold', 'network_speed'
+            ) or app_conf.DEFAULT_SHAKER_THRESHOLD
 
         super(ShakerOnDockerRunner, self).__init__(accessor, path, *args, **kwargs)
 
@@ -264,17 +269,14 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         p = utils.run_cmd(cmd)
 
-        # Note: function 'clear_image' will run after completing
-        # all of speed scenarios
-        # if not (task in self.list_speed_tests):
-        #     self.clear_shaker()
         return result
 
     def clear_shaker(self):
         cleanup = utils.GET(self.config, 'cleanup', 'shaker') or 'True'
         if cleanup == 'True':
+            LOG.info("Removing shaker's image and flavor")
             cmd = "docker exec -t %s shaker-cleanup --image-name %s " \
-              "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
+                "--flavor-name %s" % (self.container_id, self.image_name, self.flavor_name)
             p = utils.run_cmd(cmd)
 
     def _get_task_result_from_docker(self, task_id):
@@ -420,19 +422,18 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_shaker_on_docker()
-        return super(ShakerOnDockerRunner, self).run_batch(tasks, *args,
-                                                           **kwargs)
+        LOG.info('Threshold is %s Gb/s' % self.threshold)
+        self.output = ''
+        self.success = True
+        result = super(ShakerOnDockerRunner, self).run_batch(
+            tasks, *args, **kwargs)
+        self._generate_report_network_speed(self.threshold, 'network_speed', self.output)
+        self.clear_shaker()
+        return result
 
     def run_individual_task(self, task, *args, **kwargs):
         if task:
             self.failure_indicator = SpeedError.LOW_AVG_SPEED
-
-            threshold = utils.GET(
-                self.config, 'threshold', 'network_speed') or app_conf.DEFAULT_SHAKER_THRESHOLD
-            LOG.info('Threshold is %s Gb/s' % threshold)
-
-            output = ''
-            success = True
 
             try:
                 task_result = self._run_shaker_on_docker(task)
@@ -442,20 +443,17 @@ class ShakerOnDockerRunner(ShakerRunner):
             check = self._evaluate_task_result(task, task_result)
 
             if not check:
-                self.clear_shaker()
                 self.test_failures.append(task)
                 LOG.debug("Task {task} has failed with {res}".format(
                     task=task, res=task_result))
                 return False
 
             row, report_status = self._generate_one_row_report(
-                task_result, task, threshold)
-            output += row
-            success &= report_status
-            self._generate_report_network_speed(threshold, task, output)
-            self.clear_shaker()
+                task_result, task, self.threshold)
+            self.output += row
+            self.success &= report_status
 
-            if success:
+            if self.success:
                 return True
             else:
                 LOG.warning("Task %s has failed with %s" % (
