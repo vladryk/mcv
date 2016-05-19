@@ -19,7 +19,10 @@ import paramiko
 import time
 
 from mcv_consoler.common import clients as Clients
+import mcv_consoler.common.config as app_conf
 from mcv_consoler.logger import LOG
+from mcv_consoler.utils import GET
+
 
 LOG = LOG.getLogger(__name__)
 
@@ -356,7 +359,18 @@ class BlockStorageSpeed(BaseStorageSpeed):
         r_res_iop = []
         w_res_iop = []
         LOG.info('Starting measuring block storage r/w speed')
-        for i in range(0, 3):
+
+        try:
+            self.attempts = int(GET(self.config, 'attempts','simplified_testing'))
+        except TypeError:
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS
+        except ValueError:
+            LOG.error("Expected int type of 'attempts' parameter, but"
+                       " got {}.".format(type(self.attempts)))
+            self.test_failures.append(task)
+            return False
+
+        for i in range(0, self.attempts):
             w_res.append(self.measure_write())
             r_res.append(self.measure_read())
             self.remove_file()
@@ -421,6 +435,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         self.size_str = kwargs.get('image_size')
         self.size = 0
         self.start_time = 0
+        self.config = kwargs.get('config')
 
     def is_expired(self):
         if time.time() - self.start_time > 3600:
@@ -567,7 +582,18 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         w_res = []
         LOG.info('Start measuring object storage r/w speed')
         token = self.get_token()
-        for i in range(0, 3):
+
+        try:
+            self.attempts = int(GET(self.config, 'attempts','simplified_testing'))
+        except TypeError:
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS
+        except ValueError:
+            LOG.error("Expected int type of 'attempts' parameter, but"
+                       " got {}.".format(type(self.attempts)))
+            self.test_failures.append(task)
+            return False
+
+        for i in range(0, self.attempts):
             image_id = self.create_image(
                 self.get_token() if self.is_expired() else token)
             w_res.append(self.upload_image(image_id=image_id, token=token))
