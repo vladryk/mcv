@@ -360,15 +360,20 @@ class BlockStorageSpeed(BaseStorageSpeed):
         w_res_iop = []
         LOG.info('Starting measuring block storage r/w speed')
 
+        attempts_from_config = GET(self.config,
+         'attempts', 'simplified_testing')
         try:
-            self.attempts = int(GET(self.config, 'attempts','simplified_testing'))
+            self.attempts = int(attempts_from_config)
         except TypeError:
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
+            LOG.debug("Default value {} is used, because no value for"
+                " 'attempts' is defined in config".format(self.attempts))
         except ValueError:
-            LOG.error("Expected int type of 'attempts' parameter, but"
-                       " got {}.".format(type(self.attempts)))
-            self.test_failures.append(task)
+            LOG.error("Expected 'simplified_testing.attempts' to be a number,"
+                " but got string value instead")
             return False
+        LOG.info("Attempts for each write/read iteration:"
+            " {}".format(self.attempts))
 
         for i in range(0, self.attempts):
             w_res.append(self.measure_write())
@@ -583,17 +588,22 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         LOG.info('Start measuring object storage r/w speed')
         token = self.get_token()
 
+        attempts_from_config = GET(self.config,
+         'attempts', 'simplified_testing')
         try:
-            self.attempts = int(GET(self.config, 'attempts','simplified_testing'))
+            self.attempts = int(attempts_from_config)
         except TypeError:
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
+            LOG.debug("Default value {} is used, because no value for"
+                " 'attempts' is defined in config".format(self.attempts))
         except ValueError:
-            LOG.error("Expected int type of 'attempts' parameter, but"
-                       " got {}.".format(type(self.attempts)))
-            self.test_failures.append(task)
+            LOG.error("Expected 'simplified_testing.attempts' to be a number,"
+                " but got string value instead")
             return False
+        LOG.info("Attempts for each download/upload iteration:"
+            " {}".format(self.attempts))
 
-        for i in range(0, self.attempts):
+        for _ in range(0, self.attempts):
             image_id = self.create_image(
                 self.get_token() if self.is_expired() else token)
             w_res.append(self.upload_image(image_id=image_id, token=token))
