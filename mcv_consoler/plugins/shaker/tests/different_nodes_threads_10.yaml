@@ -1,0 +1,13 @@
+description:
+  Same tenant VMs on different nodes (multithread)
+
+deployment:
+  template: l2.hot
+  accommodation: [pair, single_room]
+
+execution:
+  tests:
+  -
+    title: TCP download
+    threads: 10
+    class: iperf3
