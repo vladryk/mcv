@@ -314,7 +314,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         speeds = []
         for i in report['records']:
             try:
-                speed = report['records'][i]['stats']['tcp_download']['avg']
+                _key = [_key for x in app_conf.SHAKER_REPORT_KEYS
+                        for _key in report['records'][i]['stats'].keys()
+                        if _key.startswith(x)][0]
+                speed = report['records'][i]['stats'][_key]['avg']
                 speeds.append(speed)
                 speeds_dict[report['records'][i]['node']] = speed
             except KeyError:

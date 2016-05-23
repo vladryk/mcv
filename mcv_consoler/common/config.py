@@ -49,3 +49,6 @@ SPEED_STORAGE_ATTEMPTS_DEFAULT = 3
 
 # Default threshold value for Shaker
 DEFAULT_SHAKER_THRESHOLD = 7
+
+# Prefix for keys for generating shaker-report ('network_speed.html')
+SHAKER_REPORT_KEYS = ['tcp_download', 'bandwidth', 'tcp_upload']
