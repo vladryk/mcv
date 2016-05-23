@@ -335,14 +335,18 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     @block_measure_dec
     def measure_write(self, bs, count):
-        LOG.info('Measuring write speed')
+        LOG.info(
+            "Measuring write speed: block size {0}, "
+            "count {1}".format(bs, count))
         return self.run_ssh_cmd('dd if=/dev/zero of=%s bs=%s count=%d '
                                 'conv=notrunc,fsync' % (
                                     self.image_name, bs, count))['ret']
 
     @block_measure_dec
     def measure_read(self, bs, count):
-        LOG.info('Measuring read speed')
+        LOG.info(
+            "Measuring  read speed: block size {0}, "
+            "count {1}".format(bs, count))
         return self.run_ssh_cmd('dd if=%s of=/dev/null bs=%s count=%d' % (
             self.image_name, bs, count))['ret']
 
@@ -360,22 +364,21 @@ class BlockStorageSpeed(BaseStorageSpeed):
         w_res_iop = []
         LOG.info('Starting measuring block storage r/w speed')
 
-        attempts_from_config = GET(self.config,
-         'attempts', 'simplified_testing')
+        self.attempts = GET(self.config,
+                            'attempts', 'speed',
+                            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
         try:
-            self.attempts = int(attempts_from_config)
-        except TypeError:
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
-            LOG.debug("Default value {} is used, because no value for"
-                " 'attempts' is defined in config".format(self.attempts))
+            self.attempts = int(self.attempts)
         except ValueError:
-            LOG.error("Expected 'simplified_testing.attempts' to be a number,"
-                " but got string value instead")
-            return False
-        LOG.info("Attempts for each write/read iteration:"
-            " {}".format(self.attempts))
+            LOG.error(
+                "Expected 'attempts' to be a number, "
+                "but got {} value instead!".format(
+                    self.attempts))
+            LOG.debug("Default value {} is used for 'attempts'".format(
+                app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT))
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
 
-        for i in range(0, self.attempts):
+        for _ in range(0, self.attempts):
             w_res.append(self.measure_write())
             r_res.append(self.measure_read())
             self.remove_file()
@@ -588,20 +591,19 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         LOG.info('Start measuring object storage r/w speed')
         token = self.get_token()
 
-        attempts_from_config = GET(self.config,
-         'attempts', 'simplified_testing')
+        self.attempts = GET(self.config,
+                            'attempts', 'speed',
+                            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
         try:
-            self.attempts = int(attempts_from_config)
-        except TypeError:
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
-            LOG.debug("Default value {} is used, because no value for"
-                " 'attempts' is defined in config".format(self.attempts))
+            self.attempts = int(self.attempts)
         except ValueError:
-            LOG.error("Expected 'simplified_testing.attempts' to be a number,"
-                " but got string value instead")
-            return False
-        LOG.info("Attempts for each download/upload iteration:"
-            " {}".format(self.attempts))
+            LOG.error(
+                "Expected 'attempts' to be a number, "
+                "but got {} value instead!".format(
+                    self.attempts))
+            LOG.debug("Default value {} is used for 'attempts'".format(
+                app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT))
+            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
 
         for _ in range(0, self.attempts):
             image_id = self.create_image(

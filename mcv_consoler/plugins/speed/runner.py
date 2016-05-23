@@ -170,17 +170,22 @@ class SpeedTestRunner(run.Runner):
         w_average_all = []
 
         compute_node_ids = self.node_ids
-        compute_nodes_quantity = GET(self.config, 'compute_nodes_limit','simplified_testing')
+        compute_nodes_quantity = GET(self.config,
+                                     'compute_nodes_limit',
+                                     'speed')
         if compute_nodes_quantity is not None:
             try:
                 compute_nodes_quantity = int(compute_nodes_quantity)
             except ValueError:
-                LOG.error("Expected int type of 'compute_nodes_limit' variable, but"
-                           " got {}.".format(type(compute_nodes_quantity)))
+                LOG.error(
+                    "Expected int type of "
+                    "'compute_nodes_limit' parameter, but "
+                    "got value {} instead.".format(compute_nodes_quantity))
                 self.test_failures.append(task)
                 return False
             compute_node_ids = self.node_ids[:compute_nodes_quantity]
-            LOG.info('Speed will be measured on {} compute nodes'.format(len(compute_node_ids)))
+            LOG.info('Speed will be measured on {} compute nodes'.format(
+                len(compute_node_ids)))
         else:
             LOG.info('Speed will be measured on all compute nodes')
 
