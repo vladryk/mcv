@@ -167,7 +167,7 @@ class OSTFOnDockerRunner(runner.Runner):
                         mos_version=self.mos_version,
                         cmd=_cmd)
 
-        p = utils.run_cmd(cmd)
+        p = utils.run_cmd(cmd, quiet=True)
         result = p.split("\n")
         task_re = re.compile('\.%s\s+' % task)
         line = ""
@@ -206,11 +206,7 @@ class OSTFOnDockerRunner(runner.Runner):
                         cmd=_cmd,
                         arg=_arg,
                         task=task)
-
-        LOG.debug('Executing command: "%s"' % cmd)
-        p = utils.run_cmd(cmd)
-
-        LOG.debug('Finish executing Cloudvalidation CLI. Result: %s' % str(p))
+        utils.run_cmd(cmd)
 
         try:
             results = []
@@ -245,8 +241,12 @@ class OSTFOnDockerRunner(runner.Runner):
                     self.failures.append(result['suite'])
 
             reporter = Reporter(os.path.dirname(__file__))
-            reporter.save_report(os.path.join(self.path, 'ostf_report.html'),
-                                 'ostf_template.html', {'reports': results})
+            for record in results:
+                reporter.save_report(
+                    os.path.join(self.path, record['suite'] + '.html'),
+                    'ostf_template.html',
+                    {'reports': results}
+                )
 
         except subprocess.CalledProcessError as e:
             LOG.error("Task %s has failed with: %s" % (task, e))
