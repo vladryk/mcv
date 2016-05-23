@@ -296,6 +296,14 @@ class RallyOnDockerRunner(RallyRunner):
         siege_patch = '/mcv/custom_patches/rally_siege_regex.patch'
         self._os_patch(siege, siege_patch, self.container_id)
 
+        LOG.debug('Patching sahara_job_binaries.py for rally')
+        sahara_job = join(
+            dist,
+            'rally/plugins/openstack/context/sahara/sahara_job_binaries.py'
+        )
+        sahara_patch = '/mcv/custom_patches/rally_sahara_job_binaries.patch'
+        self._os_patch(sahara_job, sahara_patch, self.container_id)
+
         LOG.debug('Start patching hosts')
         template_path = join(self.home, 'tests/templates/wp_instances.yaml')
         cmd = ("""docker exec -t %s """
