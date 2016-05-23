@@ -19,7 +19,7 @@ import time
 
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.logger import LOG
-from mcv_consoler.utils import GET as get_conf_value
+from mcv_consoler.utils import GET
 
 LOG = LOG.getLogger(__name__)
 
@@ -34,10 +34,10 @@ class Node2NodeSpeed(object):
         self.port_n = 45535
         self.port_pool = range(45536, 45600)
         # Port for testing speed between nodes
-        self.test_port = get_conf_value(self.config, 'test_port', 'nwspeed',
+        self.test_port = GET(self.config, 'test_port', 'nwspeed',
                                         5903)
         # Data size for testing in megabytes
-        self.data_size = get_conf_value(self.config, 'data_size', 'nwspeed',
+        self.data_size = GET(self.config, 'data_size', 'nwspeed',
                                         100)
 
     def generate_report(self, spd_res):
@@ -75,8 +75,8 @@ class Node2NodeSpeed(object):
                                avg=total_avg_spd), total_avg_spd
 
     def prepare_tunnels(self):
-        controller_ip = self.config.get('basic', 'controller_ip')
-        ssh_key = self.config.get('basic', 'ssh_key')
+        controller_ip = GET(self.config, 'controller_ip', 'auth')
+        ssh_key = GET(self.config, 'ssh_key', 'auth')
         # Creating tunnel for current node
         subprocess.call(
             'ssh -i %s -4 -f -N -L %s:%s:22 root@%s &' % (ssh_key,
@@ -99,7 +99,7 @@ class Node2NodeSpeed(object):
         hostname = ip
         port = prt
         username = 'root'
-        ssh_key = self.config.get('basic', 'ssh_key')
+        ssh_key = GET(self.config, 'ssh_key', 'auth')
         rsa_key = paramiko.RSAKey.from_private_key_file(ssh_key)
         # TODO (raliev): There is a problem if controller host key not exist
         # TODO (raliev): in known_hosts file. Need to use AutoAdd Policy,

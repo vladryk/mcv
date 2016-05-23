@@ -19,7 +19,7 @@ from mcv_consoler.common.errors import NWSpeedError
 from mcv_consoler.logger import LOG
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.nwspeed import speed_tester as st
-from mcv_consoler.utils import GET as get_conf_value
+from mcv_consoler.utils import GET
 
 LOG = LOG.getLogger(__name__)
 
@@ -44,14 +44,14 @@ class NWSpeedTestRunner(run.Runner):
         # 2. Each speed value should be higher than
         #    value from 1 point * range in percents (see MCV-288 description)
         res = True
-        threshold = get_conf_value(self.config, 'threshold', 'nwspeed', 100)
+        threshold = GET(self.config, 'threshold', 'nwspeed', 100)
         LOG.info('Threshold is %s MB\s' % threshold)
         if self.av_speed < threshold:
             res = False
             LOG.warning('Average network speed is under threshold')
             self.failure_indicator = NWSpeedError.LOW_AVG_SPEED
             return res
-        range = get_conf_value(self.config, 'range', 'nwspeed', 10)
+        range = GET(self.config, 'range', 'nwspeed', 10)
         LOG.info('Threshold range is %s percents from average' % range)
         range_speed = self.av_speed - (self.av_speed * (range / 100.0))
         for speed in task_results:
