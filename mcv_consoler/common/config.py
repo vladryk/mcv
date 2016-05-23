@@ -52,3 +52,10 @@ DEFAULT_SHAKER_THRESHOLD = 7
 
 # Prefix for keys for generating shaker-report ('network_speed.html')
 SHAKER_REPORT_KEYS = ['tcp_download', 'bandwidth', 'tcp_upload']
+
+# Rally config
+SAHARA_IMAGE_PATH = '/home/mcv/toolbox/rally/images/sahara-liberty-vanilla-2.7.1-ubuntu-14.04.qcow2'
+TERASORT_JAR_PATH = 'file:///home/mcv/toolbox/rally/images/hadoop-mapreduce-examples-2.7.1.jar'
+FEDORA_IMAGE_PATH = '/home/mcv/toolbox/rally/images/Fedora-Cloud-Base-23-20151030.x86_64.qcow2'
+
+

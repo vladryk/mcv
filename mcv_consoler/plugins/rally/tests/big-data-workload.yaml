@@ -29,7 +29,7 @@
           tenants: 1
           users_per_tenant: 1
         sahara_image:
-          image_url: "http://sahara-files.mirantis.com/mos80/sahara-liberty-vanilla-2.7.1-ubuntu-14.04.qcow2"
+          image_uuid: "{{ sahara_image_uuid }}"
           username: "ubuntu"
           plugin_name: "vanilla"
           hadoop_version: "2.7.1"
@@ -37,7 +37,7 @@
           libs:
             -
               name: "examples.jar"
-              download_url: "http://repo1.maven.org/maven2/org/apache/hadoop/hadoop-mapreduce-examples/2.7.1/hadoop-mapreduce-examples-2.7.1.jar"
+              download_url: "{{ terasort_jar_path }}"
         sahara_cluster:
           master_flavor_id: {{ flavor_id }}
           worker_flavor_id: {{ flavor_id }}

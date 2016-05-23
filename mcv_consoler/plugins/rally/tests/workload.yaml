@@ -13,8 +13,8 @@
           wp_instances_count: {{ instance_count }}
           wp_instance_type: gig
           instance_type: gig
-          wp_image: fedora
-          image: fedora
+          wp_image: {{ image_id }}
+          image: {{ image_id }}
           network_id: {{ network_id }}
           router_id: {{ router_id }}
 

@@ -20,6 +20,9 @@ import time
 
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
+from mcv_consoler.common.config import FEDORA_IMAGE_PATH
+from mcv_consoler.common.config import SAHARA_IMAGE_PATH
+from mcv_consoler.common.config import TERASORT_JAR_PATH
 from mcv_consoler.common.errors import RallyError
 from mcv_consoler.logger import LOG
 from mcv_consoler.plugins import runner
@@ -178,26 +181,41 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug("Found " + str(self.compute) + " computes.")
 
     def create_fedora_image(self):
-        path = os.path.join(os.path.join(self.homedir, "images"),
-                            'Fedora-Cloud-Base-23-20151030.x86_64.qcow2')
         i_list = self.glanceclient.images.list()
-        image = False
         for im in i_list:
             if im.name == 'mcv-test-fedora':
-                image = True
-        if not image:
-            self.glanceclient.images.create(name='mcv-test-fedora',
-                                            disk_format="qcow2",
-                                            is_public=True,
-                                            container_format="bare",
-                                            data=open(path))
+                return im.id
+        im = self.glanceclient.images.create(name='mcv-test-fedora',
+                                             disk_format="qcow2",
+                                             is_public=True,
+                                             container_format="bare",
+                                             data=open(FEDORA_IMAGE_PATH))
+        return im.id
 
-    def cleanup_fedora_image(self):
+    def cleanup_image(self, name):
         LOG.info('Cleaning up test image')
         i_list = self.glanceclient.images.list()
         for im in i_list:
-            if im.name == 'mcv-test-fedora':
+            if im.name == name:
                 self.glanceclient.images.delete(im.id)
+
+    def cleanup_fedora_image(self):
+        self.cleanup_image('mcv-test-fedora')
+
+    def cleanup_sahara_image(self):
+        self.cleanup_image('mcv-workload-sahara')
+
+    def create_sahara_image(self):
+        i_list = self.glanceclient.images.list()
+        for im in i_list:
+            if im.name == 'mcv-workload-sahara':
+                return im.id
+        im = self.glanceclient.images.create(name='mcv-workload-sahara',
+                                             disk_format="qcow2",
+                                             is_public=True,
+                                             container_format="bare",
+                                             data=open(SAHARA_IMAGE_PATH))
+        return im.id
 
     def create_or_get_flavor(self):
         flavors = self.novaclient.flavors.list()
@@ -412,7 +430,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def prepare_workload_task(self):
         self._patch_rally()
-        self.create_fedora_image()
+        image_id = self.create_fedora_image()
         net, rou = self.get_network_router_id()
         concurrency = utils.GET(self.config, 'concurrency', 'workload')
         instance_count = utils.GET(self.config, 'instance_count', 'workload')
@@ -420,12 +438,14 @@ class RallyOnDockerRunner(RallyRunner):
             'network_id': net,
             'router_id': rou,
             'concurrency': concurrency,
-            'instance_count': instance_count
+            'instance_count': instance_count,
+            'image_id': image_id
         }
 
         return task_args
 
     def prepare_big_data_task(self):
+        image_id = self.create_sahara_image()
         flavor_id = self.create_or_get_flavor()
         file_size = utils.GET(self.config, 'file_size', 'workload')
         worker = utils.GET(self.config, 'workers_count', 'workload')
@@ -433,6 +453,8 @@ class RallyOnDockerRunner(RallyRunner):
             'file_size': file_size,
             'workers_count': worker,
             'flavor_id': flavor_id,
+            'sahara_image_uuid': image_id,
+            'terasort_jar_path': TERASORT_JAR_PATH
         }
 
         return task_args
