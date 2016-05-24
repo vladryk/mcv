@@ -14,7 +14,6 @@
 
 import json
 import os.path
-import re
 import subprocess
 import time
 
@@ -497,72 +496,52 @@ class RallyOnDockerRunner(RallyRunner):
 
             cmd = self.create_cmd_for_task(location, task_args)
 
-        p = utils.run_cmd(cmd)
-        original_output = p
+        utils.run_cmd(cmd)
 
         failed = False
 
         if 'workload.yaml' in task:
             failed = self.proceed_workload_result(task)
 
-        p = original_output
-        out = p.split('\n')[-3].lstrip('\t')
-        result_candidates = ('rally task results [0-9a-f]{8}-[0-9a-f]{4}-'
-                             '[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-                             'rally -vd task detailed [0-9a-f]{8}-[0-9a-f]'
-                             '{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
-        ret_val = None
+        else:
+            cmd = "docker exec -t %s " \
+                  "rally task status | awk '{print $3}' " % self.container_id
+            task_status = utils.run_cmd(cmd).strip()
+            if task_status != 'finished':
+                failed = True
 
-        for candidate in result_candidates:
-            m = re.search(candidate, p)
-            if m is not None:
-                ret_val = m.group(0)
-                if ret_val.find('detailed') != -1:
-                    failed = True
-
-        if out.startswith("For"):
-            out = p.split('\n')[-3].lstrip('\t')
-            LOG.debug("Received results for a task %s, those are '%s'" %
-                      (task, out.rstrip('\r')))
         cmd = ("docker exec -t {cid} sudo rally task report"
                " --out={home}/reports/{task}.html").format(
             cid=self.container_id,
             home=self.home,
             task=task)
 
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         cmd = "sudo cp {fld}/reports/{task}.html {pth}".format(
             fld=self.homedir, task=task, pth=self.path)
 
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
-        return {'next_command': ret_val,
-                'original output': original_output,
-                'failed': failed}
+        return failed
 
-    def _get_task_result_from_docker(self, task_id):
-        LOG.debug("Retrieving task results for %s" % task_id)
-        cmd = "docker exec -t %s %s" % (self.container_id, task_id)
-        p = utils.run_cmd(cmd)
+    def _get_task_result_from_docker(self):
+        cmd = 'docker exec -t {cid} /bin/bash -c ' \
+              '"rally task results 2>/dev/null"'.format(cid=self.container_id)
+        p = utils.run_cmd(cmd, quiet=True)
 
-        if task_id.find("detailed") == -1:
-            try:
-                res = json.loads(p)[0]  # actual test result as a dictionary
-                return res
-            except ValueError:
-                LOG.error("Gotten not-JSON object. Please see mcv-log")
-                LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
-                return "Not-JSON object"
-        else:
-            return p.split('\n')[-4:-1]
+        try:
+            return json.loads(p)[0]  # actual test result as a dictionary
+        except ValueError:
+            LOG.error("Gotten not-JSON object. Please see mcv-log")
+            LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
 
     def proceed_workload_result(self, task):
         failed = False
-        cmd = "docker exec -t {cid} rally task results".format(
-            cid=self.container_id)
+        cmd = 'docker exec -t {cid} /bin/bash -c ' \
+              '"rally task results 2>/dev/null"'.format(cid=self.container_id)
 
-        p = utils.run_cmd(cmd)
+        p = utils.run_cmd(cmd, quiet=True)
 
         try:
             res = json.loads(p)
@@ -610,23 +589,22 @@ class RallyOnDockerRunner(RallyRunner):
 
     def run_individual_task(self, task, *args, **kwargs):
         try:
-            task_id = self._run_rally_on_docker(task, *args, **kwargs)
-            if task_id['failed'] and len(task_id.keys()) == 1:
-                LOG.warning("Task %s has failed for some instrumental issues" %
-                            (task))
-                self.test_failures.append(task)
-                return False
+            task_failed = self._run_rally_on_docker(task, *args, **kwargs)
         except subprocess.CalledProcessError as e:
             LOG.error("Task %s has failed with: %s" % (task, e))
             self.test_failures.append(task)
             return False
-        else:
-            task_result = self._get_task_result_from_docker(
-                task_id['next_command'])
+        if task_failed is True:
+            LOG.warning("Task %s has failed for some "
+                        "instrumental issues" % task)
+            self.test_failures.append(task)
+            return False
 
-            if type(task_result) == dict and\
-                    self._evaluate_task_result(task, task_result):
-                return True
-            else:
-                LOG.warning("Task %s has failed with %s" % (task, task_result))
-                self.test_failures.append(task)
+        LOG.debug("Retrieving task results for %s" % task)
+        task_result = self._get_task_result_from_docker()
+        if task_result is None:
+            self.test_failures.append(task)
+            return False
+        return self._evaluate_task_result(task, task_result)
+
+
