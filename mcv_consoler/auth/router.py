@@ -120,6 +120,9 @@ class IRouter(Router):
 
         self.novaclient = Clients.get_nova_client(self.os_data)
         self.keystoneclient = Clients.get_keystone_client(self.os_data)
+        self.secure_group_name = 'mcv-special-group'
+        self.server = None
+        self.mcvgroup = None
 
     def setup_connections(self):
         if not self.check_and_fix_access_data():
@@ -214,42 +217,49 @@ class IRouter(Router):
     def check_mcv_secgroup(self):
         if not self.is_cloud_instance():
             LOG.debug("Looks like mcv image is not running as an instance "
-                      "of a cloud. Skipping creation of 'mcv-special-group'")
+                      "of a cloud. Skipping creation of %s" % self.secure_group_name)
             return
 
-        LOG.debug("Checking for proper security group")
-        res = self.novaclient.security_groups.list()
-        for r in res:
-            if r.name == 'mcv-special-group':
-                LOG.debug("Has found one")
-                # NOTE(ogrytsenko): a group could exist while being
-                # not attached
-                return
-
-        LOG.debug("Nope. Has to create one")
-        mcvgroup = self.novaclient.security_groups.create(
-            'mcv-special-group', 'mcvgroup')
-        LOG.debug("Created new security group 'mcv-special-group'. "
-                  "Group id: %s" % mcvgroup.id)
-        self.novaclient.security_group_rules.create(
-            parent_group_id=mcvgroup.id, ip_protocol='tcp', from_port=5999,
-            to_port=6001, cidr='0.0.0.0/0')
-
-        LOG.debug("Finished creating a group and adding rules")
-
-        LOG.debug('Trying to attach our mcv-instance to created group')
         servers = self.novaclient.servers.list()
         for server in servers:
             addr = server.addresses
             for network, ifaces in addr.iteritems():
                 for iface in ifaces:
                     if iface['addr'] == self.os_data["ips"]["instance"]:
-                        server.add_security_group(mcvgroup.id)
-                        LOG.debug("Added security group {gid} to an "
-                                  "instance {sid}".
-                                  format(gid=mcvgroup.id, sid=server.id))
+                        self.server = server
+
+        LOG.debug("Checking for proper security group")
+        res = self.novaclient.security_groups.list()
+        for r in res:
+            if r.name == self.secure_group_name:
+                LOG.debug("Has found one")
+                self.mcvgroup = r
+                # NOTE(ogrytsenko): a group could exist while being
+                # not attached
+                return
+
+        LOG.debug("Nope. Has to create one")
+        self.mcvgroup = self.novaclient.security_groups.create(
+            self.secure_group_name, 'mcvgroup')
+        LOG.debug("Created new security group %s. "
+                  "Group id: %s" % (self.secure_group_name, self.mcvgroup.id))
+        self.novaclient.security_group_rules.create(
+            parent_group_id=self.mcvgroup.id, ip_protocol='tcp', from_port=5999,
+            to_port=6001, cidr='0.0.0.0/0')
+        LOG.debug("Finished creating a group and adding rules")
+
+        LOG.debug('Trying to attach our mcv-instance to created group')
+        self.server.add_security_group(self.mcvgroup.id)
+        LOG.debug("Added security group {gid} to an "
+                  "instance {sid}".
+                  format(gid=self.mcvgroup.id, sid=self.server.id))
         LOG.debug("Finished setting-up security groups")
 
+    def remove_security_group(self):
+        LOG.debug("Removing created security group %s "
+                  "from the server %s" % (self.secure_group_name, self.server.id))
+        self.server.remove_security_group(self.mcvgroup.id)
+        self.novaclient.security_groups.delete(self.mcvgroup.id)
 
     def delete_floating_ips(self):
         LOG.info("Removing created floating IPs")
@@ -426,4 +436,5 @@ class IRouter(Router):
         self.stop_forwarding()
         self.delete_floating_ips()
         self.restore_hosts_config()
+        self.remove_security_group()
 

@@ -186,7 +186,8 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "SHAKER_EXTERNAL_NET=" + str(network_name),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
-             "-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
+             # TODO(vokhrimenko): temporarily not used
+             #"-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
              "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,
