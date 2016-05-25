@@ -279,10 +279,11 @@ class RallyOnDockerRunner(RallyRunner):
 
         cmd = "sudo chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
         utils.run_cmd(cmd)
+        self._patch_rally()
         self.copy_config()
 
     def copy_config(self):
-        cmd = 'docker exec -t %s sudo mkdir /etc/rally' % self.container_id
+        cmd = 'docker exec -t %s sudo mkdir -p /etc/rally' % self.container_id
         utils.run_cmd(cmd)
         cmd = 'docker exec -t %s sudo cp %s/rally.conf /etc/rally/rally.conf' % (self.container_id,
                                                                                  self.home)
@@ -298,15 +299,15 @@ class RallyOnDockerRunner(RallyRunner):
          'container_id' (optional). If provided - perform an operation
         inside a docker container
         """
-        tmp = 'sudo patch -N -r - --no-backup-if-mismatch {target} -i {patch}'
+        tmp = 'sudo patch --dry-run {target} -i {patch} && ' \
+              'sudo patch {target} -i {patch}'
         if container_id:
-            tmp = 'docker exec -t {cid} ' + tmp
+            tmp = 'docker exec -t {cid} /bin/bash -c \"' + tmp + '\"'
         cmd = tmp.format(cid=container_id, target=target, patch=patch)
         try:
             return utils.run_cmd(cmd)
-        except subprocess.CalledProcessError as e:
-            LOG.debug(str(e))
-            e.output and LOG.debug(e.output)
+        except subprocess.CalledProcessError:
+            pass
 
     def _patch_rally(self):
         from os.path import join
@@ -433,7 +434,6 @@ class RallyOnDockerRunner(RallyRunner):
         return args
 
     def prepare_workload_task(self):
-        self._patch_rally()
         image_id = self.create_fedora_image()
         net, rou = self.get_network_router_id()
         concurrency = utils.GET(self.config, 'concurrency', 'workload')
