@@ -18,6 +18,7 @@ from heatclient import client as heat
 from keystoneclient.v2_0 import client as keystone_v2
 from neutronclient.neutron import client as neutron
 import novaclient.client as nova
+import saharaclient.client as sahara
 
 keystone_keys = ('username',
                  'password',
@@ -47,6 +48,12 @@ neutron_keys = ('insecure',
                 'auth_url',)
 
 heat_keys = ('insecure',)
+
+sahara_keys = ('api_key',
+               'project_id',
+               'insecure',
+               'username',
+               'auth_url')
 
 
 def _filter_keys(data_dict, keys):
@@ -102,3 +109,16 @@ def get_heat_client(access_data):
     client_data['token'] = keystone_client.auth_token
 
     return heat.Client('1', **client_data)
+
+
+def get_sahara_client(access_data):
+    keystone_client = get_keystone_client(access_data)
+    client_data = _filter_keys(access_data, sahara_keys)
+    client_data['sahara_url'] = keystone_client.service_catalog.url_for(
+        service_type="data-processing")
+    client_data['input_auth_token'] = keystone_client.auth_token
+    client = sahara.Client(
+        '1.0',
+        service_type='data-processing',
+        **client_data)
+    return client
