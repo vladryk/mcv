@@ -30,6 +30,7 @@ from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.logger import LOG
 from mcv_consoler import reporter
+from mcv_consoler.reporter import validate_section
 from mcv_consoler import utils
 
 LOG = LOG.getLogger(__name__)
@@ -266,8 +267,11 @@ class Consoler(object):
         LOG.info("The run resulted in:")
         for key in results.iterkeys():
             LOG.info("For %s:", key)
-            if results[key].get('major_crash', None) is not None:
+            if results[key].get('major_crash') is not None:
                 LOG.info("A major tool failure has been detected")
+                continue
+            if not validate_section(results[key]):
+                LOG.debug('Error: no results for %s' % key)
                 continue
             LOG.info('\n')
             LOG.info(len(results[key]['results']['test_success']))
@@ -297,6 +301,8 @@ class Consoler(object):
 
         default_str = ""
         for key in results.iterkeys():
+            if not validate_section(results[key], 'test_failures'):
+                continue
             to_rerun = ",".join(results[key]["results"]["test_failures"])
             if to_rerun != "":
                 default_str = (default_str + str(key) + '=' +
@@ -312,7 +318,8 @@ class Consoler(object):
     def get_total_failures(self, results):
         t_failures = 0
         for key in results.iterkeys():
-            t_failures += len(results[key]['results']['test_failures'])
+            if validate_section(results[key], 'test_failures'):
+                t_failures += len(results[key]['results']['test_failures'])
         return t_failures
 
     def existing_plugin(self, plugin):

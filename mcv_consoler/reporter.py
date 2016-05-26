@@ -82,11 +82,27 @@ class _Dispatcher(object):
 fix_dispatcher = _Dispatcher()
 
 
+def validate_section(res_dict, *required):
+    if not required:
+        required = 'test_success', 'test_failures', 'test_not_found'
+    if not res_dict:
+        return False
+    if 'results' not in res_dict:
+        return False
+    for r in required:
+        if r not in res_dict['results']:
+            return False
+    return True
+
+
 def brew_a_report(stuff, name="mcv_result.html"):
     result = ""
     good, bad, notfound = 0, 0, 0
     location = name.rstrip("/index.html")
     for key, value in stuff.iteritems():
+        if not validate_section(value):
+            LOG.debug('Error: no results for %s' % key)
+            continue
         res = ""
         for el in value['results']['test_success']:
             res += test_string % {"fontcolor": "green",
