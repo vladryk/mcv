@@ -356,7 +356,7 @@ class GeneralResourceSearch(ResourceSearch):
 
         # Need it because glance returns generator
         all_images = self.glanceclient.images.list()
-        full_size = sum([i.size for i in all_images])
+        full_size = sum([i.size for i in all_images if i.size])
         if full_size:
             unused = sum(self.resources['images'].itervalues()
                          ) * 100 / full_size

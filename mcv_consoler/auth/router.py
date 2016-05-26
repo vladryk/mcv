@@ -258,7 +258,11 @@ class IRouter(Router):
     def remove_security_group(self):
         LOG.debug("Removing created security group %s "
                   "from the server %s" % (self.secure_group_name, self.server.id))
-        self.server.remove_security_group(self.mcvgroup.id)
+        try:
+            self.server.remove_security_group(self.mcvgroup.id)
+        except nexc.NotFound:
+            LOG.debug("Failed to remove security group. It's not associated with instance.")
+            return
         self.novaclient.security_groups.delete(self.mcvgroup.id)
 
     def delete_floating_ips(self):
@@ -433,8 +437,7 @@ class IRouter(Router):
                         shell=True)
 
     def cleanup(self):
+        self.remove_security_group()
         self.stop_forwarding()
         self.delete_floating_ips()
         self.restore_hosts_config()
-        self.remove_security_group()
-
