@@ -510,8 +510,9 @@ class RallyOnDockerRunner(RallyRunner):
             failed = self.proceed_workload_result(task)
 
         else:
-            cmd = "docker exec -t %s " \
-                  "rally task status | awk '{print $3}' " % self.container_id
+            cmd = 'docker exec -t %s ' \
+                  '/bin/bach -c "rally task status 2>/dev/null" ' \
+                  ' | grep -i Task | awk \'{print $3}\' ' % self.container_id
             task_status = utils.run_cmd(cmd).strip()
             if task_status != 'finished':
                 failed = True
