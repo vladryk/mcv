@@ -7,7 +7,7 @@ declare -a test_suite=$3
 for i in ${credentials[@]}
 do
     name=$(echo $i | awk -F"=" {'print $1'})
-    sudo sed "s/#$name.*/$i/g" /etc/mcv/mcv.conf
+    sudo sed -i "s/#$name.*/$i/g" /etc/mcv/mcv.conf
 done
 
 if [ $TEST_NAME == "small" ]
