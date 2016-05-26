@@ -254,7 +254,7 @@ class Consoler(object):
             LOG.info("WARNING! Full test suite contains Rally load tests. "
                      "These tests may break your cloud. So, please set "
                      "rally_load=True manually in mcv.conf.")
-            return {}
+            return None
 
         test_dict = self.discover_test_suits()
         return self.dispatch_tests_to_runners(test_dict)
