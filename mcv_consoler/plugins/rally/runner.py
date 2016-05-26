@@ -169,7 +169,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.glanceclient = Clients.get_glance_client(self.access_data)
         self.neutronclient = Clients.get_neutron_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
-        self.saharaclient = Clients.get_sahara_client(self.access_data)
+
 
     def check_computes(self):
         # TODO(albartash): Do we really need this method?
@@ -206,6 +206,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.cleanup_image('mcv-workload-sahara')
 
     def create_sahara_image(self):
+        sahara = Clients.get_sahara_client(self.access_data)
         i_list = self.glanceclient.images.list()
         for im in i_list:
             if im.name == 'mcv-workload-sahara':
@@ -215,9 +216,9 @@ class RallyOnDockerRunner(RallyRunner):
                                              is_public=True,
                                              container_format="bare",
                                              data=open(SAHARA_IMAGE_PATH))
-        self.saharaclient.images.update_image(
+        sahara.images.update_image(
             image_id=im.id, user_name='ubuntu', desc="")
-        self.saharaclient.images.update_tags(
+        sahara.images.update_tags(
             image_id=im.id, new_tags=["vanilla", "2.7.1"])
         return im.id
 
