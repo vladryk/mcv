@@ -131,7 +131,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         # We force 'exit 0' here and will check the real status lately
         # by calling 'test -e <details_file>'
         cmd = 'docker exec -t {cid} /bin/sh -c \" ' \
-              'sudo subunit2pyunit /mcv/for-deployment-{ID}/subunit.stream ' \
+              'subunit2pyunit /mcv/for-deployment-{ID}/subunit.stream ' \
               '2> {out_file}\"; ' \
               'exit 0'.format(cid=self.container_id,
                               ID=deployment_id,
@@ -147,10 +147,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                       '{task} set. Output: {out}'.format(task=task, out=out))
             return
 
-        cmd = 'sudo mkdir -p {path}/details'.format(path=self.path)
+        cmd = 'mkdir -p {path}/details'.format(path=self.path)
         utils.run_cmd(cmd, quiet=True)
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = 'sudo cp {reports}/details/{task}.txt {path}/details'.format(
+        cmd = 'cp {reports}/details/{task}.txt {path}/details'.format(
                 reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
         LOG.debug(
@@ -165,12 +165,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         if not install:
             LOG.info("No installation found. Installing tempest")
             cmd = ("docker exec -t {cid} "
-                   "sudo rally verify install "
+                   "rally verify install "
                    "--deployment existing --source /tempest").format(
                 cid=self.container_id)
 
             p = utils.run_cmd(cmd, quiet=True)
-            cmd = "docker exec -t %(container)s sudo rally verify genconfig" %\
+            cmd = "docker exec -t %(container)s rally verify genconfig" %\
                   {"container": self.container_id}
 
             p = utils.run_cmd(cmd, quiet=True)
@@ -178,7 +178,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             if not cirros:
                 self.copy_tempest_image()
         LOG.info("Starting verification")
-        cmd = ("docker exec -t {cid} sudo rally "
+        cmd = ("docker exec -t {cid} rally "
                "--log-file {home}/log/tempest.log --rally-debug"
                " verify start --set {_set}").format(cid=self.container_id,
                                                     home=self.home,
@@ -201,19 +201,19 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             return ''
 
         LOG.info('Generating html report')
-        cmd = ("docker exec -t {cid} sudo rally verify results --html "
+        cmd = ("docker exec -t {cid} rally verify results --html "
                "--out={home}/reports/{task}.html").format(
             cid=self.container_id, home=self.home, task=task)
         utils.run_cmd(cmd, quiet=True)
 
-        cmd = ('docker exec -t {cid} sudo cp {home}/reports/{task}.html '
+        cmd = ('docker exec -t {cid} cp {home}/reports/{task}.html '
                '/home/rally/.rally/tempest').format(cid=self.container_id,
                                                     home=self.home,
                                                     task=task)
         utils.run_cmd(cmd, quiet=True)
 
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = "sudo cp {reports}/{task}.html {path} ".\
+        cmd = "cp {reports}/{task}.html {path} ".\
             format(reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
 

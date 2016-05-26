@@ -285,7 +285,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         self._verify_rally_container_is_up()
 
-        cmd = "sudo chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
+        cmd = "chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
         utils.run_cmd(cmd)
         self._patch_rally()
         self.copy_config()
@@ -338,7 +338,7 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug('Start patching hosts')
         template_path = join(self.home, 'tests/templates/wp_instances.yaml')
         cmd = ("""docker exec -t %s """
-               """sudo sed -i "61s/.*/"""
+               """sed -i "61s/.*/"""
                """            sudo sh -c 'echo %s %s >> """
                """\/etc\/hosts'/" %s""") % (
             self.container_id,
@@ -396,6 +396,7 @@ class RallyOnDockerRunner(RallyRunner):
         if "There is no" in res:
             LOG.debug("It is not. Trying to set up rally deployment.")
             self.create_rally_json()
+
             cmd = "docker exec -t %s rally deployment create " \
                   "--file=%s/conf/existing.json --name=existing" % \
                   (self.container_id, self.home)
@@ -404,8 +405,9 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.debug("Seems like it is present.")
 
         LOG.debug('Trying to use Rally deployment')
+
         cmd = ("docker exec -t {cid} "
-               "sudo rally deployment use existing").format(
+               "rally deployment use existing").format(
             cid=self.container_id)
         utils.run_cmd(cmd, quiet=True)
 
@@ -472,7 +474,7 @@ class RallyOnDockerRunner(RallyRunner):
         return task_args
 
     def create_cmd_for_task(self, location, task_args):
-        cmd = ("docker exec -t {container} sudo rally"
+        cmd = ("docker exec -t {container} rally"
                " --rally-debug task start {location}"
                " --task-args '{task_args}'").format(
             container=self.container_id,
@@ -526,7 +528,7 @@ class RallyOnDockerRunner(RallyRunner):
             if task_status != 'finished':
                 failed = True
 
-        cmd = ("docker exec -t {cid} sudo rally task report"
+        cmd = ("docker exec -t {cid} rally task report"
                " --out={home}/reports/{task}.html").format(
             cid=self.container_id,
             home=self.home,
@@ -534,7 +536,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         utils.run_cmd(cmd)
 
-        cmd = "sudo cp {fld}/reports/{task}.html {pth}".format(
+        cmd = "cp {fld}/reports/{task}.html {pth}".format(
             fld=self.homedir, task=task, pth=self.path)
 
         utils.run_cmd(cmd)
