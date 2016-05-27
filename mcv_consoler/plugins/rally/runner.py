@@ -303,7 +303,7 @@ class RallyOnDockerRunner(RallyRunner):
         tmp = 'sudo patch --dry-run {target} -i {patch} && ' \
               'sudo patch {target} -i {patch}'
         if container_id:
-            tmp = 'docker exec -t {cid} /bin/bash -c \"' + tmp + '\"'
+            tmp = 'docker exec -t {cid} /bin/sh -c \"' + tmp + '\"'
         cmd = tmp.format(cid=container_id, target=target, patch=patch)
         try:
             return utils.run_cmd(cmd)
@@ -533,7 +533,7 @@ class RallyOnDockerRunner(RallyRunner):
         return failed
 
     def _get_task_result_from_docker(self):
-        cmd = 'docker exec -t {cid} /bin/bash -c ' \
+        cmd = 'docker exec -t {cid} /bin/sh -c ' \
               '"rally task results 2>/dev/null"'.format(cid=self.container_id)
         p = utils.run_cmd(cmd, quiet=True)
 
@@ -545,7 +545,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def proceed_workload_result(self, task):
         failed = False
-        cmd = 'docker exec -t {cid} /bin/bash -c ' \
+        cmd = 'docker exec -t {cid} /bin/sh -c ' \
               '"rally task results 2>/dev/null"'.format(cid=self.container_id)
 
         p = utils.run_cmd(cmd, quiet=True)

@@ -164,7 +164,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
               % dict(cid=self.container_id)
         deployment_id = utils.run_cmd(cmd, quiet=True).strip()
 
-        cmd = 'docker exec -t %(cid)s sudo -u mcv /bin/bash -c \"' \
+        cmd = 'docker exec -t %(cid)s sudo -u mcv /bin/sh -c \"' \
               'mkdir -p %(out_dir)s; ' \
               'sudo subunit2pyunit /mcv/for-deployment-%(ID)s/subunit.stream ' \
               '2> %(out_file)s\"; ' \
@@ -185,8 +185,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             format(reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
 
-        cmd = "docker exec -t {cid} rally verify results --json".format(
-            cid=self.container_id)
+        cmd = "docker exec -t {cid} /bin/sh -c " \
+              "\"rally verify results --json 2>/dev/null\" ".format(
+                    cid=self.container_id)
         return utils.run_cmd(cmd, quiet=True)
 
     def parse_results(self, res, task):
