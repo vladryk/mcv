@@ -78,6 +78,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                   'ID = %s' % str(res))
 
         self._verify_rally_container_is_up()
+
+        # Hotfix. set rally's permission for .rally/ folder
+        # Please remove this. Use: `sudo -u rally docker run` when
+        # rally user gets its permissions to start docker containers
+        cmd = 'docker exec -t {cid} sudo chown -R rally:rally /home/rally/.rally'\
+            .format(cid=self.container_id)
+        utils.run_cmd(cmd)
+
         self.copy_config()
 
     def copy_tempest_image(self):
