@@ -122,7 +122,7 @@ class OSTFOnDockerRunner(runner.Runner):
              "-e", "NAILGUN_PROTOCOL=" + protocol,
              "-e", "OS_PASSWORD=" + self.access_data["password"],
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "NAILGUN_HOST=" + self.access_data["fuel"]["nailgun_host"],
+             "-e", "NAILGUN_HOST=" + self.access_data["fuel"]["nailgun"],
              "-e", "NAILGUN_PORT=" + nailgun_port,
              "-e", "CLUSTER_ID=" + self.access_data["fuel"]["cluster_id"],
              "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
