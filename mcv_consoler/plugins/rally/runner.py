@@ -511,7 +511,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         else:
             cmd = 'docker exec -t %s ' \
-                  '/bin/bach -c "rally task status 2>/dev/null" ' \
+                  '/bin/sh -c "rally task status 2>/dev/null" ' \
                   ' | grep -i Task | awk \'{print $3}\' ' % self.container_id
             task_status = utils.run_cmd(cmd).strip()
             if task_status != 'finished':
