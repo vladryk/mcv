@@ -19,6 +19,7 @@ import json
 import os.path
 import shlex
 import subprocess
+import traceback
 
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.errors import TempestError
@@ -109,6 +110,53 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         subprocess.Popen(cmd, stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
+    def make_detailed_report(self, task):
+        LOG.debug('Generating detailed report')
+        details_dir = os.path.join(self.home, 'reports/details/')
+        details_file = os.path.join(details_dir, task + '.txt')
+
+        cmd = "docker exec -t %(cid)s " \
+              "rally deployment list | grep existing | awk \'{print $2}\'" \
+              % dict(cid=self.container_id)
+        deployment_id = utils.run_cmd(cmd, quiet=True).strip()
+
+        cmd = 'docker exec -t {cid} mkdir -p {out_dir}'\
+            .format(cid=self.container_id, out_dir=details_dir)
+        utils.run_cmd(cmd, quiet=True)
+
+        # Note(ogrytsenko): tool subunit2pyunit returns exit code '1' if
+        # at leas one test failed in a test suite. It also returns exit
+        # code '1' if some error occurred during processing a file, like:
+        # "Permission denied".
+        # We force 'exit 0' here and will check the real status lately
+        # by calling 'test -e <details_file>'
+        cmd = 'docker exec -t {cid} /bin/sh -c \" ' \
+              'sudo subunit2pyunit /mcv/for-deployment-{ID}/subunit.stream ' \
+              '2> {out_file}\"; ' \
+              'exit 0'.format(cid=self.container_id,
+                              ID=deployment_id,
+                              out_file=details_file)
+        out = utils.run_cmd(cmd, quiet=True)
+
+        cmd = 'docker exec -t {cid} test -e {out_file} ' \
+              '&& echo yes || echo no'.format(
+                    cid=self.container_id, out_file=details_file)
+        exists = utils.run_cmd(cmd)
+        if exists == 'no':
+            LOG.debug('ERROR: Failed to create detailed report for '
+                      '{task} set. Output: {out}'.format(task=task, out=out))
+            return
+
+        utils.run_cmd('sudo mkdir -p {path}/details', quiet=True)
+        reports_dir = os.path.join(self.homedir, 'reports')
+        cmd = 'sudo cp {reports}/details/{task}.txt {path}/details'.format(
+                reports=reports_dir, task=task, path=self.path)
+        utils.run_cmd(cmd, quiet=True)
+        LOG.debug(
+            "Finished creating detailed report for '{task}'. "
+            "File: {details_file}".format(task=task, details_file=details_file)
+        )
+
     def _run_tempest_on_docker(self, task, *args, **kwargs):
         LOG.info("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
@@ -163,35 +211,15 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                                                     task=task)
         utils.run_cmd(cmd, quiet=True)
 
-        LOG.debug('Generating detailed report')
-        details_dir = os.path.join(self.home, 'reports/details/')
-        details_file = os.path.join(details_dir, task + '.txt')
-
-        cmd = "docker exec -t %(cid)s " \
-              "rally deployment list | grep existing | awk \'{print $2}\'" \
-              % dict(cid=self.container_id)
-        deployment_id = utils.run_cmd(cmd, quiet=True).strip()
-
-        cmd = 'docker exec -t %(cid)s sudo -u mcv /bin/sh -c \"' \
-              'mkdir -p %(out_dir)s; ' \
-              'sudo subunit2pyunit /mcv/for-deployment-%(ID)s/subunit.stream ' \
-              '2> %(out_file)s\"; ' \
-              'exit 0' % dict(cid=self.container_id,
-                              ID=deployment_id,
-                              out_dir=details_dir,
-                              out_file=details_file)
-        utils.run_cmd(cmd, quiet=True)
-        LOG.debug(
-            "Finished creating detailed report for '{task}'. "
-            "File: {details_file}".format(task=task, details_file=details_file)
-        )
-
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = "sudo cp {reports}/{task}.html {path}; " \
-              "sudo mkdir -p {path}/details; " \
-              "sudo cp {reports}/details/{task}.txt {path}/details".\
+        cmd = "sudo cp {reports}/{task}.html {path} ".\
             format(reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
+
+        try:
+            self.make_detailed_report(task)
+        except:
+            LOG.debug('ERROR: \n' + traceback.format_exc())
 
         cmd = "docker exec -t {cid} /bin/sh -c " \
               "\"rally verify results --json 2>/dev/null\" ".format(

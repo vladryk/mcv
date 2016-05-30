@@ -49,7 +49,8 @@ class AccessSteward(object):
                             'details' % sleep_total)
                 return False
 
-            res = utils.run_cmd("docker images --format {{.Repository}}")
+            res = utils.run_cmd("docker images --format {{.Repository}}",
+                                quiet=True)
 
             all_present = all(map(res.count, app_conf.DOCKER_REQUIRED_IMAGES))
             if all_present:
