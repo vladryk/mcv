@@ -147,7 +147,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                       '{task} set. Output: {out}'.format(task=task, out=out))
             return
 
-        utils.run_cmd('sudo mkdir -p {path}/details', quiet=True)
+        cmd = 'sudo mkdir -p {path}/details'.format(path=self.path)
+        utils.run_cmd(cmd, quiet=True)
         reports_dir = os.path.join(self.homedir, 'reports')
         cmd = 'sudo cp {reports}/details/{task}.txt {path}/details'.format(
                 reports=reports_dir, task=task, path=self.path)
