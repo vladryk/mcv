@@ -138,14 +138,18 @@ class BaseStorageSpeed(object):
         return {'ret': status, 'out': out, 'err': err}
 
     def prepare_size(self, str_size):
-        size = ''.join(i for i in str_size if i.isdigit())
-        if str_size.endswith('G') or str_size.endswith('Gb'):
-            size = int(size) * 1024
-        elif str_size.endswith('M') or str_size.endswith('Mb'):
-            size = int(size)
+        size = str_size.lower().strip()
+        if size.endswith('g'):
+            size = float(size[:-1]) * 1024
+        elif size.endswith('gb'):
+            size = float(size[:-2]) * 1024
+        elif size.endswith('m'):
+            size = float(size[:-1])
+        elif size.endswith('mb'):
+            size = float(size[:-2])
         else:
             size = 1024
-        return size
+        return int(round(size))
 
 
 def block_measure_dec(measure):

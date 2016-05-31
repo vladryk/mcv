@@ -132,16 +132,8 @@ class SpeedTestRunner(run.Runner):
             LOG.error('Failed to measure speed - no test VMs was created')
             self.test_failures.append(task)
             return False
-        try:
-            i_s = self.config.get('speed', 'image_size')
-        except NoOptionError:
-            i_s = '1G'
-            LOG.info('Use default image size %s' % i_s)
-        try:
-            v_s = self.config.get('speed', 'volume_size')
-        except NoOptionError:
-            v_s = '1G'
-            LOG.info('Use default volume size %s' % v_s)
+        i_s = GET(self.config, 'image_size', 'speed', '1G')
+        v_s = GET(self.config, 'volume_size', 'speed', '1G')
         LOG.debug('Start generating %s' % task)
         try:
             speed_class = getattr(st, task)
