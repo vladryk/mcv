@@ -17,6 +17,8 @@ import os.path
 import subprocess
 import time
 
+from keystoneclient import exceptions as k_exc
+
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.config import FEDORA_IMAGE_PATH
@@ -159,7 +161,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.path = path
         self.container = None
         self.access_data = accessor.os_data
-
+        self.skip = False
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
 
@@ -206,7 +208,12 @@ class RallyOnDockerRunner(RallyRunner):
         self.cleanup_image('mcv-workload-sahara')
 
     def create_sahara_image(self):
-        sahara = Clients.get_sahara_client(self.access_data)
+        try:
+            sahara = Clients.get_sahara_client(self.access_data)
+        except k_exc.EndpointNotFound:
+            LOG.warning("Can't run BigData workload task without installed sahara")
+            self.skip = True
+            return
         i_list = self.glanceclient.images.list()
         for im in i_list:
             if im.name == 'mcv-workload-sahara':
@@ -501,7 +508,9 @@ class RallyOnDockerRunner(RallyRunner):
                          }
 
             cmd = self.create_cmd_for_task(location, task_args)
-
+        if self.skip:
+            self.test_not_found.append(task)
+            return
         utils.run_cmd(cmd)
 
         failed = False
@@ -606,7 +615,9 @@ class RallyOnDockerRunner(RallyRunner):
                         "instrumental issues" % task)
             self.test_failures.append(task)
             return False
-
+        elif self.skip:
+            LOG.debug("Skipped test %s" % task)
+            return False
         LOG.debug("Retrieving task results for %s" % task)
         task_result = self._get_task_result_from_docker()
         if task_result is None:
