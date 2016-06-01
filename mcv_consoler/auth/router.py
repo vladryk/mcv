@@ -72,7 +72,11 @@ class Router(object):
                        'password': GET(self.config, 'password', 'fuel'),
                        'nailgun': GET(self.config, 'nailgun_host', 'fuel'),
                        'nailgun_port': nailgun_port,
-                       'cert': GET(self.config, 'ssh_cert', 'fuel')},
+                       'cluster_id': GET(self.config, 'cluster_id', 'fuel'),
+                        # TODO(albartash): fix in router.py (None to "")
+                       'ca_cert': "",
+                       'cert': GET(self.config, 'ssh_cert', 'fuel'),
+                   },
 
                    'auth_url': auth_url_tpl.format(hprot=protocol,
                                                    ip=endpoint_ip,
