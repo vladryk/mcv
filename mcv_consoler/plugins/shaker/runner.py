@@ -70,7 +70,7 @@ class ShakerRunner(runner.Runner):
                 pass
 
         if status:
-            LOG.info("Task %s has completed successfully." % task)
+            LOG.debug("Task %s has completed successfully." % task)
         else:
             LOG.warning("Task %s has failed with the following error: %s" %
                         (task, errors))
@@ -146,7 +146,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _check_shaker_setup(self):
         LOG.info("Start shaker-image-builder. Creating infrastructure. "
-                 "Please wait")
+                 "Please wait...")
         cmd = "docker exec -t %s shaker-image-builder --image-name %s " \
               "--flavor-name %s" % (self.container_id, self.image_name,
                                     self.flavor_name)
@@ -210,7 +210,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 break
 
     def _run_shaker_on_docker(self, task):
-        LOG.info("Starting task %s" % task)
+        LOG.debug("Starting task %s" % task)
 
         # TODO(albartash): make port for Shaker configurable some day
 
@@ -389,14 +389,14 @@ class ShakerOnDockerRunner(ShakerRunner):
             speed = '%.2f' % to_gb
 
         line = '-' * 40
-        LOG.info('\n%s' % line)
+        LOG.info(line)
         LOG.info('Average speed is %s Gb/s' % speed)
         if (success):
             LOG.info('This scenario: SUCCESS')
         else:
             LOG.info('This scenario: FAILED')
             LOG.info('Average speed is less than threshold')
-        LOG.info('%s\n' % line)
+        LOG.info(line)
 
         speed = ''
         node = ''
@@ -416,7 +416,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                                status=status), success
 
     def _generate_report_network_speed(self, threshold, task, output):
-        LOG.info('Generating report for network_speed tests')
+        LOG.debug('Generating report for network_speed tests')
 
         path = os.path.join(os.path.dirname(__file__),
                             'network_speed_template.html')
@@ -431,7 +431,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_shaker_on_docker()
-        LOG.info('Threshold is %s Gb/s' % self.threshold)
+        LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
         self.output = ''
         self.success = True
         result = super(ShakerOnDockerRunner, self).run_batch(

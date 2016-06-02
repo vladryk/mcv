@@ -140,7 +140,7 @@ class IRouter(Router):
             return False
 
         if self.port_forwarding:
-            LOG.info('Port forwarding will be done automatically')
+            LOG.debug('Port forwarding will be done automatically')
             if self.check_and_fix_iptables_rule() == -1:
                 LOG.error('Fail to check iptables rules')
                 self.restore_hosts_config()
@@ -278,7 +278,7 @@ class IRouter(Router):
         self.novaclient.security_groups.delete(self.mcvgroup.id)
 
     def delete_floating_ips(self):
-        LOG.info("Removing created floating IPs")
+        LOG.debug("Removing created floating IPs")
         for floating_ip in self.fresh_floating_ips:
             try:
                 floating_ip.delete()
@@ -325,7 +325,7 @@ class IRouter(Router):
             LOG.error("Apparently auth endpoint address is not valid."
                       " %s" % str(conn_e))
             return False
-        LOG.info("Access data looks valid.")
+        LOG.debug("Access data looks valid.")
         return True
 
     def check_and_fix_iptables_rule(self):
@@ -423,7 +423,7 @@ class IRouter(Router):
             LOG.debug("Now local iptables rule is set.")
 
     def stop_forwarding(self):
-        LOG.info("Reverting changes needed for access to admin network")
+        LOG.debug("Reverting changes needed for access to admin network")
         ssh = client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 

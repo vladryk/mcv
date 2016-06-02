@@ -96,10 +96,10 @@ class BaseStorageSpeed(object):
                 conn = True
                 break
             except paramiko.SSHException:
-                LOG.info('Waiting for test VM became available')
+                LOG.debug('Waiting for test VM became available')
             time.sleep(10)
         if conn:
-            LOG.info('SSH connection to test VM successfully established')
+            LOG.debug('SSH connection to test VM successfully established')
         else:
             raise RuntimeError("Can't connect to test vm")
 
@@ -128,7 +128,7 @@ class BaseStorageSpeed(object):
         err = ''.join(stderr_data)
         session.close()
         if status != 0:
-            LOG.info('Command "%s" finished with exit code %d' % (cmd,
+            LOG.debug('Command "%s" finished with exit code %d' % (cmd,
                                                                   status))
         else:
             LOG.debug('Command "%s" finished with exit code %d' % (cmd,
@@ -529,7 +529,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     @object_measure_dec
     def upload_image(self, image_id, token):
-        LOG.info('Uploading image')
+        LOG.debug('Uploading image')
 
         cmd = ('dd if=/dev/zero bs=32k count=%d | '
                'curl -k -s -w "---%%{http_code}" -X PUT -H '
@@ -552,7 +552,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
     @object_measure_dec
     def download_image(self, image_id, token):
-        LOG.info('Downloading image')
+        LOG.debug('Downloading image')
 
         cmd = ('curl -k -s -w "---%%{http_code}" '
                '-X GET -H \'X-Auth-Token: %s\' '
@@ -592,7 +592,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
         r_res = []
         w_res = []
-        LOG.info('Start measuring object storage r/w speed')
+        LOG.info('Running measuring object storage r/w speed...')
         token = self.get_token()
 
         self.attempts = GET(self.config,

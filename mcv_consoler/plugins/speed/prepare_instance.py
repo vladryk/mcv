@@ -31,16 +31,16 @@ class Preparer(object):
         self.config = config_parser
 
     def _check_image(self, image_path):
-        LOG.info('Check cirros-image in glance')
+        LOG.debug('Check cirros-image in glance')
         image_list = [image for image in self.glance.images.list() if
                       image.name == 'cirros-image']
         if not image_list:
-            LOG.info('Upload image to glance')
+            LOG.info('Uploading image to glance...')
             self.glance.images.create(name='cirros-image', disk_format="qcow2",
                                       container_format="bare",
                                       data=open(image_path), is_public=True)
         else:
-            LOG.info('Cirros-image exists')
+            LOG.debug('Cirros-image exists')
 
     def _get_server(self, server_id):
         try:
@@ -55,7 +55,7 @@ class Preparer(object):
         try:
             flavor = self.nova.flavors.findall(**flavor_req)[0]
         except (exceptions.NotFound, IndexError):
-            LOG.info('No suitable flavors was found, creating new flavor')
+            LOG.debug('No suitable flavors was found, creating new flavor')
 
             ram = flavor_req['ram'] if 'ram' in flavor_req else 64
             vcpus = flavor_req['vcpus'] if 'vcpus' in flavor_req else 1
@@ -64,7 +64,7 @@ class Preparer(object):
             if old_flavors:
                 [old_flavor.delete() for old_flavor in old_flavors]
             flavor = self.nova.flavors.create('speedtest', ram, vcpus, disk)
-        LOG.info('Using flavor %s' % flavor.name)
+        LOG.debug('Using flavor %s' % flavor.name)
         return flavor
 
     def _check_instances(self, server_ids):
@@ -77,12 +77,12 @@ class Preparer(object):
                     check_ids.remove(server_id)
                     server_ids.remove(server_id)
                     continue
-                LOG.info(
+                LOG.debug(
                     'Status instance id %s is %s' % (server.id, server.status))
                 if server.status == 'BUILD':
                     if i > 20:
-                        LOG.info('Server %s is still in building state, '
-                                 'removing' % server_id)
+                        LOG.debug('Server %s is still in building state, '
+                                  'removing' % server_id)
                         server.delete()
                         check_ids.remove(server_id)
                         server_ids.remove(server_id)
@@ -108,7 +108,7 @@ class Preparer(object):
                 time.sleep(10)
 
     def _launch_instances(self, flavor_req):
-        LOG.info('Launch instances from cirros-image')
+        LOG.debug('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
         network_name = utils.GET(self.config, "network_name", "network_speed")
@@ -159,13 +159,13 @@ class Preparer(object):
             server.add_floating_ip(floating_ip)
 
         if server_ids:
-            LOG.info('%s instances is running and ready' % len(server_ids))
+            LOG.debug('%s instances is running and ready' % len(server_ids))
             return server_ids
         else:
             return None
 
     def delete_instances(self):
-        LOG.info('Removing instances')
+        LOG.debug('Removing instances')
         servers = [server for server in self.nova.servers.list() if
                    server.name == 'speed-test']
         ip_list = [[ip['addr'] for ip in server.addresses.values()[0] if
@@ -176,7 +176,7 @@ class Preparer(object):
         servers = [server for server in self.nova.servers.list() if
                    server.name == 'speed-test']
         while servers:
-            LOG.info('Waiting for removing instances')
+            LOG.debug('Waiting for removing instances')
             servers = [server for server in self.nova.servers.list() if
                        server.name == 'speed-test']
             time.sleep(5)

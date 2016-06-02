@@ -76,6 +76,7 @@ class Consoler(object):
         def pretty_print_tests(tests):
             LOG.info("Amount of tests requested per available tools:")
             for group, test_list in tests.iteritems():
+                test_list = test_list.strip(', ')
                 LOG.info(" %s : %s", group, len(test_list.split(',')))
             LOG.info('\n')
 
@@ -155,8 +156,12 @@ class Consoler(object):
                         LOG.info(("You must update the database time tests. "
                                  "There is no time for %s") % test)
 
-            LOG.info("\nExpected time to complete all the tests: %s\n" %
-                     self.seconds_to_time(self.all_time))
+            msg = "\nExpected time to complete all the tests: " \
+                  "%s\n" % self.seconds_to_time(self.all_time)
+            if self.all_time == 0:
+                LOG.debug(msg)
+            else:
+                LOG.info(msg)
 
         for key in test_dict.keys():
             if self.event.is_set():
@@ -255,18 +260,20 @@ class Consoler(object):
         LOG.info("-" * 40)
         LOG.info("The run resulted in:")
         for key in results.iterkeys():
-            LOG.info("For %s:", key)
+            LOG.info("\n For %s:", key)
             if results[key].get('major_crash') is not None:
                 LOG.info("A major tool failure has been detected")
                 continue
             if not validate_section(results[key]):
                 LOG.debug('Error: no results for %s' % key)
                 continue
-            LOG.info('\n')
-            LOG.info(len(results[key]['results']['test_success']))
-            LOG.info("\t\t successful tests")
-            LOG.info(len(results[key]['results']['test_failures']))
-            LOG.info("\t\t failed tests")
+            test_success = len(results[key]['results']['test_success'])
+            test_failures = len(results[key]['results']['test_failures'])
+            if test_success:
+                LOG.info(str(test_success)+"\t successful tests")
+            if test_failures:
+                LOG.info(str(test_failures)+"\t failed tests")
+        LOG.info('\n')
 
     def _search_and_remove_group_failed(self, file_to_string):
         object_for_search = re.compile(
@@ -348,7 +355,7 @@ class Consoler(object):
                 "location": self.results_vault
             }
 
-            LOG.info('Creating a .tar.gz archive with test reports')
+            LOG.debug('Creating a .tar.gz archive with test reports')
             try:
                 cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
                        " -C %(location)s .") % result_dict
@@ -366,6 +373,7 @@ class Consoler(object):
             LOG.debug("Finished creating a report.")
             LOG.info("One page report could be found in "
                      "/tmp/mcv_run_%(timestamp)s.tar.gz" % result_dict)
+            LOG.info('\n')
 
             return result_dict
 

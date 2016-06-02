@@ -293,9 +293,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     current_time = db[tool_name][task]
                 except KeyError:
                     current_time = 0
-                LOG.info("Expected time to complete %s: %s" %
-                         (task,
-                          self.seconds_to_time(current_time * multiplier)))
+
+                msg = "Expected time to complete %s: %s" %(task,
+                    self.seconds_to_time(current_time * multiplier))
+                if not current_time:
+                    LOG.debug(msg)
+                else:
+                    LOG.info(msg)
 
             self.run_individual_task(task, *args, **kwargs)
 
@@ -319,8 +323,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     persent -= float(all_time) / float(kwargs["all_time"])
                 persent = int(persent * 100)
 
-                line = '\nCompleted %s' % persent + '% and remaining time '
-                line += '%s\n' % self.seconds_to_time(all_time * multiplier)
+                line = 'Completed %s' % persent + '%'
+                time_to_string = self.seconds_to_time(all_time * multiplier)
+                if all_time and multiplier:
+                    line += ' and remaining time %s\n' % time_to_string
 
                 LOG.info(line)
 

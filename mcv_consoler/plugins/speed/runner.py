@@ -65,7 +65,7 @@ class SpeedTestRunner(run.Runner):
         try:
             image_path = self.config.get('speed', 'cirros_image_path')
         except NoOptionError:
-            LOG.info('Use default image path')
+            LOG.debug('Use default image path')
             # TODO(albartash): extract it to common/config.py somehow
             image_path = os.path.join(self.imagedir,
                                       'cirros-0.3.1-x86_64-disk.img')
@@ -73,7 +73,7 @@ class SpeedTestRunner(run.Runner):
         try:
             flavor_req = self.config.get('speed', 'flavor_req')
         except NoOptionError:
-            LOG.info('Use default flavor requirements')
+            LOG.debug('Use default flavor requirements')
             flavor_req = 'ram:64,vcpus:1'
         supported_req = ['ram', 'vcpus', 'disk']
         flavor_req = dict((k.strip(), int(v.strip())) for k, v in
@@ -87,7 +87,7 @@ class SpeedTestRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         res = {'test_failures': 1, 'test_success': 0, 'test_not_found': 0}
-        LOG.info('Threshold is %s Mb/s' % self.threshold)
+        LOG.info('\nThreshold is %s Mb/s\n' % self.threshold)
         try:
             self.node_ids = self._prepare_vms()
             res = super(SpeedTestRunner, self).run_batch(tasks,
@@ -178,13 +178,13 @@ class SpeedTestRunner(run.Runner):
                 self.test_failures.append(task)
                 return False
             compute_node_ids = self.node_ids[:compute_nodes_quantity]
-            LOG.info('Speed will be measured on {} compute nodes'.format(
+            LOG.debug('Speed will be measured on {} compute nodes'.format(
                 len(compute_node_ids)))
         else:
-            LOG.info('Speed will be measured on all compute nodes')
+            LOG.debug('Speed will be measured on all compute nodes')
 
         for node_id in compute_node_ids:
-            LOG.info("Measuring speed on node %s" % node_id)
+            LOG.debug("Measuring speed on node %s" % node_id)
             try:
                 res, r_average, w_average = reporter.measure_speed(node_id)
                 res_all += res

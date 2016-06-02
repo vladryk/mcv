@@ -56,7 +56,7 @@ def GET(config, key, section="basic", default=None):
         LOG.warning('Option {opt} missed in configuration file. '
                     'It may be dangerous'.format(opt=key))
         if default is not None:
-            LOG.info('Setting {opt} to default value {val}'.format(
+            LOG.debug('Setting {opt} to default value {val}'.format(
                 opt=key, val=default))
         value = default
     return value
