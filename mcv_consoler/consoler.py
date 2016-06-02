@@ -245,18 +245,7 @@ class Consoler(object):
         return dispatch_result
 
     def do_full(self):
-
         LOG.info("Starting full check run.")
-        LOG.warning("WARNING! Full test suite contains Rally load tests. "
-                    "These tests may break your cloud. It is not recommended "
-                    "to run these tests on production clouds.")
-
-        if self.config.get('rally', 'rally_load') != 'True':
-            LOG.info("WARNING! Full test suite contains Rally load tests. "
-                     "These tests may break your cloud. So, please set "
-                     "rally_load=True manually in mcv.conf.")
-            return None
-
         test_dict = self.discover_test_suits()
         return self.dispatch_tests_to_runners(test_dict)
 
