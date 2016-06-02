@@ -23,6 +23,7 @@ import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
 from mcv_consoler.plugins.speed import speed_tester as st
 from mcv_consoler.utils import GET
+import mcv_consoler.common.config as app_conf
 
 LOG = LOG.getLogger(__name__)
 
@@ -43,15 +44,14 @@ class SpeedTestRunner(run.Runner):
         # TODO(albartash): Make a single place for images!
         self.imagedir = '/home/mcv/toolbox/rally/images'
 
+        self.threshold = GET(self.config,
+                             'threshold',
+                             'speed', str(app_conf.DEFAULT_SPEED_STORAGE))
+
     def _evaluate_task_results(self, task_results):
         res = True
-        try:
-            threshold = self.config.get('speed', 'threshold')
-        except NoOptionError:
-            threshold = 50
-            LOG.info('Default threshold is %s Mb/s' % threshold)
         for speed in task_results:
-            if speed < float(threshold):
+            if speed < float(self.threshold):
                 res = False
                 LOG.warning('Average speed is under the threshold')
                 break
@@ -87,11 +87,13 @@ class SpeedTestRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         res = {'test_failures': 1, 'test_success': 0, 'test_not_found': 0}
+        LOG.info('Threshold is %s Mb/s' % self.threshold)
         try:
             self.node_ids = self._prepare_vms()
             res = super(SpeedTestRunner, self).run_batch(tasks,
                                                          *args,
                                                          **kwargs)
+            res['threshold'] = self.threshold + ' Mb/s'
             return res
         except RuntimeError:
             LOG.error('Environment preparation error')

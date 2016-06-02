@@ -51,7 +51,7 @@ test_string = (' <li><b><a href="%(key)s/%(testname)s.html" '
                'style="color:%(fontcolor)s">%(testname)s</b></a></li>')
 
 general_report = """
-<h4>%(component_name)s</h4>
+<h4>%(component_name)s %(threshold)s</h4>
 <ul>
 %(component_list)s
 </ul>
@@ -134,8 +134,13 @@ def brew_a_report(stuff, name="mcv_result.html"):
 
             bad += 1
 
+        threshold = value['results'].get('threshold', '')
+        if threshold:
+            threshold = '(threshold is %s)' % threshold
+
         result += general_report % {"component_name": key,
-                                    "component_list": res}
+                                    "component_list": res,
+                                    "threshold": threshold}
 
     out = header % {
         "datetime_of_run": datetime.now().strftime("%a, %d %b %Y %H:%M:%S"),

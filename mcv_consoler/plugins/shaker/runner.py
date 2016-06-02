@@ -137,7 +137,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.threshold = utils.GET(
              self.config,
              'threshold',
-             'network_speed', app_conf.DEFAULT_SHAKER_THRESHOLD)
+             'network_speed', str(app_conf.DEFAULT_SHAKER_THRESHOLD))
 
         super(ShakerOnDockerRunner, self).__init__(accessor, path, *args,
                                                    **kwargs)
@@ -439,6 +439,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         self._generate_report_network_speed(self.threshold,
                                             'network_speed',
                                             self.output)
+        result['threshold'] = self.threshold + ' Gb/s'
         self.clear_shaker()
         return result
 
