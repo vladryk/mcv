@@ -61,7 +61,7 @@ class Router(object):
                    'ips': {
                        'controller': GET(self.config, 'controller_ip', 'auth'),
                        'endpoint': endpoint_ip,
-                       'instance': GET(self.config, 'instance_ip', 'shaker')},
+                       'instance': GET(self.config, 'instance_ip')},
                    'auth': {
                        'controller_uname': GET(self.config, 'controller_uname',
                                                'auth'),
@@ -207,15 +207,19 @@ class IRouter(Router):
             return self.check_and_fix_floating_ips()
 
     def is_cloud_instance(self):
-        """Check if MCV image is running as an instance of a cloud that
-        we are going to test.
-        """
+        """Check if MCV image is running as an instance of a cloud """
+
+        mcv_instance_ip = self.os_data['ips']['instance']
+        if mcv_instance_ip is None:
+            LOG.debug("Parameter 'instance_ip' is missing in configuration "
+                      "file, or it's empty. No security group will be created")
+            return False
 
         all_floating_ips = self.novaclient.floating_ips.list()
         for ip_obj in all_floating_ips:
             if not ip_obj.instance_id:  # IP is not assigned to any instance
                 continue
-            if ip_obj.ip == self.os_data['ips']['instance']:
+            if ip_obj.ip == mcv_instance_ip:
                 return True
 
     def check_mcv_secgroup(self):
@@ -260,6 +264,10 @@ class IRouter(Router):
         LOG.debug("Finished setting-up security groups")
 
     def remove_security_group(self):
+        if self.server is None or self.mcvgroup is None:
+            LOG.debug('No security group was created. Nothing to remove')
+            return
+
         LOG.debug("Removing created security group %s "
                   "from the server %s" % (self.secure_group_name, self.server.id))
         try:
