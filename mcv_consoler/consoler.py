@@ -48,6 +48,7 @@ class Consoler(object):
         self.concurrency = self.config.get('basic', 'concurrency')
         self.gre_enabled = self.config.get('basic', "gre_enabled")
         self.vlan_amount = self.config.get('basic', "vlan_amount")
+        self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
 
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
@@ -133,8 +134,7 @@ class Consoler(object):
 
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
-        self.results_vault = "/tmp/mcv_run_{dt}".format(
-                             dt=str(datetime.utcnow()).replace(" ", "_"))
+        self.results_vault = "/tmp/mcv_run_{dt}".format(dt=self.timestamp_str)
         os.mkdir(self.results_vault)
 
         f = open('/etc/mcv/times.json', 'r')
@@ -344,7 +344,7 @@ class Consoler(object):
                 return
 
             result_dict = {
-                "timestamp": str(datetime.utcnow()).replace(" ", "_"),
+                "timestamp": self.timestamp_str,
                 "location": self.results_vault
             }
 
