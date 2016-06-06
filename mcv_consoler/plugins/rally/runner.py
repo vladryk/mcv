@@ -22,7 +22,9 @@ from keystoneclient import exceptions as k_exc
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.config import FEDORA_IMAGE_PATH
-from mcv_consoler.common.config import SAHARA_IMAGE_PATH
+from mcv_consoler.common.config import MOS_HADOOP_MAP
+from mcv_consoler.common.config import SAHARA_IMAGE_PATH80
+from mcv_consoler.common.config import SAHARA_IMAGE_PATH70
 from mcv_consoler.common.config import TERASORT_JAR_PATH
 from mcv_consoler.common.errors import RallyError
 from mcv_consoler.logger import LOG
@@ -207,7 +209,7 @@ class RallyOnDockerRunner(RallyRunner):
     def cleanup_sahara_image(self):
         self.cleanup_image('mcv-workload-sahara')
 
-    def create_sahara_image(self):
+    def create_sahara_image(self, mos_version):
         try:
             sahara = Clients.get_sahara_client(self.access_data)
         except k_exc.EndpointNotFound:
@@ -218,15 +220,24 @@ class RallyOnDockerRunner(RallyRunner):
         for im in i_list:
             if im.name == 'mcv-workload-sahara':
                 return im.id
+        if mos_version == '8.0':
+            sahara_image_path = SAHARA_IMAGE_PATH80
+        else:
+            sahara_image_path = SAHARA_IMAGE_PATH70
         im = self.glanceclient.images.create(name='mcv-workload-sahara',
                                              disk_format="qcow2",
                                              is_public=True,
                                              container_format="bare",
-                                             data=open(SAHARA_IMAGE_PATH))
+                                             data=open(sahara_image_path))
         sahara.images.update_image(
             image_id=im.id, user_name='ubuntu', desc="")
-        sahara.images.update_tags(
-            image_id=im.id, new_tags=["vanilla", "2.7.1"])
+        if mos_version == '8.0':
+            sahara.images.update_tags(
+                image_id=im.id, new_tags=["vanilla", "2.7.1"])
+        else:
+            sahara.images.update_tags(
+                image_id=im.id, new_tags=["vanilla", "2.6.0"])
+
         return im.id
 
     def create_or_get_flavor(self):
@@ -459,7 +470,8 @@ class RallyOnDockerRunner(RallyRunner):
         return task_args
 
     def prepare_big_data_task(self):
-        image_id = self.create_sahara_image()
+        mos_version = utils.GET(self.config, 'mos_version', 'basic')
+        image_id = self.create_sahara_image(mos_version)
         flavor_id = self.create_or_get_flavor()
         file_size = utils.GET(self.config, 'file_size', 'workload')
         worker = utils.GET(self.config, 'workers_count', 'workload')
@@ -468,7 +480,8 @@ class RallyOnDockerRunner(RallyRunner):
             'workers_count': worker,
             'flavor_id': flavor_id,
             'sahara_image_uuid': image_id,
-            'terasort_jar_path': TERASORT_JAR_PATH
+            'terasort_jar_path': TERASORT_JAR_PATH,
+            'hadoop_version': MOS_HADOOP_MAP[mos_version],
         }
 
         return task_args

@@ -114,11 +114,19 @@ def get_heat_client(access_data):
 def get_sahara_client(access_data):
     keystone_client = get_keystone_client(access_data)
     client_data = _filter_keys(access_data, sahara_keys)
-    client_data['sahara_url'] = keystone_client.service_catalog.url_for(
-        service_type="data-processing")
+    # Better use service_list and name, but it requires admin user
+    service_type = 'data_processing'
+    try:
+        client_data['sahara_url'] = keystone_client.service_catalog.url_for(
+                service_type=service_type)
+    except Exception:
+        service_type = 'data-processing'
+        client_data['sahara_url'] = keystone_client.service_catalog.url_for(
+                service_type=service_type)
+
     client_data['input_auth_token'] = keystone_client.auth_token
     client = sahara.Client(
         '1.0',
-        service_type='data-processing',
+        service_type=service_type,
         **client_data)
     return client

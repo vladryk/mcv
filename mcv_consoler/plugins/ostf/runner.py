@@ -45,7 +45,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.config_section = "ostf"
 
         try:
-            self.mos_version = self.config.get(self.config_section, "version")
+            self.mos_version = self.config.get('basic', "mos_version")
         except NoOptionError:
             LOG.error('No MOS version found in configuration file. '
                       'Please specify it at section "ostf" as an option'
