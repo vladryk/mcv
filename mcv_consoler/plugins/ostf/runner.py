@@ -18,6 +18,7 @@ import json
 import os
 import re
 import subprocess
+import traceback
 
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.config import MOS_VERSIONS
@@ -73,9 +74,14 @@ class OSTFOnDockerRunner(runner.Runner):
         self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
         try:
-            self.max_failed_tests = int(self.config.get(self.config_section,
-                                                        'max_failed_tests'))
+            max_failed = utils.GET(self.config, 'max_failed_tests', 'ostf')
+            self.max_failed_tests = int(max_failed)
         except NoOptionError:
+            self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
+        except (TypeError, ValueError):
+            LOG.debug(traceback.format_exc())
+            LOG.debug("Failed to get 'ostf.max_failed_tests' from config. "
+                      "Using default value: %s" % DEFAULT_FAILED_TEST_LIMIT)
             self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
     def _do_config_extraction(self):

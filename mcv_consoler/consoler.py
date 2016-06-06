@@ -15,16 +15,13 @@
 from ConfigParser import NoSectionError
 from datetime import datetime
 import imp
-import inspect
 import json
 import os
 import re
 import subprocess
-import sys
 import traceback
 
-from mcv_consoler import accessor
-from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
@@ -37,14 +34,12 @@ LOG = LOG.getLogger(__name__)
 
 
 class Consoler(object):
-    def __init__(self, parser, args):
-        self.config = config_parser
-        self.parser = parser
+    def __init__(self, config, args):
+        self.config = config
         self.args = args
         self.all_time = 0
         self.plugin_dir = "plugins"
         self.failure_indicator = CAError.NO_ERROR
-        self.config_config()
         self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
 
     def prepare_tests(self, test_group):
@@ -59,15 +54,6 @@ class Consoler(object):
         out = dict([(opt, self.config.get(section, opt)) for opt in
                     self.config.options(section)])
         return out
-
-    def config_config(self):
-        if self.args.config is not None:
-            default_config = self.args.config
-        else:
-            default_config = DEFAULT_CONFIG_FILE
-        self.path_to_config = os.path.join(os.path.dirname(__file__),
-                                           default_config)
-        self.config.read(self.path_to_config)
 
     def do_custom(self, test_group):
         def pretty_print_tests(tests):
@@ -320,118 +306,90 @@ class Consoler(object):
                                    group, "tests")
         return fname in os.listdir(dir_to_walk)
 
-    def console_user(self, event, result):
-        # TODO(aovchinnikov): split this god's abomination.
-        self.event = event
+    def do_test(self):
+        arguments = ' '.join(i for i in self.args.test)
+        subprocess.call(('/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh '
+                         '"({0})"').format(arguments),
+                        shell=True,
+                        preexec_fn=utils.ignore_sigint)
+        return 1
 
-        def do_finalization(run_results):
-            if run_results is None:
-                LOG.warning("For some reason test tools have returned nothing")
-                return
-
-            self.describe_results(run_results)
-            self.update_config(run_results)
-            try:
-                reporter.brew_a_report(run_results,
-                                       self.results_vault + "/index.html")
-            except Exception as e:
-                LOG.warning("Brewing a report has failed with "
-                            "error: %s" % str(e))
-                LOG.debug(traceback.format_exc())
-                return
-
-            result_dict = {
-                "timestamp": self.timestamp_str,
-                "location": self.results_vault
-            }
-
-            LOG.debug('Creating a .tar.gz archive with test reports')
-            try:
-                cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
-                       " -C %(location)s .") % result_dict
-                utils.run_cmd(cmd)
-
-                cmd = "rm -rf %(location)s" % {"location": self.results_vault}
-                utils.run_cmd(cmd)
-            except subprocess.CalledProcessError:
-                LOG.warning('Creation of .tar.gz archive has failed. See log '
-                            'for details. You can still get your files from: '
-                            '%s' % self.results_vault)
-                LOG.debug(traceback.format_exc())
-                return
-
-            LOG.debug("Finished creating a report.")
-            LOG.info("One page report could be found in "
-                     "/tmp/mcv_run_%(timestamp)s.tar.gz\n" % result_dict)
-
-            return result_dict
-
-        if len(sys.argv) < 2:
-            self.parser.print_help()
-            result.append(CAError.TOO_FEW_ARGS)
+    def _do_finalization(self, run_results):
+        if run_results is None:
+            LOG.warning("For some reason test tools have returned nothing")
             return
 
-        run_results = None
+        self.describe_results(run_results)
+        self.update_config(run_results)
+        try:
+            reporter.brew_a_report(run_results,
+                                   self.results_vault + "/index.html")
+        except Exception as e:
+            LOG.warning("Brewing a report has failed with error: %s" % str(e))
+            LOG.debug(traceback.format_exc())
+            return
 
-        if self.args.run is not None:
-            self.access_helper = accessor.AccessSteward(
-                self.config,
-                self.event,
-                not self.args.no_tunneling)
-            try:
-                res = self.access_helper.check_and_fix_environment()
-                if not res:
-                    result.append(CAError.WRONG_CREDENTIALS)
-                    self.access_helper.cleanup()
-                    return
-            except Exception as e:
-                LOG.info("Something went wrong with checking credentials "
-                         "and preparing environment")
-                LOG.error("The following error has terminated "
-                          "the consoler: %s", repr(e))
-                LOG.debug(traceback.format_exc())
-                result.append(CAError.WRONG_CREDENTIALS)
-                return
+        result_dict = {
+            "timestamp": self.timestamp_str,
+            "location": self.results_vault
+        }
 
-            try:
-                run_results = getattr(self, "do_" + self.args.run[0])(
-                    *self.args.run[1:])
-            except TypeError as e:
-                run_name = "do_" + self.args.run[0]
-                expected_arglist = inspect.getargspec(
-                    getattr(self, run_name)).args
+        LOG.debug('Creating a .tar.gz archive with test reports')
+        try:
+            cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
+                   " -C %(location)s .") % result_dict
+            utils.run_cmd(cmd)
 
-                scolding = {"supplied_args": ", ".join(self.args.run[1:]),
-                            "function": self.args.run[0],
-                            "expected_args": "\', \'".join(expected_arglist),
-                            "error": e}
+            cmd = "rm -rf %(location)s" % {"location": self.results_vault}
+            utils.run_cmd(cmd)
+        except subprocess.CalledProcessError:
+            LOG.warning('Creation of .tar.gz archive has failed. See log '
+                        'for details. You can still get your files from: '
+                        '%s' % self.results_vault)
+            LOG.debug(traceback.format_exc())
+            return
 
-                temessage = ("Somehow \'%(supplied_args)s\' is not enough for "
-                             "\'%(function)s\'\n\'%(function)s\' actually "
-                             "expects the folowing arguments: \'"
-                             "%(expected_args)s\' Reply: \'%(error)s\'")
+        LOG.debug("Finished creating a report.")
+        LOG.info("One page report could be found in "
+                     "/tmp/mcv_run_%(timestamp)s.tar.gz\n" % result_dict)
 
-                LOG.error(temessage % scolding)
-            except ValueError as e:
-                LOG.error("Some unexpected outer error has terminated "
-                          "the tool. Please try rerunning mcvconsoler. "
-                          "Reply: %s", e)
-                LOG.debug(traceback.format_exc())
-                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
-            except Exception:
-                LOG.error("Something went wrong with the command, "
-                          "please refer to logs to discover the problem.")
-                LOG.debug(traceback.format_exc())
-                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
+        return result_dict
 
-        elif self.args.test is not None:
-            arguments = ' '.join(i for i in self.args.test)
-            subprocess.call(('/opt/mcv-consoler/tests/'
-                             'tmux_mcv_tests_runner.sh '
-                             '"({0})"').format(arguments),
-                            shell=True,
-                            preexec_fn=utils.ignore_sigint)
-            return 1
-        do_finalization(run_results)
-        self.access_helper.cleanup()
+    def console_user(self, event, result):
+        self.event = event
+
+        runner = getattr(self, "do_" + self.args.run[0], None)
+        params = self.args.run[1:]
+        if not runner:
+            LOG.error('\nError: No such runner: %s\n' % self.args.run[0])
+            return result.append(CAError.WRONG_RUNNER)
+
+        port_fw = not self.args.no_tunneling
+        try:
+            self.access_helper = AccessSteward(self.config, event, port_fw)
+            env_ready = self.access_helper.check_and_fix_environment()
+        except Exception as e:
+            LOG.info("Something went wrong with checking credentials "
+                     "and preparing environment")
+            LOG.error("The following error has terminated "
+                      "the consoler: %s", repr(e))
+            LOG.debug(traceback.format_exc())
+            result.append(CAError.WRONG_CREDENTIALS)
+            return
+        if not env_ready:
+            result.append(CAError.WRONG_CREDENTIALS)
+            self.access_helper.cleanup()
+            return
+
+        try:
+            run_results = runner(*params)
+            self._do_finalization(run_results)
+        except Exception:
+            LOG.error("Something went wrong with the command, "
+                      "please refer to logs to discover the problem.")
+            LOG.debug(traceback.format_exc())
+            self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
+        finally:
+            self.access_helper.cleanup()
+
         result.append(self.failure_indicator)

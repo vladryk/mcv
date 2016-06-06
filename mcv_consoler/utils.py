@@ -49,14 +49,15 @@ def GET(config, key, section="basic", default=None):
     try:
         value = config.get(section, key)
     except NoSectionError:
-        LOG.warning('Section {sec} missed in configuration file. '
-                    'It may be dangerous'.format(sec=section))
+        LOG.debug('Section {sec} missed in configuration file. '
+                  'It may be dangerous'.format(sec=section))
         value = default
     except NoOptionError:
-        LOG.warning('Option {opt} missed in configuration file. '
-                    'It may be dangerous'.format(opt=key))
+        LOG.debug('Option {opt} missed in configuration file. '
+                  'It may be dangerous'.format(opt=key))
         if default is not None:
             LOG.debug('Setting {opt} to default value {val}'.format(
                 opt=key, val=default))
         value = default
     return value
+

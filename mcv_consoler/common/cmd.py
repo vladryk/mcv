@@ -27,12 +27,14 @@ def _get_parser():
         description=PROJECT_DESCRIPTION,
         epilog=RUN_DESCRIPTION)
 
-    parser.add_argument(
+    one_of_is_required = parser.add_mutually_exclusive_group(required=True)
+
+    one_of_is_required.add_argument(
         "--run",
         nargs='+',
         help="""Run one of specified test suites.""")
 
-    parser.add_argument(
+    one_of_is_required.add_argument(
         "--test",
         nargs='+',
         dest='test',
