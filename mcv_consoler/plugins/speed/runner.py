@@ -13,6 +13,7 @@
 #    under the License.
 
 from ConfigParser import NoOptionError
+import datetime
 import os.path
 # TODO(albartash): replace with traceback2
 import traceback
@@ -54,7 +55,10 @@ class SpeedTestRunner(run.Runner):
             if speed < float(self.threshold):
                 res = False
                 LOG.warning('Average speed is under the threshold')
+                LOG.info(" * FAILED")
                 break
+            else:
+                LOG.info(" * PASSED")
         return res
 
     def get_preparer(self):
@@ -87,7 +91,8 @@ class SpeedTestRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         res = {'test_failures': 1, 'test_success': 0, 'test_not_found': 0}
-        LOG.info('\nThreshold is %s Mb/s\n' % self.threshold)
+        LOG.info('Threshold is %s Mb/s\n' % self.threshold)
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         try:
             self.node_ids = self._prepare_vms()
             res = super(SpeedTestRunner, self).run_batch(tasks,
@@ -109,6 +114,7 @@ class SpeedTestRunner(run.Runner):
             return res
         finally:
             try:
+                LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
                 self._remove_vms()
             except Exception:
                 LOG.error(

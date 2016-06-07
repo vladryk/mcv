@@ -159,11 +159,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         )
 
     def _run_tempest_on_docker(self, task, *args, **kwargs):
-        LOG.info("Searching for installed tempest")
+        LOG.debug("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
         install = glob.glob(self.homedir + '/for-deployment-*')
         if not install:
-            LOG.info("No installation found. Installing tempest")
+            LOG.info("No Tempest installation found. Installing tempest...")
             cmd = ("docker exec -t {cid} "
                    "rally verify install "
                    "--deployment existing --source /tempest").format(
@@ -177,7 +177,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cirros = glob.glob(self.homedir + '/data/cirros-*')
             if not cirros:
                 self.copy_tempest_image()
-        LOG.info("Starting verification")
+        LOG.debug("Starting verification")
         cmd = ("docker exec -t {cid} rally "
                "--log-file {home}/log/tempest.log --rally-debug"
                " verify start --set {_set}").format(cid=self.container_id,
@@ -200,7 +200,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.error('Verification failed, unable to generate report')
             return ''
 
-        LOG.info('Generating html report')
+        LOG.debug('Generating html report')
         cmd = ("docker exec -t {cid} rally verify results --html "
                "--out={home}/reports/{task}.html").format(
             cid=self.container_id, home=self.home, task=task)
@@ -228,32 +228,36 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         return utils.run_cmd(cmd, quiet=True)
 
     def parse_results(self, res, task):
-        LOG.info("Parsing results")
+        LOG.debug("Parsing results")
         if res == '':
-            LOG.info("Results of test set '%s': FAILURE" % task)
+            LOG.debug("Results of test set '%s': FAILURE" % task)
             self.failure_indicator = TempestError.VERIFICATION_FAILED
+            LOG.info(" * FAILED")
             return False
 
         try:
             self.task = json.loads(res)
         except ValueError:
-            LOG.info("Results of test set '%s': "
-                     "FAILURE, gotten not-JSON object. "
-                     "Please see logs" % task)
+            LOG.debug("Results of test set '%s': "
+                      "FAILURE, gotten not-JSON object. "
+                      "Please see logs" % task)
             LOG.debug("Not-JSON object: %s", res)
+            LOG.info(" * FAILED")
             return False
 
         failures = self.task.get('failures')
         success = self.task.get('success')
         self.failed_cases += failures
-        LOG.info("Results of test set '%s': "
-                 "SUCCESS: %d FAILURES: %d" % (task, success, failures))
+        LOG.debug("Results of test set '%s': "
+                  "SUCCESS: %d FAILURES: %d" % (task, success, failures))
         if not failures:
             self.test_success.append(task)
+            LOG.info(" * PASSED")
             return True
         else:
             self.test_failures.append(task)
             self.failure_indicator = TempestError.TESTS_FAILED
+            LOG.info(" * FAILED")
             return False
 
     def run_batch(self, tasks, *args, **kwargs):
@@ -279,7 +283,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         self._setup_rally_on_docker()
         t = []
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         for task in tasks:
+            LOG.info("-" * 60)
             task = task.replace(' ', '')
             if kwargs.get('event').is_set():
                 LOG.info("Keyboard interrupt. Set %s won't start" % task)
@@ -287,7 +293,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             time_start = datetime.datetime.utcnow()
             LOG.info('Running %s tempest set' % task)
 
-            LOG.info("Time start: %s UTC" % str(time_start))
+            LOG.debug("Time start: %s UTC" % str(time_start))
             if self.config.get('times', 'update') == 'False':
                 try:
                     current_time = db[tool_name][task]
@@ -305,7 +311,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
             time_end = datetime.datetime.utcnow()
             time = time_end - time_start
-            LOG.info("Time end: %s UTC" % str(time_end))
+            LOG.debug("Time end: %s UTC" % str(time_end))
 
             if self.config.get('times', 'update') == 'True':
                 if tool_name in db.keys():
@@ -326,9 +332,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 line = 'Completed %s' % persent + '%'
                 time_to_string = self.seconds_to_time(all_time * multiplier)
                 if all_time and multiplier:
-                    line += ' and remaining time %s\n' % time_to_string
+                    line += ' and remaining time %s' % time_to_string
 
                 LOG.info(line)
+                LOG.info("-" * 60)
 
             t.append(self.task['test_cases'].keys())
             if self.failed_cases > max_failed_tests:
@@ -343,6 +350,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             f.close()
 
         self.total_checks = len(t)
+        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found}

@@ -13,6 +13,7 @@
 #    under the License.
 
 from mcv_consoler.common.errors import ResourceError
+import datetime
 from mcv_consoler.logger import LOG
 from mcv_consoler.plugins.resources import resource_reporter as resources
 import mcv_consoler.plugins.runner as run
@@ -36,8 +37,11 @@ class ResourceReportRunner(run.Runner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
-        return super(ResourceReportRunner, self).run_batch(tasks, *args,
-                                                           **kwargs)
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+        result = super(ResourceReportRunner, self).run_batch(tasks, *args,
+                                                             **kwargs)
+        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+        return result
 
     def generate_report(self, html, task):
 
@@ -50,12 +54,14 @@ class ResourceReportRunner(run.Runner):
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
-        LOG.debug('Start generating %s' % task)
+        LOG.info('Running task %s' % task)
         reporter_class = getattr(resources, task)
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')
+            LOG.info(" * FAILED")
             return False
         reporter = reporter_class(self.access_data, config=self.config)
         res = reporter.search_resources()
         self.generate_report(res, task)
+        LOG.info(" * PASSED")
         return True

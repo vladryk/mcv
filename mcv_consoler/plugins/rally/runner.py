@@ -16,6 +16,7 @@ import json
 import os.path
 import subprocess
 import time
+import datetime
 
 from keystoneclient import exceptions as k_exc
 
@@ -103,7 +104,7 @@ class RallyRunner(runner.Runner):
             return True
 
         if resulting_dict['sla'][0]['success'] is True:
-            LOG.info("Task %s has completed successfully." % task)
+            LOG.debug("Task %s has completed successfully." % task)
         else:
             LOG.warning(("Task {task} has failed with the following error: "
                          "{err}").format(task=task,
@@ -197,7 +198,7 @@ class RallyOnDockerRunner(RallyRunner):
         return im.id
 
     def cleanup_image(self, name):
-        LOG.info('Cleaning up test image')
+        LOG.debug('Cleaning up test image')
         i_list = self.glanceclient.images.list()
         for im in i_list:
             if im.name == name:
@@ -253,7 +254,7 @@ class RallyOnDockerRunner(RallyRunner):
         return flavor.id
 
     def cleanup_test_flavor(self):
-        LOG.info('Cleaning up test flavor')
+        LOG.debug('Cleaning up test flavor')
         flavors = self.novaclient.flavors.list()
         for flav in flavors:
             if flav.name == 'mcv-workload-test-flavor':
@@ -497,23 +498,25 @@ class RallyOnDockerRunner(RallyRunner):
 
     def _run_rally_on_docker(self, task, *args, **kwargs):
         if task == 'certification':
-            LOG.info("Starting Rally Certification Task")
+            LOG.info("Running Rally Certification Task")
             task_args = self._prepare_certification_task_args()
             location = "tests/certification/openstack/task.yaml"
             cmd = self.create_cmd_for_task(location, task_args)
 
         elif task == 'workload.yaml':
+            LOG.info("Running Workload")
             task_args = self.prepare_workload_task()
             location = os.path.join(self.home, "tests/workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
 
         elif task == 'big-data-workload.yaml':
+            LOG.info("Running BigData Workload")
             task_args = self.prepare_big_data_task()
             location = os.path.join(self.home, "tests/big-data-workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
 
         else:
-            LOG.info("Starting task %s" % task)
+            LOG.info("Running task %s" % task)
             location = os.path.join(self.home, 'tests/%s' % task)
             task_args = {"compute": kwargs["compute"],
                          "concurrency": kwargs["concurrency"],
@@ -612,10 +615,12 @@ class RallyOnDockerRunner(RallyRunner):
         return failed
 
     def run_batch(self, tasks, *args, **kwargs):
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         self._setup_rally_on_docker()
         result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
         self.cleanup_fedora_image()
         self.cleanup_test_flavor()
+        LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
         return result
 
     def run_individual_task(self, task, *args, **kwargs):
@@ -624,20 +629,25 @@ class RallyOnDockerRunner(RallyRunner):
         except subprocess.CalledProcessError as e:
             LOG.error("Task %s has failed with: %s" % (task, e))
             self.test_failures.append(task)
+            LOG.info(" * FAILED")
             return False
         if task_failed is True:
             LOG.warning("Task %s has failed for some "
                         "instrumental issues" % task)
             self.test_failures.append(task)
+            LOG.info(" * FAILED")
             return False
         elif self.skip:
             LOG.debug("Skipped test %s" % task)
+            LOG.info(" * SKIPPED")
             return False
         LOG.debug("Retrieving task results for %s" % task)
         task_result = self._get_task_result_from_docker()
         if task_result is None:
             self.test_failures.append(task)
+            LOG.info(" * FAILED")
             return False
+        LOG.info(" * PASSED")
         return self._evaluate_task_result(task, task_result)
 
 

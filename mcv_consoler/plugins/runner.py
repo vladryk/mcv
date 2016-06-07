@@ -154,13 +154,14 @@ class Runner(object):
         self._validate_test_params(**kwargs)
 
         for task in tasks:
+            LOG.info("-" * 60)
             if kwargs.get('event').is_set():
                 LOG.info("Caught keyboard interrupt. "
                          "Task %s won't start" % task)
                 break
             time_start = datetime.datetime.utcnow()
-            LOG.info("Running task " + task)
-            LOG.info("Time start: %s UTC" % str(time_start))
+            LOG.debug("Running task " + task)                   # was info
+            LOG.debug("Time start: %s UTC" % str(time_start))   # was info
             if self.config.get('times', 'update') == 'False':
                 try:
                     current_time = db[tool_name][task]
@@ -181,7 +182,7 @@ class Runner(object):
 
             time_end = datetime.datetime.utcnow()
             time = time_end - time_start
-            LOG.info("Time end: %s UTC" % str(time_end))
+            LOG.debug("Time end: %s UTC" % str(time_end))
 
             if self.config.get('times', 'update') == 'True':
                 if tool_name in db.keys():
@@ -202,8 +203,9 @@ class Runner(object):
 
                 line = 'Completed %s' % persent + '%'
                 if all_time and multiplier:
-                    line += ' and remaining time %s\n' % self.seconds_to_time(all_time * multiplier)
+                    line += ' and remaining time %s' % self.seconds_to_time(all_time * multiplier)
                 LOG.info(line)
+                LOG.info("-" * 60)
 
             if failures >= max_failed_tests:
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')

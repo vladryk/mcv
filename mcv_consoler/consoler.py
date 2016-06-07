@@ -78,7 +78,6 @@ class Consoler(object):
             for group, test_list in tests.iteritems():
                 test_list = test_list.strip(', ')
                 LOG.info(" %s : %s", group, len(test_list.split(',')))
-            LOG.info('\n')
 
         tests_to_run = self.prepare_tests(test_group)
         if tests_to_run is None:
@@ -156,7 +155,7 @@ class Consoler(object):
                         LOG.info(("You must update the database time tests. "
                                  "There is no time for %s") % test)
 
-            msg = "\nExpected time to complete all the tests: " \
+            msg = "Expected time to complete all the tests: " \
                   "%s\n" % self.seconds_to_time(self.all_time)
             if self.all_time == 0:
                 LOG.debug(msg)
@@ -256,11 +255,12 @@ class Consoler(object):
 
     def describe_results(self, results):
         """Pretty printer for results"""
-        LOG.info('\n')
-        LOG.info("-" * 40)
-        LOG.info("The run resulted in:")
+
+        LOG.info("\nThe run resulted in:")
         for key in results.iterkeys():
-            LOG.info("\n For %s:", key)
+            LOG.info("-" * 40)
+            LOG.info(("| For %s" % key).ljust(37) + "|")
+            LOG.info("-" * 40)
             if results[key].get('major_crash') is not None:
                 LOG.info("A major tool failure has been detected")
                 continue
@@ -269,11 +269,17 @@ class Consoler(object):
                 continue
             test_success = len(results[key]['results']['test_success'])
             test_failures = len(results[key]['results']['test_failures'])
+            test_not_found = len(results[key]['results']['test_not_found'])
+            msg = lambda x, y: LOG.info("| "+str(x).ljust(4)+" |"+"\t"+y.ljust(24)+"|")
             if test_success:
-                LOG.info(str(test_success)+"\t successful tests")
+                msg(test_success, "successful tests")
+                LOG.info("-" * 40)
             if test_failures:
-                LOG.info(str(test_failures)+"\t failed tests")
-        LOG.info('\n')
+                msg(test_failures, "failed tests")
+                LOG.info("-" * 40)
+            if test_not_found:
+                msg(test_not_found, "tests not found")
+                LOG.info("-" * 40)
 
     def _search_and_remove_group_failed(self, file_to_string):
         object_for_search = re.compile(
@@ -372,8 +378,7 @@ class Consoler(object):
 
             LOG.debug("Finished creating a report.")
             LOG.info("One page report could be found in "
-                     "/tmp/mcv_run_%(timestamp)s.tar.gz" % result_dict)
-            LOG.info('\n')
+                     "/tmp/mcv_run_%(timestamp)s.tar.gz\n" % result_dict)
 
             return result_dict
 

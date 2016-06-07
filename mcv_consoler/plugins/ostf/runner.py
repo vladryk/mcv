@@ -13,6 +13,7 @@
 #    under the License.
 
 from ConfigParser import NoOptionError
+import datetime
 import json
 import os
 import re
@@ -178,7 +179,6 @@ class OSTFOnDockerRunner(runner.Runner):
         return line
 
     def _run_ostf_on_docker(self, task):
-        LOG.debug("Starting task %s" % task)
         task = self.check_task(task)
         if task is None:
             self.not_found.append(task)
@@ -239,6 +239,7 @@ class OSTFOnDockerRunner(runner.Runner):
                     self.success.append(result['suite'])
                 elif result['result'] == 'Failed':
                     self.failures.append(result['suite'])
+                LOG.info(" * %s --- %s" % (result['result'], result['suite']))
 
             reporter = Reporter(os.path.dirname(__file__))
             for record in results:
@@ -256,6 +257,9 @@ class OSTFOnDockerRunner(runner.Runner):
     def run_batch(self, tasks, *args, **kwargs):
         self._setup_ostf_on_docker()
 
+        time_start = datetime.datetime.utcnow()
+        LOG.info("Time start: %s UTC\n" % str(time_start))
+
         for task in tasks:
             self.run_individual_task(task, *args, **kwargs)
 
@@ -264,13 +268,22 @@ class OSTFOnDockerRunner(runner.Runner):
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 break
 
-        LOG.info("Succeeded tests: %s" % str(self.success))
-        LOG.info("Failed tests: %s" % str(self.failures))
-        LOG.info("Not found tests: %s" % str(self.not_found))
+        time_end = datetime.datetime.utcnow()
+        LOG.info("\nTime end: %s UTC" % str(time_end))
 
         return {"test_failures": self.failures,
                 "test_success": self.success,
                 "test_not_found": self.not_found}
 
     def run_individual_task(self, task, *args, **kwargs):
+        LOG.info("-" * 60)
+        LOG.info("Starting task %s" % task)
+        try:
+            task_time = self.seconds_to_time(kwargs['db'][kwargs['tool_name']][task])
+        except KeyError:
+            task_time = 0
+            LOG.info(("You must update the database time tests. "
+                     "There is no time for %s") % task)
+        LOG.info("Expected time to complete the test: %s " % task_time)
         self._run_ostf_on_docker(task)
+        LOG.info("-" * 60)

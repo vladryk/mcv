@@ -13,6 +13,7 @@
 #    under the License.
 
 from ConfigParser import NoOptionError
+import datetime
 import json
 import os
 import shlex
@@ -388,15 +389,12 @@ class ShakerOnDockerRunner(ShakerRunner):
             to_gb = min(speeds) / 1024.0
             speed = '%.2f' % to_gb
 
-        line = '-' * 40
-        LOG.info(line)
         LOG.info('Average speed is %s Gb/s' % speed)
         if (success):
-            LOG.info('This scenario: SUCCESS')
+            LOG.info(' * PASSED')
         else:
-            LOG.info('This scenario: FAILED')
             LOG.info('Average speed is less than threshold')
-        LOG.info(line)
+            LOG.info(' * FAILED')
 
         speed = ''
         node = ''
@@ -434,19 +432,21 @@ class ShakerOnDockerRunner(ShakerRunner):
         LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
         self.output = ''
         self.success = True
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         result = super(ShakerOnDockerRunner, self).run_batch(
             tasks, *args, **kwargs)
         self._generate_report_network_speed(self.threshold,
                                             'network_speed',
                                             self.output)
         result['threshold'] = self.threshold + ' Gb/s'
+        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         self.clear_shaker()
         return result
 
     def run_individual_task(self, task, *args, **kwargs):
         if task:
+            LOG.info("Starting task %s" % task)
             self.failure_indicator = SpeedError.LOW_AVG_SPEED
-
             try:
                 task_result = self._run_shaker_on_docker(task)
             except subprocess.CalledProcessError as e:
