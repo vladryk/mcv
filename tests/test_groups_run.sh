@@ -16,14 +16,14 @@ then
     for testname in ${test_suite[@]}
         do
             sudo sed -i "/\[custom_test_group_small\]/a$testname" /etc/mcv/mcv.conf
-            sudo mcvconsoler --run custom small >> /tmp/small.log
+            sudo mcvconsoler --run group small >> /tmp/small.log
             sudo echo "$testname $?" >> /tmp/test_result.log
             sudo sed -i 2d /etc/mcv/mcv.conf
         done
 else
     for testname in ${test_suite[@]}
         do
-            sudo mcvconsoler --run custom $testname >> /tmp/cli_output.log
+            sudo mcvconsoler --run group $testname >> /tmp/cli_output.log
             sudo echo "$testname $?" >> /tmp/test_result.log
         done
 fi

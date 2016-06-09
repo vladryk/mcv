@@ -56,6 +56,11 @@ class Consoler(object):
         return out
 
     def do_custom(self, test_group):
+        LOG.warning('Deprecation Warning: Tests is running, but the command is obsolete.'
+                    ' Please use command "... --run group ..." instead.')
+        return self.do_group(test_group)
+
+    def do_group(self, test_group):
         def pretty_print_tests(tests):
             LOG.info("Amount of tests requested per available tools:")
             for group, test_list in tests.iteritems():

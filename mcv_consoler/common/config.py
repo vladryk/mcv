@@ -23,7 +23,7 @@ PROJECT_DESCRIPTION = """The main tool in Mirantis Cloudvalidation Project."""
 
 RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
 
-    # mcvconsoler --run custom quick
+    # mcvconsoler --run group quick
 
     Also it is recommended to run the tool as a superuser, running it as an
     ordinary user might cause unexpected errors in strange places for odd
