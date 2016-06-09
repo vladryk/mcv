@@ -45,9 +45,6 @@ class Consoler(object):
         self.plugin_dir = "plugins"
         self.failure_indicator = CAError.NO_ERROR
         self.config_config()
-        self.concurrency = self.config.get('basic', 'concurrency')
-        self.gre_enabled = self.config.get('basic', "gre_enabled")
-        self.vlan_amount = self.config.get('basic', "vlan_amount")
         self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
 
     def prepare_tests(self, test_group):
@@ -85,13 +82,6 @@ class Consoler(object):
 
         pretty_print_tests(tests_to_run)
 
-        if test_group.find('scale') != -1:
-            return self.do_scale(tests_to_run)
-        return self.dispatch_tests_to_runners(tests_to_run)
-
-    def do_scale(self, tests_to_run):
-        LOG.info("Starting scale check run.")
-        self.concurrency = self.config.get('scale', 'concurrency')
         return self.dispatch_tests_to_runners(tests_to_run)
 
     def do_single(self, test_group, test_name):
@@ -206,22 +196,16 @@ class Consoler(object):
                           batch=str(len(batch)),
                           key=key))
 
-                if isinstance(self.concurrency, basestring):
-                    self.concurrency = int(self.concurrency)
-
                 try:
                     run_failures = runner.run_batch(
                         batch,
                         compute=1,
                         event=self.event,
-                        concurrency=self.concurrency,
                         config=self.config,
                         tool_name=key,
                         db=db,
                         all_time=self.all_time,
                         elapsed_time=elapsed_time_by_group[key],
-                        gre_enabled=self.gre_enabled,
-                        vlan_amount=self.vlan_amount,
                         test_group=kwargs.get('testgroup'))
 
                     if len(run_failures['test_failures']) > 0:

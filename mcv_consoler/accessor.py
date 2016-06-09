@@ -64,7 +64,7 @@ class AccessSteward(object):
                 sleep=sleep_for, total=sleep_total,
                 max=timeout, left=timeout - sleep_total
             )
-            LOG.debug('One or mode docker images are not present: '
+            LOG.debug('One or more docker images are not present: '
                       '{missing}.'.format(missing=', '.join(not_found)))
             LOG.debug('Going to wait {sleep} more seconds for them to load. '
                       'ETA: already waiting {total} sec; max time {max}; '

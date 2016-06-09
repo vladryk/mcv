@@ -518,11 +518,18 @@ class RallyOnDockerRunner(RallyRunner):
         else:
             LOG.info("Running task %s" % task)
             location = os.path.join(self.home, 'tests/%s' % task)
+            gre_enabled = utils.GET(self.config, 'gre_enabled', 'rally')
+            vlan_amount = utils.GET(self.config, 'vlan_amount', 'rally')
+            concurrency = utils.GET(self.config, 'concurrency', 'rally')
+
+            if isinstance(concurrency, basestring):
+                concurrency = int(concurrency)
+
             task_args = {"compute": kwargs["compute"],
-                         "concurrency": kwargs["concurrency"],
+                         "concurrency": concurrency,
                          "current_path": os.path.join(self.home, 'tests'),
-                         "gre_enabled": kwargs["gre_enabled"],
-                         "vlan_amount": kwargs["vlan_amount"],
+                         "gre_enabled": gre_enabled,
+                         "vlan_amount": vlan_amount,
                          }
 
             cmd = self.create_cmd_for_task(location, task_args)
