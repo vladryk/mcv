@@ -80,7 +80,7 @@ def get_nova_client(access_data):
 
 def get_cinder_client(access_data):
     client_data = _filter_keys(access_data, cinder_keys)
-    return cinder.Client('1', **client_data)
+    return cinder.Client('2', **client_data)
 
 
 def get_glance_client(access_data):
