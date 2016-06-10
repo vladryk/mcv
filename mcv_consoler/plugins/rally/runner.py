@@ -89,27 +89,38 @@ class RallyRunner(runner.Runner):
         pass
 
     def _evaluate_task_result(self, task, resulting_dict):
+        time_of_tests = resulting_dict.get('full_duration', None)
+        if time_of_tests:
+            time_of_tests = str(round(time_of_tests, 3)) + 's'
+        else:
+            time_of_tests = '0s'
+        self.time_of_tests[task] = {'duration': time_of_tests}
         if type(resulting_dict) != dict:
             LOG.debug(("Task {task} has failed with the following error: "
                       "{err}").format(task=task, err=resulting_dict))
+            LOG.info(" * FAILED")
             return False
 
         if not resulting_dict['sla']:
             err = resulting_dict['result'][0]['error']
             if err:
-                LOG.warning(("Task {task} has failed with the error: "
-                             "{err}").format(task=task,
-                                             err=resulting_dict['result']))
+                LOG.debug(("Task {task} has failed with the error: "
+                           "{err}").format(task=task,
+                                           err=resulting_dict['result']))
+                LOG.info(" * FAILED")
                 return False
+            LOG.info(" * PASSED")
             return True
 
         if resulting_dict['sla'][0]['success'] is True:
             LOG.debug("Task %s has completed successfully." % task)
         else:
-            LOG.warning(("Task {task} has failed with the following error: "
-                         "{err}").format(task=task,
-                                         err=resulting_dict['result']))
+            LOG.debug(("Task {task} has failed with the following error: "
+                       "{err}").format(task=task,
+                                       err=resulting_dict['result']))
+            LOG.info(" * FAILED")
             return False
+        LOG.info(" * PASSED")
         return True
 
     def _get_task_path(self, task):
@@ -654,7 +665,6 @@ class RallyOnDockerRunner(RallyRunner):
             self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
-        LOG.info(" * PASSED")
         return self._evaluate_task_result(task, task_result)
 
 

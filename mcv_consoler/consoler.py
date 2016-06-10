@@ -17,6 +17,7 @@ from datetime import datetime
 import imp
 import json
 import os
+import prettytable
 import re
 import subprocess
 import traceback
@@ -41,6 +42,7 @@ class Consoler(object):
         self.plugin_dir = "plugins"
         self.failure_indicator = CAError.NO_ERROR
         self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
+        self.group_name = None
 
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
@@ -61,6 +63,8 @@ class Consoler(object):
         return self.do_group(test_group)
 
     def do_group(self, test_group):
+        self.group_name = test_group
+
         def pretty_print_tests(tests):
             LOG.info("Amount of tests requested per available tools:")
             for group, test_list in tests.iteritems():
@@ -80,6 +84,7 @@ class Consoler(object):
 
         The test must be specified as this: testool/tests/tesname
         """
+        self.group_name = test_group
         the_one = dict(((test_group, test_name),))
         return self.dispatch_tests_to_runners(the_one)
 
@@ -224,6 +229,7 @@ class Consoler(object):
         return dispatch_result
 
     def do_full(self):
+        self.group_name = "Full"
         LOG.info("Starting full check run.")
         test_dict = self.discover_test_suits()
         return self.dispatch_tests_to_runners(test_dict)
@@ -231,30 +237,47 @@ class Consoler(object):
     def describe_results(self, results):
         """Pretty printer for results"""
 
-        LOG.info("\nThe run resulted in:")
+        x = prettytable.PrettyTable(["Group", "Plugin", "Test", "Time Duration", "Status"])
+
+        x.add_row([self.group_name, "", "", "", ""])
         for key in results.iterkeys():
-            LOG.info("-" * 40)
-            LOG.info(("| For %s" % key).ljust(37) + "|")
-            LOG.info("-" * 40)
+
             if results[key].get('major_crash') is not None:
-                LOG.info("A major tool failure has been detected")
+                LOG.info("A major tool failure has been detected for plugin '%s'" % key)
                 continue
             if not validate_section(results[key]):
                 LOG.debug('Error: no results for %s' % key)
                 continue
-            test_success = len(results[key]['results']['test_success'])
-            test_failures = len(results[key]['results']['test_failures'])
-            test_not_found = len(results[key]['results']['test_not_found'])
-            msg = lambda x, y: LOG.info("| "+str(x).ljust(4)+" |"+"\t"+y.ljust(24)+"|")
+
+            test_success = results[key]['results']['test_success']
+            test_failures = results[key]['results']['test_failures']
+            test_not_found = results[key]['results']['test_not_found']
+            time_of_tests = results[key]['results']['time_of_tests']
+
+            msg = ""
+
             if test_success:
-                msg(test_success, "successful tests")
-                LOG.info("-" * 40)
+                msg += "SUCCESSFUL: " + str(len(test_success)) + ", "
             if test_failures:
-                msg(test_failures, "failed tests")
-                LOG.info("-" * 40)
+                msg += "FAILED: " + str(len(test_failures)) + ", "
             if test_not_found:
-                msg(test_not_found, "tests not found")
-                LOG.info("-" * 40)
+                msg += "NOT FOUND: " + str(len(test_not_found)) + ", "
+            msg = msg[:-2]
+
+            x.add_row(["", key, msg, "", ""])
+
+            time_of_test = lambda x: time_of_tests[x].get('duration', '0s') if time_of_tests.get(x, None) else '0s'
+
+            for test in test_success:
+                x.add_row(["", "", test, time_of_test(test), " OK "])
+            for test in test_failures:
+                x.add_row(["", "", test, time_of_test(test), " FAILED "])
+            for test in test_not_found:
+                x.add_row(["", "", test, time_of_test(test), " NOT FOUND "])
+            x.add_row(["", "", "", ""])
+
+        x.align = "l"
+        print(x)
 
     def _search_and_remove_group_failed(self, file_to_string):
         object_for_search = re.compile(

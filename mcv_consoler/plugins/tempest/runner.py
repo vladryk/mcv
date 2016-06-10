@@ -225,6 +225,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cmd = "docker exec -t {cid} /bin/sh -c " \
               "\"rally verify results --json 2>/dev/null\" ".format(
                     cid=self.container_id)
+
         return utils.run_cmd(cmd, quiet=True)
 
     def parse_results(self, res, task):
@@ -243,6 +244,16 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                       "Please see logs" % task)
             LOG.debug("Not-JSON object: %s", res)
             LOG.info(" * FAILED")
+            return False
+
+        time_of_tests = float(self.task.get('time', '0'))
+        time_of_tests = str(round(time_of_tests, 3)) + 's'
+        self.time_of_tests[task] = {'duration': time_of_tests}
+
+        if self.task.get('tests', 0) == 0:
+            self.test_not_found.append(task)
+            LOG.debug("Task %s not found" % task)
+            LOG.info(" * NOT FOUND")
             return False
 
         failures = self.task.get('failures')
@@ -353,10 +364,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
-                "test_not_found": self.test_not_found}
+                "test_not_found": self.test_not_found,
+                "time_of_tests": self.time_of_tests}
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
-
         self.parse_results(results, task)
         return True

@@ -249,6 +249,7 @@ class OSTFOnDockerRunner(runner.Runner):
                     self.success.append(result['suite'])
                 elif result['result'] == 'Failed':
                     self.failures.append(result['suite'])
+                self.time_of_tests[result['suite']] = {'duration': result.get('duration', '0s')}
                 LOG.info(" * %s --- %s" % (result['result'], result['suite']))
 
             reporter = Reporter(os.path.dirname(__file__))
@@ -262,6 +263,7 @@ class OSTFOnDockerRunner(runner.Runner):
         except subprocess.CalledProcessError as e:
             LOG.error("Task %s has failed with: %s" % (task, e))
             self.failures.append(task)
+            self.time_of_tests[task] = {'duration': '0s'}
             return
 
     def run_batch(self, tasks, *args, **kwargs):
@@ -283,7 +285,8 @@ class OSTFOnDockerRunner(runner.Runner):
 
         return {"test_failures": self.failures,
                 "test_success": self.success,
-                "test_not_found": self.not_found}
+                "test_not_found": self.not_found,
+                "time_of_tests": self.time_of_tests}
 
     def run_individual_task(self, task, *args, **kwargs):
         LOG.info("-" * 60)

@@ -189,6 +189,7 @@ class SpeedTestRunner(run.Runner):
         else:
             LOG.debug('Speed will be measured on all compute nodes')
 
+        time_start = datetime.datetime.utcnow()
         for node_id in compute_node_ids:
             LOG.debug("Measuring speed on node %s" % node_id)
             try:
@@ -219,6 +220,9 @@ class SpeedTestRunner(run.Runner):
                 self.test_failures.append(task)
                 return False
 
+        time_end = datetime.datetime.utcnow()
+        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+        self.time_of_tests[task] = {'duration': time_of_tests}
         r_av = round(sum(r_average_all) / len(r_average_all), 2)
         w_av = round(sum(w_average_all) / len(w_average_all), 2)
         res_all += ('<br><h4> Overall average results: read - {} MB/s, '

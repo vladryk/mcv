@@ -447,12 +447,16 @@ class ShakerOnDockerRunner(ShakerRunner):
         if task:
             LOG.info("Starting task %s" % task)
             self.failure_indicator = SpeedError.LOW_AVG_SPEED
+            time_start = datetime.datetime.utcnow()
             try:
                 task_result = self._run_shaker_on_docker(task)
             except subprocess.CalledProcessError as e:
                 LOG.error("Task %s failed with: %s" % (task, e))
                 # NOTE(albartash): Maybe, refactor this later
                 task_result = None
+            time_end = datetime.datetime.utcnow()
+            time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+            self.time_of_tests[task] = {'duration': time_of_tests}
 
             check = self._evaluate_task_result(task, task_result)
 

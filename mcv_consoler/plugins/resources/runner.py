@@ -55,6 +55,7 @@ class ResourceReportRunner(run.Runner):
 
     def run_individual_task(self, task, *args, **kwargs):
         LOG.info('Running task %s' % task)
+        time_start = datetime.datetime.utcnow()
         reporter_class = getattr(resources, task)
         if not reporter_class:
             LOG.error('Incorrect choice of reporter')
@@ -62,6 +63,9 @@ class ResourceReportRunner(run.Runner):
             return False
         reporter = reporter_class(self.access_data, config=self.config)
         res = reporter.search_resources()
+        time_end = datetime.datetime.utcnow()
+        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+        self.time_of_tests[task] = {'duration': time_of_tests}
         self.generate_report(res, task)
         LOG.info(" * PASSED")
         return True
