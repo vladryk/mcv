@@ -80,6 +80,10 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def _do_config_extraction(self):
         LOG.debug("Checking for existing OSTF configuration file...")
+        # NOTE(albartash): in case of multiple clouds, we probably would have
+        # 5% of possibility that config for one of clouds won't be created, so
+        # Consoler will try to run OSTF for one cloud using config from
+        # another one. Just notice it.
         path = os.path.join(self.home, 'conf', self.config_filename)
         if os.path.isfile(path):
             LOG.debug("File '%s' exists. Skip extraction." %
