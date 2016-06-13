@@ -117,7 +117,7 @@ class Runner(object):
 
     def _validate_test_params(self, **params):
         for key in 'compute', 'concurrency':
-            if not key not in params:
+            if key not in params:
                 continue
             if not isinstance(params[key], int):
                 LOG.warning("Type mismatch. Parameter '%s' expected to be "
