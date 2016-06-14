@@ -241,7 +241,7 @@ class ConfigValidator(object):
                                "Expected one of: %s" % (scenario, expected))
         elif scenario == 'single':
             runner = self.args[1]
-        elif scenario == 'custom':
+        elif scenario in ('custom', 'group'):
             group = self.args[1]
         return scenario, group, runner
 
