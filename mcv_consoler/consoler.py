@@ -57,6 +57,22 @@ class Consoler(object):
                     self.config.options(section)])
         return out
 
+    def split_tests(self, runner, tests_str):
+        res = list()
+        commented = list()
+        test_list = tests_str.split()
+        for t in test_list:
+            if t[0] in ';#':  # ini file comments
+                commented.append(t.strip(','))
+                continue
+            res.append(t.strip(','))
+        LOG.debug("Selected {n} tests for '{key}' runner: {tests}".format(
+            n=len(res), key=runner, tests=', '.join(res)))
+        if commented:
+            LOG.debug("The following tests were filtered out for '{key}': "
+                      "{tests}".format(key=runner, tests=', '.join(commented)))
+        return res, commented
+
     def do_custom(self, test_group):
         LOG.warning('Deprecation Warning: Tests is running, but the command is obsolete.'
                     ' Please use command "... --run group ..." instead.')
@@ -185,8 +201,8 @@ class Consoler(object):
                                    path,
                                    config=self.config)
 
-                batch = [x for x in (''.join(test_dict[key].split()
-                                             ).split(',')) if x]
+                batch, commented = self.split_tests(key, test_dict[key])
+                runner.test_not_found.extend(commented)
 
                 LOG.debug("Running {batch} for {key}".format(
                           batch=str(len(batch)),
@@ -217,7 +233,6 @@ class Consoler(object):
                                    "this group this time. Reply %s"), e)
                         self.failure_indicator = CAError.WRONG_RUNNER
                 except Exception:
-                    run_failures = test_dict[key].split(',')
                     self.failure_indicator = CAError.UNKNOWN_EXCEPTION
                     LOG.error("Something went wrong. "
                               "Please check mcvconsoler logs")
