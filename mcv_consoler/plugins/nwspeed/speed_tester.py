@@ -114,11 +114,11 @@ class Node2NodeSpeed(object):
                 conn = True
                 break
             except paramiko.SSHException:
-                LOG.info('Waiting for establishing SSH connection')
+                LOG.debug('Waiting for establishing SSH connection')
             time.sleep(1)
         if conn:
             LOG.debug('SSH connection to node %s '
-                     'successfully established' % node_name)
+                      'successfully established' % node_name)
         else:
             raise RuntimeError("Can't connect to node %s" % node_name)
 
@@ -198,7 +198,7 @@ class Node2NodeSpeed(object):
 
     def cleanup(self):
         # Killing all ssh tunneling processes
-        LOG.info("Killing ssh tunnelling processes")
+        LOG.debug("Killing ssh tunnelling processes")
         n_pid = subprocess.check_output(
             "lsof -i :%s | tail -n +2 | awk "
             "'{if ($10==\"(LISTEN)\") print $2}'" % self.port_n, shell=True,

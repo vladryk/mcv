@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
 import traceback
 
 from mcv_consoler.common import clients as Clients
@@ -44,8 +45,8 @@ class NWSpeedTestRunner(run.Runner):
         # 2. Each speed value should be higher than
         #    value from 1 point * range in percents (see MCV-288 description)
         res = True
-        threshold = GET(self.config, 'threshold', 'nwspeed', 100)
-        LOG.info('Threshold is %s MB\s' % threshold)
+        threshold = float(GET(self.config, 'threshold', 'nwspeed', 100))
+        LOG.info('Threshold is %s MB/s' % threshold)
         if self.av_speed < threshold:
             res = False
             LOG.warning('Average network speed is under threshold')
@@ -118,6 +119,9 @@ class NWSpeedTestRunner(run.Runner):
 
         average_all = []
 
+        time_start = datetime.datetime.utcnow()
+        LOG.info("\nTime start: %s UTC\n" % str(time_start))
+
         for hw_node in self.hw_nodes:
             LOG.info("Measuring network speed on node %s" % hw_node)
             try:
@@ -147,6 +151,11 @@ class NWSpeedTestRunner(run.Runner):
                     LOG.debug(traceback.format_exc())
                 self.test_failures.append(task)
                 return False
+
+        time_end = datetime.datetime.utcnow()
+        LOG.info("Time end: %s UTC" % str(time_end))
+        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+        self.time_of_tests[task] = {'duration': time_of_tests}
 
         self.av_speed = round(sum(average_all) / len(average_all), 2)
         res_all += '<br><h4> Overall average results - {} MB/s '.format(

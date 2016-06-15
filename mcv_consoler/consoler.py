@@ -274,7 +274,7 @@ class Consoler(object):
                 x.add_row(["", "", test, time_of_test(test), " FAILED "])
             for test in test_not_found:
                 x.add_row(["", "", test, time_of_test(test), " NOT FOUND "])
-            x.add_row(["", "", "", ""])
+            x.add_row(["", "", "", "", ""])
 
         x.align = "l"
         print(x)
