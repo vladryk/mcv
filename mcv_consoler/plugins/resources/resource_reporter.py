@@ -15,6 +15,9 @@
 import json
 import os
 
+from flask_table import Table, Col
+from jinja2 import Template
+
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.logger import LOG
 
@@ -50,6 +53,32 @@ RESOURCES_TEMPLATE = {
     'unattached_ips': 0
 }
 
+RESOURCE_MAP = {
+    'flavors': 'Flavors configured',
+    'active_flavors': 'Active flavors',
+    'paused_flavors': 'Paused flavors',
+    'most_used_flavors': 'Most used flavors',
+    'volumes': 'Volumes',
+    'most_used_volumes': 'Most used volumes',
+    'unattached': 'Unattached volumes',
+    'images': 'Images',
+    'most_used_images': 'Most used images',
+    'unused': 'Unused images',
+    'networks': 'Networks amount',
+    'routers': 'Routers amount',
+    'subnets': 'Subnets amount',
+    'unassociated_ips': 'Unassociated floating IPs',
+    'unattached_ips': 'Unattached floating IPs'
+
+}
+
+class ErredTable(Table):
+    type = Col('TYPE')
+    name = Col('NAME')
+    id = Col('ID')
+    status = Col('STATUS')
+    other = Col('OTHER')
+
 
 class ResourceSearch(object):
 
@@ -68,7 +97,8 @@ class ResourceSearch(object):
                 {'id': s.id,
                  'name': s.name,
                  'status': s.status,
-                 'reason': reason
+                 'other': reason,
+                 'type': 'server',
                  })
         return res
 
@@ -79,7 +109,8 @@ class ResourceSearch(object):
                 {'id': i.id,
                  'name': i.name,
                  'status': i.status,
-                 'updated_at': i.updated_at
+                 'other': 'Updated at: ' + str(i.updated_at),
+                 'type': 'image'
                  })
         return res
 
@@ -89,8 +120,9 @@ class ResourceSearch(object):
             res.append(
                 {'id': v.id,
                  'name': v.display_name,
-                 'bootable': v.bootable,
-                 'status': v.status
+                 'other': 'Is bootable:' + str(v.bootable),
+                 'status': v.status,
+                 'type': 'volume'
                  })
         return res
 
@@ -127,12 +159,7 @@ class ErrorResourceSearch(ResourceSearch):
 
     def __init__(self, access_data, *args, **kwargs):
         self.config = kwargs.get('config')
-        self.resources = {
-            'servers': [],
-            'volumes': [],
-            'images': [],
-            'ports': []}
-
+        self.resources = []
         self.init_clients(access_data)
 
     def search_error_servers(self):
@@ -149,7 +176,7 @@ class ErrorResourceSearch(ResourceSearch):
         res = self.list_servers(serv)
         for s in res:
             if s['status'] == 'ERROR':
-                self.resources['servers'].append(s)
+                self.resources.append(s)
 
     def search_error_volumes(self):
         LOG.debug('Collecting error volumes data')
@@ -164,7 +191,7 @@ class ErrorResourceSearch(ResourceSearch):
         res = self.list_volumes(vol)
         for v in res:
             if v['status'] == 'error':
-                self.resources['volumes'].append(v)
+                self.resources.append(v)
 
     def search_error_images(self):
         LOG.debug('Collecting error images data')
@@ -179,7 +206,7 @@ class ErrorResourceSearch(ResourceSearch):
         res = self.list_images(images)
         for i in res:
             if i['status'] == 'killed':
-                self.resources['images'].append(i)
+                self.resources.append(i)
 
     def search_down_ports(self):
         LOG.debug('Collecting down ports data')
@@ -190,11 +217,16 @@ class ErrorResourceSearch(ResourceSearch):
             return
         for p in res['ports']:
             if p['status'] == 'DOWN':
-                self.resources['ports'].append(
+                adresses = [ip['ip_address'] for ip in p['fixed_ips']]
+                res = ''
+                for adr in adresses:
+                    res += str(adr) + ',\n'
+                self.resources.append(
                     {'id': p['id'],
                      'name': p['name'],
                      'status': p['status'],
-                     'fixed_ips': [ip['ip_address'] for ip in p['fixed_ips']]
+                     'other': 'Fixed IPs: ' + res,
+                     'type': 'port'
                      })
 
     def search_resources(self):
@@ -205,35 +237,17 @@ class ErrorResourceSearch(ResourceSearch):
         return self.fill_the_template()
 
     def fill_the_template(self):
-        path = os.path.join(os.path.dirname(__file__), 'erred_template.txt')
+        path = os.path.join(os.path.dirname(__file__), 'erred_template.html')
         temp = open(path, 'r')
-        template = temp.read()
+        erred_template = temp.read()
         temp.close()
-        servers = ''
-        for s in self.resources['servers']:
-            servers += ('<tr><td>ID {id}:</td><td align="right">'
-                        'Name {name} Status {status} Reason {reason}'
-                        '</td><tr>\n').format(**s)
-        images = ''
-        for i in self.resources['images']:
-            images += ('<tr><td>ID {id}:</td><td align="right">'
-                       'Name {name} Status {status} Updated at '
-                       '{updated_at}</td>\n').format(**i)
-        volumes = ''
-        for v in self.resources['volumes']:
-            volumes += ('<tr><td>ID {id}:</td><td align="right">'
-                        'Name {name} Status {status} Is bootable '
-                        '{bootable}</td>\n').format(**v)
-        ports = ''
-        for p in self.resources['ports']:
-            ports += ('<tr><td>ID {id}:</td><td align="right">'
-                      'Name {name} Status {status} Fixed IPs '
-                      '{fixed_ips}</td>\n').format(**p)
 
-        return template.format(servers=servers,
-                               images=images,
-                               ports=ports,
-                               volumes=volumes)
+        table = ErredTable(self.resources)
+        table_html = table.__html__()
+        template = Template(erred_template)
+        res = template.render(table=table_html)
+
+        return res
 
 
 class GeneralResourceSearch(ResourceSearch):
@@ -249,15 +263,38 @@ class GeneralResourceSearch(ResourceSearch):
             if v.flavor['id'] == flavor_id:
                 counter += 1
         return counter
-
     def _count_usage(self, usage):
         res = {}
-        for f in usage:
-            if sum(usage.itervalues()) != 0:
-                if usage[f] * 1.0 / sum(usage.itervalues()) > 0.3:
-                    used = usage[f] * 100 / sum(usage.itervalues())
-                    res[f] = '%d%%' % used
+        total = 0
+        for d in usage:
+            for k, v in d.iteritems():
+                total += v
+        if total != 0:
+            for d in usage:
+                for k, v in d.iteritems():
+                    if v * 1.0 / total > 0.3:
+                        used = v * 100 / total
+                        res[k] = '%d%%' % used
 
+        return res
+
+    def repr_dict(self, rdict, s_comment='', m_comment='', e_comment='', direct_order=True):
+        res = ''
+        for k, v in rdict.iteritems():
+            if direct_order:
+                res += '%s %s: %s %s %s<br>' % \
+                       (s_comment, k, m_comment, str(v), e_comment)
+            else:
+                res += '%s %s: %s %s %s<br>' % \
+                       (s_comment, str(v), m_comment, k, e_comment)
+        return res
+
+    def repr_list_dict(self, rlist, s_comment='', m_comment='', e_comment=''):
+        res = ''
+        for d in rlist:
+            for k, v in d.iteritems():
+                res += '%s %s: %s %s %s<br>' % \
+                       (s_comment, str(v), m_comment, k, e_comment)
         return res
 
     def get_flavor_data(self):
@@ -269,30 +306,32 @@ class GeneralResourceSearch(ResourceSearch):
             return
         vms = self.novaclient.servers.list()
         res = self.list_flavors(flavors)
-        self.resources['flavors'] = res
+        self.resources['flavors'] = self.repr_dict(res,s_comment='ID')
         active_vms = [v for v in vms if v.status == 'ACTIVE']
         paused_vms = [v for v in vms if v.status == 'PAUSED']
-        self.resources['active_flavors'] = {f.name: self._count_vms(f.id,
-                                                                    active_vms)
-                                            for f in flavors
-                                            if self._count_vms(f.id,
-                                                               active_vms)}
-
-        self.resources['paused_flavors'] = {f.name: self._count_vms(f.id,
+        active_flavors = {f.name: self._count_vms(f.id, active_vms)
+                          for f in flavors
+                          if self._count_vms(f.id, active_vms)}
+        self.resources['active_flavors'] = self.repr_dict(
+            active_flavors, s_comment='Flavor', m_comment='Used by', e_comment='VMs')
+        paused_flavors = {f.name: self._count_vms(f.id,
                                                                     paused_vms)
                                             for f in flavors
                                             if self._count_vms(f.id,
                                                                paused_vms)}
-
-        all_keys = [k for k in self.resources['active_flavors'].keys()
-                    + self.resources['paused_flavors'].keys()]
-        total_usage = {
-            k: self.resources['active_flavors'].get(k) or 0
-            + self.resources['paused_flavors'].get(k) or 0
-            for k in all_keys}
+        self.resources['paused_flavors'] = self.repr_dict(
+            active_flavors, s_comment='Flavor', m_comment='Used by', e_comment='VMs')
+        all_keys = [k for k in active_flavors.keys() +
+                    paused_flavors.keys()]
+        total_usage = []
+        for k in all_keys:
+            total_usage.append({
+                k:active_flavors.get(k) or 0 + paused_flavors.get(k) or 0 })
 
         most_used = self._count_usage(total_usage)
-        self.resources['most_used_flavors'] = most_used
+
+        self.resources['most_used_flavors'] = self.repr_dict(
+            most_used, s_comment='Flavor', m_comment='used by', e_comment='VMs')
         LOG.debug('Flavor usage statistic successfully collected')
 
     def get_volume_data(self):
@@ -303,21 +342,33 @@ class GeneralResourceSearch(ResourceSearch):
             LOG.error('Failed connect to the cinder, '
                       'report will be incomplete')
             return
+        res_volumes = [
+            {'10Gb': 0},
+            {'50Gb': 0},
+            {'100Gb': 0},
+            {'500Gb': 0},
+            {'500Gb': 0},
+         ]
         for v in volumes:
             if v.status == 'in-use':
                 if v.size < 10:
-                    self.resources['volumes']['<10Gb'] += 1
+                    res_volumes[0]['10Gb'] += 1
                 elif v.size < 50:
-                    self.resources['volumes']['<50Gb'] += 1
+                    res_volumes[1]['50Gb'] += 1
                 elif v.size < 100:
-                    self.resources['volumes']['<100Gb'] += 1
+                    res_volumes[2]['100Gb'] += 1
                 elif v.size < 500:
-                    self.resources['volumes']['<500Gb'] += 1
+                    res_volumes[3]['500Gb'] += 1
                 else:
-                    self.resources['volumes']['>500Gb'] += 1
+                    res_volumes[4]['500Gb'] += 1
+        self.resources['volumes'] = self.repr_list_dict(
+            res_volumes[:-1], m_comment=' volumes less than', e_comment='size')
+        self.resources['volumes'] += ' %s volumes is bigger than 500Gb size' % \
+                                     res_volumes[4]['500Gb']
 
-        most_used = self._count_usage(self.resources['volumes'])
-        self.resources['most_used_volumes'] = most_used
+        most_used = self._count_usage(res_volumes)
+        self.resources['most_used_volumes'] = self.repr_dict(
+            most_used, m_comment='of volumes has size, less than', direct_order=False)
         unused = sum([v.size for v in volumes if v.status != 'in-use'])
         full_size = sum([v.size for v in volumes])
         if full_size:
@@ -340,25 +391,38 @@ class GeneralResourceSearch(ResourceSearch):
         vms = self.novaclient.servers.list()
         used_size_id = [v.image['id'] for v in vms]
         used_size = [i for i in all_images if i.id in used_size_id]
+        res_images = [
+            {'10Gb': 0},
+            {'50Gb': 0},
+            {'100Gb': 0},
+            {'500Gb': 0},
+            {'500Gb': 0},
+         ]
+
         for i in used_size:
             if i.size < 10 * 1000000000:
-                self.resources['images']['<10Gb'] += 1
+                res_images[0]['10Gb'] += 1
             elif i.size < 50 * 1000000000:
-                self.resources['images']['<50Gb'] += 1
+                res_images[1]['50Gb'] += 1
             elif i.size < 100 * 1000000000:
-                self.resources['images']['<100Gb'] += 1
+                res_images[2]['100Gb'] += 1
             elif i.size < 500 * 1000000000:
-                self.resources['images']['<500Gb'] += 1
+                res_images[3]['500Gb'] += 1
             else:
-                self.resources['images']['>500Gb'] += 1
-        most_used = self._count_usage(self.resources['images'])
-        self.resources['most_used_images'] = most_used
+                res_images[4]['500Gb'] += 1
+        self.resources['images'] = self.repr_list_dict(res_images[:-1])
+        self.resources['images'] += ' %s images is bigger than 500Gb size' % \
+                                     res_images[4]['500Gb']
 
+        most_used = self._count_usage(res_images)
+
+        self.resources['most_used_images'] = self.repr_dict(
+            most_used, m_comment='of images has size, less than', direct_order=False)
         # Need it because glance returns generator
         all_images = self.glanceclient.images.list()
         full_size = sum([i.size for i in all_images if i.size])
         if full_size:
-            unused = sum(self.resources['images'].itervalues()
+            unused = sum([i.size for i in used_size]
                          ) * 100 / full_size
         else:
             unused = 100
@@ -398,8 +462,12 @@ class GeneralResourceSearch(ResourceSearch):
 
     def fill_the_template(self):
         path = os.path.join(os.path.dirname(__file__),
-                            'statistic_template.txt')
+                            'statistic_template.html')
         temp = open(path, 'r')
-        template = temp.read()
+        general_temp = temp.read()
         temp.close()
-        return template.format(**self.resources)
+        template = Template(general_temp)
+        resource_dict = dict((RESOURCE_MAP[k], v) for k, v in self.resources.iteritems())
+        res = template.render(result=resource_dict)
+
+        return res
