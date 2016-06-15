@@ -79,19 +79,21 @@ class Node2NodeSpeed(object):
         ssh_key = GET(self.config, 'ssh_key', 'auth')
         # Creating tunnel for current node
         subprocess.call(
-            'ssh -i %s -4 -f -N -L %s:%s:22 root@%s &' % (ssh_key,
-                                                          self.port_n,
-                                                          self.node_name,
-                                                          controller_ip),
+            'ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '
+            '-i %s -4 -f -N -L %s:%s:22 root@%s &' % (ssh_key,
+                                                      self.port_n,
+                                                      self.node_name,
+                                                      controller_ip),
             shell=True)
         self.set_ssh_connection('localhost', self.port_n, self.node_name)
         # Creating tunnels for test nodes
         for i, test_node in enumerate(self.test_nodes):
             subprocess.call(
-                'ssh -i %s -4 -f -N -L %s:%s:22 root@%s' % (ssh_key,
-                                                            self.port_pool[i],
-                                                            test_node,
-                                                            controller_ip),
+                'ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '
+                '-i %s -4 -f -N -L %s:%s:22 root@%s' % (ssh_key,
+                                                        self.port_pool[i],
+                                                        test_node,
+                                                        controller_ip),
                 shell=True)
             self.set_ssh_connection('localhost', self.port_pool[i], test_node)
 
@@ -101,9 +103,6 @@ class Node2NodeSpeed(object):
         username = 'root'
         ssh_key = GET(self.config, 'ssh_key', 'auth')
         rsa_key = paramiko.RSAKey.from_private_key_file(ssh_key)
-        # TODO (raliev): There is a problem if controller host key not exist
-        # TODO (raliev): in known_hosts file. Need to use AutoAdd Policy,
-        # TODO (raliev): but it's unavailable in Transport class.
 
         conn = False
         for i in range(0, 20):
