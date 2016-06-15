@@ -12,15 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 # Enables DEBUG logging
 DEBUG = False
 
-# Project description
+# Project name and name of executable file of Consoler
 PROJECT_NAME = "mcvconsoler"
 
+# Description of Consoler (for CLI)
 PROJECT_DESCRIPTION = """The main tool in Mirantis Cloudvalidation Project."""
 
+# Help message for Consoler CLI
 RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
 
     # mcvconsoler --run group quick
@@ -31,6 +32,10 @@ RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
 
     ...and in the darkness bind them, in the cloud where the instances lie."""
 
+# Folder name where Consoler will search for installed plugins.
+PLUGINS_DIR_NAME = 'plugins'
+
+# Path to default config file for Consoler
 DEFAULT_CONFIG_FILE = "/etc/mcv/mcv.conf"
 
 # Default value is max_failed_tests is missed in MCV configuration file
@@ -39,12 +44,12 @@ DEFAULT_FAILED_TEST_LIMIT = 10
 # List of supported MOS versions
 MOS_VERSIONS = ['6.1', '7.0', '8.0']
 
-# thees are used when verifying that docker images are up and running
+# Options used while verifying that docker images are up and running
 DOCKER_REQUIRED_IMAGES = ("mcv-rally", "mcv-shaker", "mcv-ostf", 'mcv-tempest')
 DOCKER_LOADING_IMAGE_TIMEOUT = 60 * 20  # 20 min
 DOCKER_CHECK_INTERVAL = 20
 
-# Default value for 'attempts' parameter to measure object/storage speed
+# Default value for 'attempts' parameter to measure object/block storage speed
 SPEED_STORAGE_ATTEMPTS_DEFAULT = 3
 
 # Default threshold value for speed tests
@@ -56,7 +61,7 @@ DEFAULT_SHAKER_THRESHOLD = 7
 # Prefix for keys for generating shaker-report ('network_speed.html')
 SHAKER_REPORT_KEYS = ['tcp_download', 'bandwidth', 'tcp_upload']
 
-# Rally config
+# Options for Rally Workload Tasks
 SAHARA_IMAGE_PATH80 = '/home/mcv/toolbox/rally/images/sahara-liberty-vanilla-2.7.1-ubuntu-14.04.qcow2'
 SAHARA_IMAGE_PATH70 = '/home/mcv/toolbox/rally/images/sahara-kilo-vanilla-2.6.0-ubuntu-14.04.qcow2'
 TERASORT_JAR_PATH = 'file:///mcv/images/hadoop-mapreduce-examples-2.7.1.jar'
@@ -65,3 +70,26 @@ MOS_HADOOP_MAP = {
     '7.0': '2.6.0',
     '8.0': '2.7.1'
 }
+
+# Default timeout for SSH connection, sec
+DEFAULT_SSH_TIMEOUT = 10
+
+# Default path to RSA key on MCV host
+DEFAULT_RSA_KEY_PATH = "/home/mcv/toolbox/keys/id_rsa"
+
+# Default path to file with credentials received from the cloud
+DEFAULT_CREDS_PATH = "/home/mcv/toolbox/keys/openrc"
+
+#
+# Configuration for SSH tunneling
+#
+
+# Local port at MCV host to make a tunnel to controller node
+MCV_LOCAL_PORT = 2222
+
+# Remote port at controller node to make a tunnel.
+# For now, we need an SSH standard port.
+RMT_CONTROLLER_PORT = 22
+
+# User on any controller to be used for reaching openrc
+RMT_CONTROLLER_USER = 'root'

@@ -24,6 +24,7 @@ import traceback
 
 from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
+from mcv_consoler.common.config import PLUGINS_DIR_NAME
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.logger import LOG
@@ -39,7 +40,7 @@ class Consoler(object):
         self.config = config
         self.args = args
         self.all_time = 0
-        self.plugin_dir = "plugins"
+        self.plugin_dir = PLUGINS_DIR_NAME
         self.failure_indicator = CAError.NO_ERROR
         self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
         self.group_name = None
