@@ -406,7 +406,7 @@ class IRouter(Router):
             return
         cmd = "sudo iptables -L -n -t nat --line-numbers " \
               "| grep MCV_instance 1>/dev/null && echo YES || echo NO"
-        out = utils.run_cmd(cmd)
+        out = utils.run_cmd(cmd).strip()
         if out == 'NO':
             destination = "%s:7654" % self.os_data["ips"]["controller"]
             # TODO(albartash): rewrite with run_cmd()
