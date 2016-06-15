@@ -38,6 +38,10 @@ class ResourceReportRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
+
         result = super(ResourceReportRunner, self).run_batch(tasks, *args,
                                                              **kwargs)
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))

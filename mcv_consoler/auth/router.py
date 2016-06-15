@@ -405,8 +405,8 @@ class IRouter(Router):
             LOG.debug("Local iptables rule is set.")
             return
         cmd = "sudo iptables -L -n -t nat --line-numbers " \
-              "| grep MCV_instance 1>/dev/null && echo YES || echo NO"
-        out = utils.run_cmd(cmd).strip()
+              "| grep MCV_instance 1>/dev/null && echo -n YES || echo -n NO"
+        out = utils.run_cmd(cmd)
         if out == 'NO':
             destination = "%s:7654" % self.os_data["ips"]["controller"]
             # TODO(albartash): rewrite with run_cmd()

@@ -104,6 +104,10 @@ class SpeedTestRunner(run.Runner):
         res = {'test_failures': 1, 'test_success': 0, 'test_not_found': 0}
         LOG.info('Threshold is %s Mb/s\n' % self.threshold)
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
+
         try:
             self.node_ids = self._prepare_vms()
             res = super(SpeedTestRunner, self).run_batch(tasks,

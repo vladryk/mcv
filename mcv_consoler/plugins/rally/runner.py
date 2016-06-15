@@ -656,6 +656,10 @@ class RallyOnDockerRunner(RallyRunner):
     def run_batch(self, tasks, *args, **kwargs):
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         self._setup_rally_on_docker()
+
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
+
         result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
         self.cleanup_fedora_image()
         self.cleanup_test_flavor()

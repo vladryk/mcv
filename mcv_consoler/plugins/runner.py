@@ -29,6 +29,7 @@ from mcv_consoler.common.errors import ResourceError
 from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.common.errors import TempestError
+from mcv_consoler.common.test_discovery import discovery
 
 from mcv_consoler.logger import LOG
 from mcv_consoler import utils
@@ -47,6 +48,10 @@ class Runner(object):
         self.time_of_tests = {}
         self.failure_indicator = CAError.NO_RUNNER_ERROR
         super(Runner, self).__init__()
+
+    @property
+    def discovery(self):
+        return discovery.use(self.identity)
 
     def run_individual_task(self, task, *args, **kwargs):
         raise NotImplementedError

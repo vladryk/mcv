@@ -163,36 +163,7 @@ class OSTFOnDockerRunner(runner.Runner):
                 LOG.debug("OSTF container status: " + status)
                 break
 
-    def check_task(self, task):
-
-        if ':' in task:
-            _cmd = 'list_plugin_tests'
-        else:
-            _cmd = 'list_plugin_suites'
-
-        cmd = ('docker exec -t {cid} '
-               '/mcv/execute.sh fuel-ostf.{mos_version} '
-               '"cloudvalidation-cli cloud-health-check {cmd} '
-               '--validation-plugin fuel_health"'
-               ).format(cid=self.container,
-                        mos_version=self.mos_version,
-                        cmd=_cmd)
-
-        p = utils.run_cmd(cmd, quiet=True)
-        result = p.split("\n")
-        task_re = re.compile('\.%s\s+' % task)
-        line = ""
-        for line in result:
-            if task_re.search(line):
-                break
-        line = line.split("|")[2].replace(" ", "")
-        return line
-
     def _run_ostf_on_docker(self, task):
-        task = self.check_task(task)
-        if task is None:
-            self.not_found.append(task)
-            return
 
         # The task can be either a test or suite
         if ':' in task:
@@ -271,6 +242,12 @@ class OSTFOnDockerRunner(runner.Runner):
 
         time_start = datetime.datetime.utcnow()
         LOG.info("Time start: %s UTC\n" % str(time_start))
+
+        v = self.mos_version
+        cid = self.container_id
+
+        tasks, missing = self.discovery(cid, v).match(tasks)
+        self.not_found.extend(missing)
 
         for task in tasks:
             self.run_individual_task(task, *args, **kwargs)

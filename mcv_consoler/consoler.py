@@ -27,6 +27,7 @@ from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.config import PLUGINS_DIR_NAME
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
+from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler.logger import LOG
 from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section
@@ -60,21 +61,14 @@ class Consoler(object):
 
     def split_tests(self, runner, tests_str):
         res = list()
-        commented = list()
         lines = tests_str.split('\n')
         for line in lines:
-            if line[0] in ';#':  # ini file comments
-                commented.append(line.strip(','))
-                continue
             raw_tests = line.strip(', ').split(',')
-            tests = map(lambda s: s.strip(), raw_tests)
+            tests = map(str.strip, raw_tests)
             res.extend(tests)
         LOG.debug("Selected {n} tests for '{key}' runner: {tests}".format(
             n=len(res), key=runner, tests=', '.join(res)))
-        if commented:
-            LOG.debug("The following tests were filtered out for '{key}': "
-                      "{tests}".format(key=runner, tests=', '.join(commented)))
-        return res, commented
+        return res
 
     def do_custom(self, test_group):
         LOG.warning('Deprecation Warning: Tests is running, but the command is obsolete.'
@@ -115,19 +109,11 @@ class Consoler(object):
         the_one = dict(((test_group, test_name),))
         return self.dispatch_tests_to_runners(the_one, **kwargs)
 
-    def discover_test_suits(self):
-        # TODO(aovchinnikov): generalize discovery
-        scenario_dir = os.path.join(os.path.dirname(__file__), self.plugin_dir)
-        possible_places = map(lambda x: os.path.join(scenario_dir, x),
-                              os.listdir(scenario_dir))
-        per_component = [(x.split('/')[-1],
-                          os.listdir(os.path.join(x, "tests")))
-                         for x in filter(lambda x: os.path.isdir(x),
-                                         possible_places)]
-        per_component = dict(per_component)
-        for k, v in per_component.iteritems():
-            per_component[k] = ",".join(v)
-        return dict(per_component)
+    def do_full(self):
+        self.group_name = "Full"
+        LOG.info("Starting full check run.")
+        test_dict = discovery.get_all_tests()
+        return self.dispatch_tests_to_runners(test_dict)
 
     def seconds_to_time(self, s):
         h = s // 3600
@@ -212,8 +198,9 @@ class Consoler(object):
                                    path,
                                    config=self.config)
 
-                batch, commented = self.split_tests(key, test_dict[key])
-                runner.test_not_found.extend(commented)
+                batch = test_dict[key]
+                if isinstance(batch, basestring):
+                    batch = self.split_tests(key, batch)
 
                 LOG.debug("Running {batch} for {key}".format(
                           batch=str(len(batch)),
@@ -255,12 +242,6 @@ class Consoler(object):
                     dispatch_result[key]['batch'] = batch
 
         return dispatch_result
-
-    def do_full(self):
-        self.group_name = "Full"
-        LOG.info("Starting full check run.")
-        test_dict = self.discover_test_suits()
-        return self.dispatch_tests_to_runners(test_dict)
 
     def describe_results(self, results):
         """Pretty printer for results"""

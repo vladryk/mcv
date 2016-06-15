@@ -82,6 +82,10 @@ class NWSpeedTestRunner(run.Runner):
         return nodes
 
     def run_batch(self, tasks, *args, **kwargs):
+
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
+
         try:
             self.hw_nodes = self._prepare_nodes()
             res = super(NWSpeedTestRunner, self).run_batch(tasks,

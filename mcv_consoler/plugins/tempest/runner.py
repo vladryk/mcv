@@ -42,6 +42,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.config = kwargs["config"]
         self.path = path
         self.container = None
+        self.identity = 'tempest'
         self.failed_cases = 0
         self.home = '/mcv'
         self.homedir = '/home/mcv/toolbox/tempest'
@@ -306,6 +307,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
 
         self._setup_rally_on_docker()
+
+        # NOTE(ogrytsenko): only test-suites are discoverable for tempest
+        if not kwargs.get('run_by_name'):
+            cid = self.container_id
+            tasks, missing = self.discovery(cid).match(tasks)
+            self.test_not_found.extend(missing)
+
         t = []
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         for task in tasks:

@@ -433,6 +433,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.output = ''
         self.success = True
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
+
         result = super(ShakerOnDockerRunner, self).run_batch(
             tasks, *args, **kwargs)
         self._generate_report_network_speed(self.threshold,

@@ -35,6 +35,8 @@ class SelfCheckRunner(run.Runner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
         return super(SelfCheckRunner, self).run_batch(tasks, *args,
                                                       **kwargs)
 
