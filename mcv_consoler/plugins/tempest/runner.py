@@ -285,6 +285,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         first_run = True
         multiplier = 1.0
         current_time = 0
+        all_time -= elapsed_time
 
         try:
             max_failed_tests = int(self.config.get('tempest',
@@ -334,11 +335,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     first_run = False
                     if current_time:
                         multiplier = float(time.seconds) / float(current_time)
-                all_time -= (current_time + elapsed_time)
+                all_time -= current_time
                 persent = 1.0
                 if kwargs["all_time"]:
                     persent -= float(all_time) / float(kwargs["all_time"])
                 persent = int(persent * 100)
+                persent = 100 if persent > 100 else persent
 
                 line = 'Completed %s' % persent + '%'
                 time_to_string = self.seconds_to_time(all_time * multiplier)

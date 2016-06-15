@@ -151,6 +151,7 @@ class Runner(object):
         first_run = True
         multiplier = 1.0
         current_time = 0
+        all_time -= elapsed_time
 
         self._validate_test_params(**kwargs)
 
@@ -195,7 +196,7 @@ class Runner(object):
                     first_run = False
                     if current_time:
                         multiplier = float(time.seconds) / float(current_time)
-                all_time -= (current_time + elapsed_time)
+                all_time -= current_time
                 persent = 1.0
                 if kwargs["all_time"]:
                     persent -= float(all_time) / float(kwargs["all_time"])
