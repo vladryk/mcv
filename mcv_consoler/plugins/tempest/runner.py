@@ -233,6 +233,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         if res == '':
             LOG.debug("Results of test set '%s': FAILURE" % task)
             self.failure_indicator = TempestError.VERIFICATION_FAILED
+            self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
 
@@ -243,6 +244,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                       "FAILURE, gotten not-JSON object. "
                       "Please see logs" % task)
             LOG.debug("Not-JSON object: %s", res)
+            self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
 
@@ -251,9 +253,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         self.time_of_tests[task] = {'duration': time_of_tests}
 
         if self.task.get('tests', 0) == 0:
-            self.test_not_found.append(task)
-            LOG.debug("Task %s not found" % task)
-            LOG.info(" * NOT FOUND")
+            self.test_failures.append(task)
+            LOG.debug("Task was skipped. Perhaps the service "
+                      "is not working" % task)
+            LOG.info(" * FAILED")
             return False
 
         failures = self.task.get('failures')
