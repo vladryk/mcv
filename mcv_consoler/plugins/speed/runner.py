@@ -18,6 +18,9 @@ import os.path
 # TODO(albartash): replace with traceback2
 import traceback
 
+from flask_table import Table, Col
+from jinja2 import Template
+
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.logger import LOG
 import mcv_consoler.plugins.runner as run
@@ -27,6 +30,22 @@ from mcv_consoler.utils import GET
 import mcv_consoler.common.config as app_conf
 
 LOG = LOG.getLogger(__name__)
+
+
+class ObjTable(Table):
+    attempt = Col('ATTEMPT')
+    node = Col('NODE')
+    action = Col('ACTION')
+    speed = Col('RESULT')
+
+
+class BlockTable(Table):
+    attempt = Col('ATTEMPT')
+    type = Col('TYPE')
+    size = Col('BLOCK SIZE')
+    node = Col('NODE')
+    action = Col('ACTION')
+    result = Col('RESULT')
 
 
 class SpeedTestRunner(run.Runner):
@@ -126,12 +145,23 @@ class SpeedTestRunner(run.Runner):
                 # It just prevents us from 'No attribute __getitem__'
                 return res
 
-    def generate_report(self, html, task):
+    def generate_report(self, result, task):
         # Append last run to existing file for now.
         # Not sure how to fix this properly
         LOG.debug('Generating report in speed.html file')
+        # Form HTML report
+        if task == 'ObjectStorageSpeed':
+            table = ObjTable(result)
+        else:
+            table = BlockTable(result)
+        table_html = table.__html__()
+        path = os.path.join(os.path.dirname(__file__), 'storage_template.html')
+        temp = open(path, 'r').read()
+        template = Template(temp)
+        res = template.render(table=table_html)
+
         report = file('%s/%s.html' % (self.path, task), 'w')
-        report.write(html)
+        report.write(res)
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
@@ -158,13 +188,7 @@ class SpeedTestRunner(run.Runner):
             self.test_failures.append(task)
             return False
 
-        res_all = ("<!DOCTYPE html>\n"
-                   "<html lang=\"en\">\n"
-                   "<head>\n"
-                   "    <meta charset=\"UTF-8\">\n"
-                   "    <title></title>\n"
-                   "</head>\n"
-                   "<body>\n")
+        res_all = []
 
         r_average_all = []
         w_average_all = []
@@ -225,10 +249,8 @@ class SpeedTestRunner(run.Runner):
         self.time_of_tests[task] = {'duration': time_of_tests}
         r_av = round(sum(r_average_all) / len(r_average_all), 2)
         w_av = round(sum(w_average_all) / len(w_average_all), 2)
-        res_all += ('<br><h4> Overall average results: read - {} MB/s, '
-                    'write - {} MB/s:</h4>').format(r_av, w_av)
-
-        res_all += "</body>\n</html>"
+        LOG.info('Average read speed for all nodes is %s' % str(r_av))
+        LOG.info('Average write speed for all nodes is %s' % str(w_av))
         self.generate_report(res_all, task)
         if self._evaluate_task_results([r_av, w_av]):
             return True

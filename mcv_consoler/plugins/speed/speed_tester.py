@@ -14,7 +14,6 @@
 
 import json
 import math
-import os
 import paramiko
 import time
 
@@ -47,34 +46,6 @@ class BaseStorageSpeed(object):
         self.cinderclient = Clients.get_cinder_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
         LOG.debug('Authentication ends well')
-
-    def generate_report(self, storage, compute_name, r_res, w_res):
-        path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
-        temp = open(path, 'r')
-        template = temp.read()
-        temp.close()
-        r_res = [float(self.size) / i for i in r_res]
-        r_average = round(sum(r_res) / float(len(r_res)), 2)
-        read = ''
-        for i in range(len(r_res)):
-            read += ('<tr><td>{} attempt:</td><td align="right">Speed '
-                     '{} MB/s</td><tr>\n').format(i + 1, round(r_res[i], 2))
-        w_res = [float(self.size) / i for i in w_res]
-        w_average = round(sum(w_res) / float(len(w_res)), 2)
-        write = ''
-        for i in range(len(w_res)):
-            write += ('<tr><td>{} attempt:</td><td align="right">Speed '
-                      '{} MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
-
-        LOG.info("Compute %s average results:" % compute_name)
-        LOG.info("Read %s MB/s" % r_average)
-        LOG.info("Write %s MB/s\n" % w_average)
-        return template.format(read=read,
-                               storage=storage,
-                               compute=compute_name,
-                               write=write,
-                               r_average=r_average,
-                               w_average=w_average), r_average, w_average
 
     def get_test_vm(self, node_id):
         vm = self.novaclient.servers.find(id=node_id)
@@ -238,84 +209,97 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     def generate_report(self, storage, compute_name, r_res, w_res, r_res_thr,
                         w_res_thr, r_res_iop, w_res_iop):
-        path = os.path.join(os.path.dirname(__file__),
-                            'block_speed_template.html')
-        temp = open(path, 'r')
-        template = temp.read()
-        temp.close()
-
         # Default
         r_res = [float(self.size) / i for i in r_res]
         r_average = round(sum(r_res) / float(len(r_res)), 2)
         read = ''
+        resulting_list = []
         for i in range(len(r_res)):
-            read += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                     'MB/s</td><tr>\n').format(i + 1, round(r_res[i], 2))
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='read', result=r_res[i],
+                     type='general', size=self.size))
+        resulting_list.append(
+                dict(node=compute_name, attempt='general average',
+                     action='read', result=r_average,
+                     type='general', size=self.size))
         w_res = [float(self.size) / i for i in w_res]
         w_average = round(sum(w_res) / float(len(w_res)), 2)
         write = ''
         for i in range(len(w_res)):
-            write += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                      'MB/s</td><tr>\n').format(i + 1, round(w_res[i], 2))
-
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='write', result=w_res[i],
+                     type='general', size=self.size))
+        resulting_list.append(
+                dict(node=compute_name, attempt='general average',
+                     action='read', result=w_average,
+                     type='general', size=self.size))
         # Throughput
         r_res_thr = [float(self.thr_size) / i for i in r_res_thr]
         r_average_thr = round(sum(r_res_thr) / float(len(r_res_thr)), 2)
         read_thr = ''
         for i in range(len(r_res_thr)):
-            read_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i + 1,
-                                                    round(r_res_thr[i], 2))
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='read', result=r_res_thr[i],
+                     type='throughput', size=self.thr_size))
+        resulting_list.append(
+                dict(node=compute_name, attempt='average throughput',
+                     action='read', result=r_average_thr,
+                     type='throughput', size=self.thr_size))
         w_res_thr = [float(self.thr_size) / i for i in w_res_thr]
         w_average_thr = round(sum(w_res_thr) / float(len(w_res_thr)), 2)
         write_thr = ''
         for i in range(len(w_res_thr)):
-            write_thr += ('<tr><td>{} attempt:</td><td align="right">Speed {} '
-                          'MB/s</td><tr>\n').format(i + 1,
-                                                    round(w_res_thr[i], 2))
-
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='write', result=w_res_thr[i],
+                     type='throughput', size=self.thr_size))
+        resulting_list.append(
+                dict(node=compute_name, attempt='average throughput',
+                     action='write', result=r_average_thr,
+                     type='throughput', size=self.thr_size))
         # IOPs
         r_res_iop = [float(self.size) / i for i in r_res_iop]
         r_average_iop = round(sum(r_res_iop) / float(len(r_res_iop)), 2)
         read_iop = ''
         for i in range(len(r_res_iop)):
-            read_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                         ' MB/s</td><tr>\n').format(i + 1,
-                                                    round(r_res_iop[i], 2))
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='read', result=r_res_iop[i],
+                     type='IOPs', size='4Kb'))
+        resulting_list.append(
+                dict(node=compute_name, attempt='average IOPs',
+                     action='read', result=r_average_iop,
+                     type='IOPs', size='4Kb'))
         w_res_iop = [float(self.size) / i for i in w_res_iop]
         w_average_iop = round(sum(w_res_iop) / float(len(w_res_iop)), 2)
         write_iop = ''
         for i in range(len(w_res_iop)):
-            write_iop += ('<tr><td>{} attempt:</td><td align="right">Speed {}'
-                          ' MB/s</td><tr>\n').format(i + 1,
-                                                     round(w_res_iop[i], 2))
-
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='write', result=w_res_iop[i],
+                     type='IOPs', size='4Kb'))
+        resulting_list.append(
+                dict(node=compute_name, attempt='average IOPs',
+                     action='write', result=w_average_iop,
+                     type='IOPs', size='4Kb'))
         # Average
         r_res_all = r_res + r_res_thr + r_res_iop
         w_res_all = w_res + w_res_thr + w_res_iop
         r_av_all = round(sum(r_res_all) / len(r_res_all), 2)
         w_av_all = round(sum(w_res_all) / len(w_res_all), 2)
+        resulting_list.append(
+                dict(node=compute_name, attempt='average',
+                     action='write', result=w_av_all,
+                     type='All', size='All'))
+        resulting_list.append(
+                dict(node=compute_name, attempt='average',
+                     action='read', result=r_av_all,
+                     type='All', size='All'))
 
-        LOG.info("Compute %s average results:" % compute_name)
-        LOG.info("Read %s MB/s" % r_av_all)
-        LOG.info("Write %s MB/s\n" % w_av_all)
-
-        return template.format(read=read,
-                               storage=storage,
-                               compute=compute_name,
-                               write=write,
-                               r_average=r_average,
-                               w_average=w_average,
-                               read_thr=read_thr,
-                               write_thr=write_thr,
-                               r_average_thr=r_average_thr,
-                               w_average_thr=w_average_thr,
-                               read_iop=read_iop,
-                               write_iop=write_iop,
-                               r_average_iop=r_average_iop,
-                               w_average_iop=w_average_iop,
-                               r_av_all=r_av_all,
-                               w_av_all=w_av_all), r_av_all, w_av_all
+        return resulting_list, r_av_all, w_av_all
 
     def drop_cache(self):
         self.run_ssh_cmd('sync; sudo /sbin/sysctl -w vm.drop_caches=3')
@@ -617,9 +601,42 @@ class ObjectStorageSpeed(BaseStorageSpeed):
             self.delete_image(image_id,
                               self.get_token() if self.is_expired() else token)
             time.sleep(1)
+
         self.cleanup(node_id)
         return self.generate_report('Object', compute_name, r_res, w_res)
 
     def cleanup(self, node_id):
         images = self.novaclient.images.findall(name='speedtest')
         [image.delete() for image in images]
+
+    def generate_report(self, storage, compute_name, r_res, w_res):
+        resulting_list = []
+        # Calculate read speed, fill result with read data
+        r_res = [float(self.size) / i for i in r_res]
+        r_average = round(sum(r_res) / float(len(r_res)), 2)
+        for i in range(len(r_res)):
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='read', size=self.size, speed=r_res[i]))
+
+        # Calculate write speed, fill result with write data
+        w_res = [float(self.size) / i for i in w_res]
+        w_average = round(sum(w_res) / float(len(w_res)), 2)
+        for i in range(len(w_res)):
+            resulting_list.append(
+                dict(node=compute_name, attempt=i+1,
+                     action='write', size=self.size, speed=w_res[i]))
+
+        # Add average values
+        resulting_list.append(
+            dict(node=compute_name, attempt='average',
+                 action='write', size=self.size, speed=w_average))
+        resulting_list.append(
+            dict(node=compute_name, attempt='average',
+                 action='read', size=self.size, speed=r_average))
+
+        LOG.info("Compute %s average results:" % compute_name)
+        LOG.info("Read %s MB/s" % r_average)
+        LOG.info("Write %s MB/s\n" % w_average)
+
+        return resulting_list, r_average, w_average
