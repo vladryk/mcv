@@ -61,12 +61,14 @@ class Consoler(object):
     def split_tests(self, runner, tests_str):
         res = list()
         commented = list()
-        test_list = tests_str.split()
-        for t in test_list:
-            if t[0] in ';#':  # ini file comments
-                commented.append(t.strip(','))
+        lines = tests_str.split('\n')
+        for line in lines:
+            if line[0] in ';#':  # ini file comments
+                commented.append(line.strip(','))
                 continue
-            res.append(t.strip(','))
+            raw_tests = line.strip(', ').split(',')
+            tests = map(lambda s: s.strip, raw_tests)
+            res.extend(tests)
         LOG.debug("Selected {n} tests for '{key}' runner: {tests}".format(
             n=len(res), key=runner, tests=', '.join(res)))
         if commented:
