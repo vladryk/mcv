@@ -254,7 +254,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         if self.task.get('tests', 0) == 0:
             self.test_failures.append(task)
-            LOG.debug("Task was skipped. Perhaps the service "
+            LOG.debug("Task '%s' was skipped. Perhaps the service "
                       "is not working" % task)
             LOG.info(" * FAILED")
             return False
