@@ -147,16 +147,23 @@ class Preparer(object):
         self._check_instances(server_ids)
         if not server_ids:
             return None
+        network_name = utils.GET(
+                 self.config, 'network_ext_name', 'network_speed'
+                ) or self.nova.floating_ip_pools.list()[0].name
 
-        for server_id in server_ids:
+        server_ids_copy = server_ids[:]
+
+        for server_id in server_ids_copy:
             server = self._get_server(server_id)
             if server is None:
                 server_ids.remove(server_id)
                 continue
-
-            floating_ip = self.nova.floating_ips.create(
-                self.nova.floating_ip_pools.list()[0].name)
-            server.add_floating_ip(floating_ip)
+            try:
+                floating_ip = self.nova.floating_ips.create(network_name)
+                server.add_floating_ip(floating_ip)
+            except Exception:
+                server_ids.remove(server_id)
+                LOG.error("Can't create floating IP from pool")
 
         if server_ids:
             LOG.debug('%s instances is running and ready' % len(server_ids))

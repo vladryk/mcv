@@ -173,7 +173,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 endpoint=self.access_data["ips"]["endpoint"])
 
         network_name = utils.GET(
-            self.config, 'network_ext_name', 'shaker') or ""
+            self.config, 'network_ext_name', 'network_speed') or ""
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
