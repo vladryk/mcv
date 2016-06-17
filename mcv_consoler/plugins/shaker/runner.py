@@ -395,6 +395,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         else:
             LOG.info('Average speed is less than threshold')
             LOG.info(' * FAILED')
+        LOG.info('-' * 60)
 
         speed = ''
         node = ''
