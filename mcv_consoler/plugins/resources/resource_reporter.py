@@ -282,10 +282,10 @@ class GeneralResourceSearch(ResourceSearch):
         res = ''
         for k, v in rdict.iteritems():
             if direct_order:
-                res += '%s %s: %s %s %s<br>' % \
+                res += '%s %s %s %s %s<br>' % \
                        (s_comment, k, m_comment, str(v), e_comment)
             else:
-                res += '%s %s: %s %s %s<br>' % \
+                res += '%s %s %s %s %s<br>' % \
                        (s_comment, str(v), m_comment, k, e_comment)
         return res
 
@@ -293,7 +293,7 @@ class GeneralResourceSearch(ResourceSearch):
         res = ''
         for d in rlist:
             for k, v in d.iteritems():
-                res += '%s %s: %s %s %s<br>' % \
+                res += '%s %s %s %s %s<br>' % \
                        (s_comment, str(v), m_comment, k, e_comment)
         return res
 
@@ -389,7 +389,7 @@ class GeneralResourceSearch(ResourceSearch):
             return
 
         vms = self.novaclient.servers.list()
-        used_size_id = [v.image['id'] for v in vms]
+        used_size_id = [v.image['id'] for v in vms if v.image]
         used_size = [i for i in all_images if i.id in used_size_id]
         res_images = [
             {'10Gb': 0},
@@ -410,7 +410,8 @@ class GeneralResourceSearch(ResourceSearch):
                 res_images[3]['500Gb'] += 1
             else:
                 res_images[4]['500Gb'] += 1
-        self.resources['images'] = self.repr_list_dict(res_images[:-1])
+        self.resources['images'] = self.repr_list_dict(
+            res_images[:-1], m_comment=' images less than', e_comment='size')
         self.resources['images'] += ' %s images is bigger than 500Gb size' % \
                                      res_images[4]['500Gb']
 
