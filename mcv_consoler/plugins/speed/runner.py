@@ -155,10 +155,10 @@ class SpeedTestRunner(run.Runner):
         else:
             table = BlockTable(result)
         table_html = table.__html__()
-        path = os.path.join(os.path.dirname(__file__), 'storage_template.html')
+        path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
         temp = open(path, 'r').read()
         template = Template(temp)
-        res = template.render(table=table_html)
+        res = template.render(table=table_html, name=task)
 
         report = file('%s/%s.html' % (self.path, task), 'w')
         report.write(res)

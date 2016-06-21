@@ -1,17 +1,23 @@
-<h1> {storage} storage read/write statistic for compute node {compute}:</h1>
-<h4>Read (download)</h4>
-  <table>
-    {read}
-  </table>
-<h4>Average read (download) speed:</h4>
-  <table>
-    {r_average} MB/s
-  </table>
-<h4>Write (upload)</h4>
-  <table>
-    {write}
-  </table>
-<h4>Average write (upload) speed:</h4>
-  <table>
-    {w_average} MB/s
-  </table>
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+table{
+    border: 2px solid black;
+    border-collapse: collapse;
+    width: 90%
+
+}
+th, td {
+    padding: 15px;
+    border: 1px solid black;
+}
+</style>
+</head>
+<body>
+<h1> MCV {{name}} test results</h1>
+
+{{table}}
+
+</body>
+</html>
