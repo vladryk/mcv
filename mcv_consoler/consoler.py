@@ -67,7 +67,7 @@ class Consoler(object):
                 commented.append(line.strip(','))
                 continue
             raw_tests = line.strip(', ').split(',')
-            tests = map(lambda s: s.strip, raw_tests)
+            tests = map(lambda s: s.strip(), raw_tests)
             res.extend(tests)
         LOG.debug("Selected {n} tests for '{key}' runner: {tests}".format(
             n=len(res), key=runner, tests=', '.join(res)))
