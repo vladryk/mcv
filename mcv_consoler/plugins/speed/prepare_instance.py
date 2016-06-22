@@ -107,7 +107,7 @@ class Preparer(object):
             if check_ids:
                 time.sleep(10)
 
-    def _launch_instances(self, flavor_req):
+    def _launch_instances(self, flavor_req, availability_zone):
         LOG.debug('Launch instances from cirros-image')
         image = self.nova.images.findall(name="cirros-image")[0]
         flavor = self._get_flavor(flavor_req)
@@ -123,7 +123,7 @@ class Preparer(object):
             raise RuntimeError
 
         compute_hosts = [host for host in self.nova.hosts.list(
-            zone='nova') if host.service == 'compute']
+            zone=availability_zone) if host.service == 'compute']
 
         if not compute_hosts:
             LOG.error('No compute hosts was found')
@@ -132,7 +132,7 @@ class Preparer(object):
         server_ids = []
 
         for compute_host in compute_hosts:
-            zone = 'nova:%s' % compute_host.host_name
+            zone = '%s:%s' % (availability_zone, compute_host.host_name)
             try:
                 server_ids.append(
                     self.nova.servers.create(name="speed-test",
@@ -195,6 +195,6 @@ class Preparer(object):
         if old_flavors:
             [old_flavor.delete() for old_flavor in old_flavors]
 
-    def prepare_instances(self, image_path, flavor_req):
+    def prepare_instances(self, image_path, flavor_req, availability_zone):
         self._check_image(image_path)
-        return self._launch_instances(flavor_req)
+        return self._launch_instances(flavor_req, availability_zone)

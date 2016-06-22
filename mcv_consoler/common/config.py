@@ -55,6 +55,9 @@ SPEED_STORAGE_ATTEMPTS_DEFAULT = 3
 # Default threshold value for speed tests
 DEFAULT_SPEED_STORAGE = 50
 
+# Image used for speed tests
+DEFAULT_CIRROS_IMAGE = '/home/mcv/toolbox/rally/images/cirros-0.3.1-x86_64-disk.img'
+
 # Default threshold value for Shaker
 DEFAULT_SHAKER_THRESHOLD = 7
 

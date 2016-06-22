@@ -85,24 +85,16 @@ class SpeedTestRunner(run.Runner):
 
     def _prepare_vms(self):
         preparer = self.get_preparer()
-        try:
-            image_path = self.config.get('speed', 'cirros_image_path')
-        except NoOptionError:
-            LOG.debug('Use default image path')
-            # TODO(albartash): extract it to common/config.py somehow
-            image_path = os.path.join(self.imagedir,
-                                      'cirros-0.3.1-x86_64-disk.img')
+        avail_zone = GET(self.config, 'availability_zone', 'speed', 'nova')
+        flavor_req = GET(self.config, 'flavor_req', 'speed', 'ram:64,vcpus:1')
+        image_path = GET(self.config, 'cirros_image_path', 'speed',
+                         app_conf.DEFAULT_CIRROS_IMAGE)
 
-        try:
-            flavor_req = self.config.get('speed', 'flavor_req')
-        except NoOptionError:
-            LOG.debug('Use default flavor requirements')
-            flavor_req = 'ram:64,vcpus:1'
         supported_req = ['ram', 'vcpus', 'disk']
         flavor_req = dict((k.strip(), int(v.strip())) for k, v in
                           (item.split(':') for item in flavor_req.split(',')
                            ) if (k and v) and (k in supported_req))
-        return preparer.prepare_instances(image_path, flavor_req)
+        return preparer.prepare_instances(image_path, flavor_req, avail_zone)
 
     def _remove_vms(self):
         preparer = self.get_preparer()
@@ -176,7 +168,8 @@ class SpeedTestRunner(run.Runner):
         try:
             speed_class = getattr(st, task)
         except AttributeError:
-            LOG.error('Incorrect task')
+            LOG.error('Incorrect task: %s' % task)
+            self.test_not_found.append(task)
             return False
         try:
             reporter = speed_class(self.access_data, image_size=i_s,

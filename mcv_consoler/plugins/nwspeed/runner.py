@@ -98,7 +98,8 @@ class NWSpeedTestRunner(run.Runner):
         try:
             speed_class = getattr(st, task)
         except AttributeError:
-            LOG.error('Incorrect task')
+            LOG.error('Incorrect task: %s' % task)
+            self.test_not_found.append(task)
             return False
         try:
             reporter = speed_class(self.access_data, *args, **kwargs)
