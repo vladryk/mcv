@@ -119,7 +119,7 @@ class ResourceSearch(object):
         for v in list_volumes:
             res.append(
                 {'id': v.id,
-                 'name': v.display_name,
+                 'name': v.name,
                  'other': 'Is bootable:' + str(v.bootable),
                  'status': v.status,
                  'type': 'volume'
