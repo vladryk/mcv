@@ -103,8 +103,8 @@ class ConfigValidator(object):
     """ Validate options needed to run a particular test scenario. Also
     checks a lis of scenario tests for the wrong syntax and missing commas
     """
-    _scenarios = 'single', 'custom', 'group', 'full'
-    _scenarios_info = 'single', 'custom (deprecated)', 'group', 'full'
+    _scenarios = 'single', 'custom', 'group', 'full', 'name'
+    _scenarios_info = 'single', 'custom (deprecated)', 'group', 'full', 'name'
 
     _runners = required_by_runner.keys()
 
