@@ -7,6 +7,9 @@
         image:
             name: "TestVM"
         volume_size: 10
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute * 9 }}

@@ -3,6 +3,9 @@
     -
       args:
         max_quota: 1024
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute }}

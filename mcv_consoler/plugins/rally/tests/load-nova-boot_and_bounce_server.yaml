@@ -15,6 +15,9 @@
             stop_start: 1
           -
             rescue_unrescue: 1
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute }}

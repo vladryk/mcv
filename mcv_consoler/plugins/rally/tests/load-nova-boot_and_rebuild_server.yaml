@@ -8,6 +8,9 @@
             name: "TestVM"
         to_image:
             name: "TestVM"
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: constant
         times: {{ compute * 2 }}

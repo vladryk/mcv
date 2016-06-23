@@ -8,6 +8,9 @@
         flavor:
             name: "m1.nano"
         number_instances: 1
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute }}

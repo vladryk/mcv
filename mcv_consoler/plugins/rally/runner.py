@@ -185,7 +185,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.glanceclient = Clients.get_glance_client(self.access_data)
         self.neutronclient = Clients.get_neutron_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
-
+        self.net_id = None
 
     def check_computes(self):
         # TODO(albartash): Do we really need this method?
@@ -409,6 +409,23 @@ class RallyOnDockerRunner(RallyRunner):
         f.write(rally_json_template % credentials)
         f.close()
 
+    def create_test_network(self):
+        if self.net_id:
+            return self.net_id
+        net = self.neutronclient.create_network(
+            body={'network':{'name': 'mcv-test-network'}})
+        self.net_id = net['network']['id']
+        self.neutronclient.create_subnet(
+            body={'subnet':
+                      {'network_id': self.net_id,
+                       'cidr': '10.5.0.0/24',
+                       'name': 'mcv-test-subnet',
+                       'ip_version': 4}})
+        return self.net_id
+
+    def cleanup_network(self):
+        self.neutronclient.delete_network(self.net_id)
+
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
         res = subprocess.Popen(["docker", "exec", "-t",
@@ -532,7 +549,7 @@ class RallyOnDockerRunner(RallyRunner):
             gre_enabled = utils.GET(self.config, 'gre_enabled', 'rally')
             vlan_amount = utils.GET(self.config, 'vlan_amount', 'rally')
             concurrency = utils.GET(self.config, 'concurrency', 'rally')
-
+            network = self.create_test_network()
             if isinstance(concurrency, basestring):
                 concurrency = int(concurrency)
 
@@ -541,6 +558,7 @@ class RallyOnDockerRunner(RallyRunner):
                          "current_path": os.path.join(self.home, 'tests'),
                          "gre_enabled": gre_enabled,
                          "vlan_amount": vlan_amount,
+                         'network': network
                          }
 
             cmd = self.create_cmd_for_task(location, task_args)
@@ -638,6 +656,7 @@ class RallyOnDockerRunner(RallyRunner):
         result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
         self.cleanup_fedora_image()
         self.cleanup_test_flavor()
+        self.cleanup_network()
         LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
         return result
 

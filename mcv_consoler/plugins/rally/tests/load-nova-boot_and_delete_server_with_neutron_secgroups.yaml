@@ -8,6 +8,9 @@
             name: "TestVM"
         security_group_count: 10
         rules_per_security_group: 10
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ 10 * compute }}

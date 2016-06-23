@@ -6,6 +6,9 @@
             name: "m1.nano"
         image:
             name: "TestVM"
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute * 20 }}

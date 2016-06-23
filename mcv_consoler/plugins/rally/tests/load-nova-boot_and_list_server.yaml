@@ -7,6 +7,9 @@
         image:
             name: "TestVM"
         detailed: True
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute * 20 }}

@@ -9,6 +9,9 @@
         to_flavor:
             name: "m1.small"
         confirm: true
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: {{ compute * 20 }}

@@ -10,6 +10,9 @@
         script: "/opt/stack/rally-scenarios/vm/instance_metadata.sh"
         interpreter: "/bin/sh"
         username: "cirros"
+        nic:
+          -
+            net-id: {{ network }}
       runner:
         type: "constant"
         times: 50
