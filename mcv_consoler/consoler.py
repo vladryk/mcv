@@ -107,6 +107,14 @@ class Consoler(object):
         the_one = dict(((test_group, test_name),))
         return self.dispatch_tests_to_runners(the_one)
 
+    def do_name(self, test_group, test_name):
+        """Run specific test by name.
+        """
+        kwargs = {'run_by_name': True}
+        self.group_name = test_group
+        the_one = dict(((test_group, test_name),))
+        return self.dispatch_tests_to_runners(the_one, **kwargs)
+
     def discover_test_suits(self):
         # TODO(aovchinnikov): generalize discovery
         scenario_dir = os.path.join(os.path.dirname(__file__), self.plugin_dir)
@@ -221,7 +229,9 @@ class Consoler(object):
                         db=db,
                         all_time=self.all_time,
                         elapsed_time=elapsed_time_by_group[key],
-                        test_group=kwargs.get('testgroup'))
+                        test_group=kwargs.get('testgroup'),
+                        run_by_name=kwargs.get('run_by_name', False)
+                    )
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == CAError.NO_ERROR:

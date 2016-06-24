@@ -162,6 +162,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.debug("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
         install = glob.glob(self.homedir + '/for-deployment-*')
+        run_by_name = kwargs.get('run_by_name')
         if not install:
             LOG.info("No Tempest installation found. Installing tempest...")
             cmd = ("docker exec -t {cid} "
@@ -178,11 +179,19 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             if not cirros:
                 self.copy_tempest_image()
         LOG.debug("Starting verification")
-        cmd = ("docker exec -t {cid} rally "
-               "--log-file {home}/log/tempest.log --rally-debug"
-               " verify start --set {_set}").format(cid=self.container_id,
-                                                    home=self.home,
-                                                    _set=task)
+
+        if run_by_name:
+            cmd = ("docker exec -t {cid} rally "
+                   "--log-file {home}/log/tempest.log --rally-debug"
+                   " verify start --regex {_set}").format(cid=self.container_id,
+                                                          home=self.home,
+                                                          _set=task)
+        else:
+            cmd = ("docker exec -t {cid} rally "
+                   "--log-file {home}/log/tempest.log --rally-debug"
+                   " verify start --set {_set}").format(cid=self.container_id,
+                                                        home=self.home,
+                                                        _set=task)
         p = utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify list".format(
