@@ -477,7 +477,8 @@ class RallyOnDockerRunner(RallyRunner):
         args["use_existing_users"] = False
         args["flavor_name"] = "m1.tiny"
         args["image_name"] = "^(cirros.*uec|TestVM)$"
-        args["glance_image_location"] = ""
+        args["glance_image_location"] = os.path.join(
+            self.home, 'images/cirros-0.3.1-x86_64-disk.img')
         args["service_list"] = utils.GET(self.config,
                                          'services',
                                          'certification').split(',')
