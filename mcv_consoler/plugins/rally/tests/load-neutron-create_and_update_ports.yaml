@@ -12,7 +12,7 @@
             name: "_port_updated"
       runner:
         type: "constant"
-        times: {{ vlan_amount if (not gre_enabled and compute * 2 > vlan_amount) else compute * 2 }}
+        times: {{ vlan_amount if (not gre_enabled and compute > vlan_amount) else compute }}
         concurrency: {{ concurrency }}
       context:
         users:

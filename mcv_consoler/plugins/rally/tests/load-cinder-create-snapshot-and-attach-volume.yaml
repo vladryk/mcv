@@ -8,7 +8,7 @@
             max: 5
       runner:
         type: "constant"
-        times: {{ compute * 9 }}
+        times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
         users:

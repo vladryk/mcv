@@ -6,7 +6,7 @@
         object_size: 5120
       runner:
         type: "constant"
-        times: 2
+        times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
         users:

@@ -11,8 +11,8 @@
             net-id: {{ network }}
       runner:
         type: "constant"
-        times: {{ compute * 20 }}
-        concurrency: {{ concurrency * 4 }}
+        times: {{ compute }}
+        concurrency: {{ concurrency }}
       context:
         users:
           tenants: 2

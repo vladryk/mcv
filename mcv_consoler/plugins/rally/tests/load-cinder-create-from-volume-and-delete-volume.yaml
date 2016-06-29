@@ -5,11 +5,11 @@
         size: 1
       runner:
         type: "constant"
-        times: {{ compute * 14 }}
+        times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
         users:
-          tenants: {{ compute * 2 }}
+          tenants: 2
           users_per_tenant: 3
         volumes:
           size: 1

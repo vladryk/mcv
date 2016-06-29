@@ -8,8 +8,8 @@
         subnets_per_network: 5
       runner:
         type: "constant"
-        times: {{ vlan_amount if (not gre_enabled and compute * 4 > vlan_amount) else compute * 4 }}
-        concurrency: {{ concurrency * 2 }}
+        times: {{ vlan_amount if (not gre_enabled and compute > vlan_amount) else compute }}
+        concurrency: {{ concurrency }}
       context:
         users:
           tenants: 2
