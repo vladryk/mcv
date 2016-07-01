@@ -424,7 +424,9 @@ class RallyOnDockerRunner(RallyRunner):
         return self.net_id
 
     def cleanup_network(self):
-        self.neutronclient.delete_network(self.net_id)
+        if self.net_id is not None:
+            LOG.debug('Removing previously created network: %s' % self.net_id)
+            self.neutronclient.delete_network(self.net_id)
 
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
