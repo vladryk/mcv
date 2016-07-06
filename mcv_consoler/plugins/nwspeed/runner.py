@@ -52,9 +52,9 @@ class NWSpeedTestRunner(run.Runner):
             LOG.warning('Average network speed is under threshold')
             self.failure_indicator = NWSpeedError.LOW_AVG_SPEED
             return res
-        range = GET(self.config, 'range', 'nwspeed', 10)
+        percent_range = float(GET(self.config, 'range', 'nwspeed', 10))
         LOG.info('Threshold range is %s percents from average' % range)
-        range_speed = self.av_speed - (self.av_speed * (range / 100.0))
+        range_speed = self.av_speed - (self.av_speed * (percent_range / 100.0))
         for speed in task_results:
             if speed < float(range_speed):
                 res = False
