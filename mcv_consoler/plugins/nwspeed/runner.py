@@ -53,7 +53,7 @@ class NWSpeedTestRunner(run.Runner):
             self.failure_indicator = NWSpeedError.LOW_AVG_SPEED
             return res
         percent_range = float(GET(self.config, 'range', 'nwspeed', 10))
-        LOG.info('Threshold range is %s percents from average' % range)
+        LOG.info('Threshold range is %s percents from average' % percent_range)
         range_speed = self.av_speed - (self.av_speed * (percent_range / 100.0))
         for speed in task_results:
             if speed < float(range_speed):
@@ -67,7 +67,19 @@ class NWSpeedTestRunner(run.Runner):
         # Preparing HW node list. Using set for removing duplicates
         nova = Clients.get_nova_client(self.access_data)
         hw_nodes = {host.host_name for host in nova.hosts.list()}
-        return list(hw_nodes)
+        all_nodes = list(hw_nodes)
+        LOG.debug('Discovered %s nodes' % len(all_nodes))
+
+        nodes_limit = GET(self.config, 'nodes_limit', 'nwspeed', None)
+        if nodes_limit is None:
+            LOG.debug('Tests will be run on all nodes')
+            return all_nodes
+
+        limit = int(nodes_limit)
+        nodes = all_nodes[:limit]
+        LOG.debug('Node limit is %s' % limit)
+        LOG.debug('Following nodes were selected for tests: %s' % nodes)
+        return nodes
 
     def run_batch(self, tasks, *args, **kwargs):
         try:
@@ -126,8 +138,10 @@ class NWSpeedTestRunner(run.Runner):
         for hw_node in self.hw_nodes:
             LOG.info("Measuring network speed on node %s" % hw_node)
             try:
+                target_nodes = self.hw_nodes[:]
+                target_nodes.remove(hw_node)
                 # Getting html report and node average speed
-                res, average = reporter.measure_speed(hw_node)
+                res, average = reporter.measure_speed(hw_node, target_nodes)
                 res_all += res
                 average_all.append(average)
             except RuntimeError:

@@ -34,11 +34,9 @@ class Node2NodeSpeed(object):
         self.port_n = 45535
         self.port_pool = range(45536, 45600)
         # Port for testing speed between nodes
-        self.test_port = GET(self.config, 'test_port', 'nwspeed',
-                                        5903)
+        self.test_port = GET(self.config, 'test_port', 'nwspeed', 5903)
         # Data size for testing in megabytes
-        self.data_size = GET(self.config, 'data_size', 'nwspeed',
-                                        100)
+        self.data_size = GET(self.config, 'data_size', 'nwspeed', 100)
 
     def generate_report(self, spd_res):
         path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
@@ -157,12 +155,6 @@ class Node2NodeSpeed(object):
         LOG.debug('Stderr: %s' % err)
         return {'ret': status, 'out': out, 'err': err}
 
-    def get_node_list(self):
-        # Preparing node list for testing against current node
-        self.test_nodes = list(
-            {host.host_name for host in self.nova.hosts.list()})
-        self.test_nodes.remove(self.node_name)
-
     def measure_nw_speed(self, ip):
         # Starting nc server
         self.run_ssh_cmd('nc -vvlnp %s > /dev/null' % self.test_port,
@@ -177,9 +169,9 @@ class Node2NodeSpeed(object):
                                self.ssh_conns[self.node_name])['ret']
         return time.time() - start_time if ret == 0 else -1
 
-    def measure_speed(self, node_name):
+    def measure_speed(self, node_name, target_nodes):
         self.node_name = node_name
-        self.get_node_list()
+        self.test_nodes = target_nodes
         self.prepare_tunnels()
         LOG.info('Start measuring HW network speed on node %s' % node_name)
         res = {}
