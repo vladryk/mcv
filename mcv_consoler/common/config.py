@@ -42,7 +42,7 @@ DEFAULT_CONFIG_FILE = "/etc/mcv/mcv.conf"
 DEFAULT_FAILED_TEST_LIMIT = 10
 
 # List of supported MOS versions
-MOS_VERSIONS = ['6.1', '7.0', '8.0']
+MOS_VERSIONS = ['6.1', '7.0', '8.0', '9.0']
 
 # Options used while verifying that docker images are up and running
 DOCKER_REQUIRED_IMAGES = ("mcv-rally", "mcv-shaker", "mcv-ostf", 'mcv-tempest')
