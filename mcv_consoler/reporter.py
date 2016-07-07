@@ -50,6 +50,10 @@ footer = """
 test_string = (' <li><b><a href="%(key)s/%(testname)s.html" '
                'style="color:%(fontcolor)s">%(testname)s</b></a></li>')
 
+test_string_without_report = (' <li><b><a '
+                              'style="color:%(fontcolor)s">%(testname)s '
+                              '(Task has failed without report)</b></a></li>')
+
 general_report = """
 <h4>%(component_name)s %(threshold)s</h4>
 <ul>
@@ -128,6 +132,15 @@ def brew_a_report(stuff, name="mcv_result.html"):
             res += test_string % {"fontcolor": "red",
                                   "testname": el,
                                   "key": key}
+
+            fix_dispatcher(key, "{loc}/{key}/{testname}.html".format(
+                loc=location, testname=el, key=key))
+
+            bad += 1
+
+        for el in value['results']['test_without_report']:
+            res += test_string_without_report % {"fontcolor": "red",
+                                                 "testname": el}
 
             fix_dispatcher(key, "{loc}/{key}/{testname}.html".format(
                 loc=location, testname=el, key=key))

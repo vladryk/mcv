@@ -280,14 +280,15 @@ class Consoler(object):
             test_success = results[key]['results']['test_success']
             test_failures = results[key]['results']['test_failures']
             test_not_found = results[key]['results']['test_not_found']
+            test_without_report = results[key]['results']['test_without_report']
             time_of_tests = results[key]['results']['time_of_tests']
 
             msg = ""
 
             if test_success:
                 msg += "SUCCESSFUL: " + str(len(test_success)) + ", "
-            if test_failures:
-                msg += "FAILED: " + str(len(test_failures)) + ", "
+            if test_failures or test_without_report:
+                msg += "FAILED: " + str(len(test_failures + test_without_report)) + ", "
             if test_not_found:
                 msg += "NOT FOUND: " + str(len(test_not_found)) + ", "
             msg = msg[:-2]
@@ -298,7 +299,7 @@ class Consoler(object):
 
             for test in test_success:
                 x.add_row(["", "", test, time_of_test(test), " OK "])
-            for test in test_failures:
+            for test in (test_failures + test_without_report):
                 x.add_row(["", "", test, time_of_test(test), " FAILED "])
             for test in test_not_found:
                 x.add_row(["", "", test, time_of_test(test), " NOT FOUND "])

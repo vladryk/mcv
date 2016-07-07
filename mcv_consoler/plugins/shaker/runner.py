@@ -56,11 +56,6 @@ class ShakerRunner(runner.Runner):
             LOG.debug("Task %s has failed with the following error: %s" %
                       (task, resulting_dict))
             return False
-        if resulting_dict == []:
-            errors = 'Timeout Error with shaker. Process was killed.'
-            LOG.warning("Task %s has failed with the following error: %s" %
-                        (task, errors))
-            return False
 
         for i in resulting_dict['records']:
             try:
@@ -244,8 +239,12 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         if proc.returncode == 124:
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
-            LOG.info('Process #%d killed after %s seconds' % (proc.pid,
+            LOG.info('Process #%d killed after %s seconds.\n'
+                     'Report for this scenario was lost. '
+                     'For more details - please see logs ' % (proc.pid,
                                                               timeout))
+            LOG.info(' * FAILED')
+            LOG.info('-' * 60)
             LOG.debug('Timeout error occurred trying to execute shaker')
             for stack in self.heat.stacks.list():
                 if 'shaker' in stack.stack_name:
@@ -458,6 +457,12 @@ class ShakerOnDockerRunner(ShakerRunner):
             time_end = datetime.datetime.utcnow()
             time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
             self.time_of_tests[task] = {'duration': time_of_tests}
+
+            if task_result == []:
+                self.test_without_report.append(task)
+                LOG.debug("Task {task} has failed without report".format(
+                    task=task))
+                return False
 
             check = self._evaluate_task_result(task, task_result)
 

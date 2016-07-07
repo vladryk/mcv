@@ -41,6 +41,7 @@ class Runner(object):
 
     def __init__(self):
         self.current_task = 1
+        self.test_without_report = []
         self.test_success = []
         self.test_not_found = []
         self.time_of_tests = {}
@@ -222,7 +223,8 @@ class Runner(object):
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found,
-                "time_of_tests": self.time_of_tests}
+                "time_of_tests": self.time_of_tests,
+                "test_without_report": self.test_without_report}
 
     def _evaluate_task_results(self, task_results):
         raise NotImplementedError
