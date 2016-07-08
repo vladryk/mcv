@@ -413,7 +413,7 @@ class RallyOnDockerRunner(RallyRunner):
         if self.net_id:
             return self.net_id
         net = self.neutronclient.create_network(
-            body={'network':{'name': 'mcv-test-network'}})
+            body={'network': {'name': 'mcv-test-network'}})
         self.net_id = net['network']['id']
         self.neutronclient.create_subnet(
             body={'subnet':
