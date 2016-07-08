@@ -56,14 +56,13 @@ class BaseStorageSpeed(object):
     def set_ssh_connection(self, ip):
         hostname = ip
         port = 22
-        username = 'cirros'
-        password = 'cubswin:)'
-
+        username = 'fedora'
+        k = paramiko.RSAKey.from_private_key_file('/home/mcv/fedora.pem')
         conn = False
-        for i in range(0, 20):
+        for i in range(0, 100):
             try:
                 self.client = paramiko.Transport((hostname, port))
-                self.client.connect(username=username, password=password)
+                self.client.connect(username=username, pkey=k)
                 conn = True
                 break
             except paramiko.SSHException:
@@ -316,6 +315,9 @@ class BlockStorageSpeed(BaseStorageSpeed):
             self.max_thr = self.size
             self.thr_count = 1
             self.thr_size = int(self.max_thr * self.thr_count)
+        if self.max_thr < 0 or self.thr_count < 0:
+            self.max_thr = abs(self.max_thr)
+            self.thr_count = abs(self.thr_count)
 
     def remove_file(self):
         LOG.debug('Removing file')

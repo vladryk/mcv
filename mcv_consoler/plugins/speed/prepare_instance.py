@@ -29,18 +29,20 @@ class Preparer(object):
         self.nova = Clients.get_nova_client(access_data)
         self.glance = Clients.get_glance_client(access_data)
         self.config = config_parser
+        self.image_name = 'fedora-image'
+        self.key_name = 'fedora-key'
 
     def _check_image(self, image_path):
-        LOG.debug('Check cirros-image in glance')
+        LOG.debug('Check %s in glance' % self.image_name)
         image_list = [image for image in self.glance.images.list() if
-                      image.name == 'cirros-image']
+                      image.name == self.image_name]
         if not image_list:
             LOG.info('Uploading image to glance...')
-            self.glance.images.create(name='cirros-image', disk_format="qcow2",
+            self.glance.images.create(name=self.image_name, disk_format="qcow2",
                                       container_format="bare",
                                       data=open(image_path), is_public=True)
         else:
-            LOG.debug('Cirros-image exists')
+            LOG.debug('%s exists' % self.image_name)
 
     def _get_server(self, server_id):
         try:
@@ -57,7 +59,8 @@ class Preparer(object):
         except (exceptions.NotFound, IndexError):
             LOG.debug('No suitable flavors was found, creating new flavor')
 
-            ram = flavor_req['ram'] if 'ram' in flavor_req else 64
+            # TODO(vokhrimenko): make these default values placed in config.py later
+            ram = flavor_req['ram'] if 'ram' in flavor_req else 1024
             vcpus = flavor_req['vcpus'] if 'vcpus' in flavor_req else 1
             disk = flavor_req['disk'] if 'disk' in flavor_req else 0
             old_flavors = self.nova.flavors.findall(name='speedtest')
@@ -80,7 +83,7 @@ class Preparer(object):
                 LOG.debug(
                     'Status instance id %s is %s' % (server.id, server.status))
                 if server.status == 'BUILD':
-                    if i > 20:
+                    if i > 30:
                         LOG.debug('Server %s is still in building state, '
                                   'removing' % server_id)
                         server.delete()
@@ -108,9 +111,19 @@ class Preparer(object):
                 time.sleep(10)
 
     def _launch_instances(self, flavor_req, availability_zone):
-        LOG.debug('Launch instances from cirros-image')
-        image = self.nova.images.findall(name="cirros-image")[0]
+        LOG.debug('Launch instances from %s' % self.image_name)
+        image = self.nova.images.findall(name=self.image_name)[0]
         flavor = self._get_flavor(flavor_req)
+        try:
+            self.key_fedora = self.nova.keypairs.get(self.key_name)
+            self.key_fedora.delete()
+            self.key_fedora = self.nova.keypairs.create(self.key_name)
+        except exceptions.NotFound:
+            self.key_fedora = self.nova.keypairs.create(self.key_name)
+        f = open('/home/mcv/fedora.pem', 'w')
+        f.write(self.key_fedora.private_key)
+        f.close()
+
         network_name = utils.GET(self.config, "network_name", "network_speed")
         if not network_name:
             LOG.error("Failed to get option 'network_speed:network_name' from "
@@ -125,6 +138,16 @@ class Preparer(object):
         compute_hosts = [host for host in self.nova.hosts.list(
             zone=availability_zone) if host.service == 'compute']
 
+        compute_nodes_limit = utils.GET(self.config,
+                                        'compute_nodes_limit',
+                                        'speed')
+        if compute_nodes_limit is not None:
+            compute_hosts = compute_hosts[:int(compute_nodes_limit)]
+            LOG.debug('Speed will be measured on {} compute nodes'.format(
+                len(compute_hosts)))
+        else:
+            LOG.debug('Speed will be measured on all compute nodes')
+
         if not compute_hosts:
             LOG.error('No compute hosts was found')
             raise RuntimeError
@@ -138,6 +161,7 @@ class Preparer(object):
                     self.nova.servers.create(name="speed-test",
                                              image=image.id,
                                              flavor=flavor.id,
+                                             key_name=self.key_name,
                                              availability_zone=zone,
                                              nics=[{'net-id': network.id}]).id)
             except Exception:
@@ -194,6 +218,7 @@ class Preparer(object):
         old_flavors = self.nova.flavors.findall(name='speedtest')
         if old_flavors:
             [old_flavor.delete() for old_flavor in old_flavors]
+        self.key_fedora.delete()
 
     def prepare_instances(self, image_path, flavor_req, availability_zone):
         self._check_image(image_path)

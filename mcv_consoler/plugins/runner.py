@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import time
+import traceback
 
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.errors import BaseSelfCheckError
@@ -183,10 +184,14 @@ class Runner(object):
                 else:
                     LOG.info(msg)
 
-            if self.run_individual_task(task, *args, **kwargs):
-                self.test_success.append(task)
-            else:
+            try:
+                if self.run_individual_task(task, *args, **kwargs):
+                    self.test_success.append(task)
+                else:
+                    failures += 1
+            except:
                 failures += 1
+                LOG.debug(traceback.format_exc())
 
             time_end = datetime.datetime.utcnow()
             time = time_end - time_start

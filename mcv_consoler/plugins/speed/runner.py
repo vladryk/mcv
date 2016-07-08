@@ -67,6 +67,7 @@ class SpeedTestRunner(run.Runner):
         self.threshold = GET(self.config,
                              'threshold',
                              'speed', str(app_conf.DEFAULT_SPEED_STORAGE))
+        self.preparer = Preparer(self.access_data)
 
     def _evaluate_task_results(self, task_results):
         res = True
@@ -80,25 +81,17 @@ class SpeedTestRunner(run.Runner):
                 LOG.info(" * PASSED")
         return res
 
-    def get_preparer(self):
-        return Preparer(self.access_data)
-
     def _prepare_vms(self):
-        preparer = self.get_preparer()
         avail_zone = GET(self.config, 'availability_zone', 'speed', 'nova')
-        flavor_req = GET(self.config, 'flavor_req', 'speed', 'ram:64,vcpus:1')
-        image_path = GET(self.config, 'cirros_image_path', 'speed',
-                         app_conf.DEFAULT_CIRROS_IMAGE)
+        flavor_req = GET(self.config, 'flavor_req', 'speed', 'ram:1024,vcpus:1')
+        image_path = GET(self.config, 'speed_image_path', 'speed',
+                         app_conf.FEDORA_IMAGE_PATH)
 
         supported_req = ['ram', 'vcpus', 'disk']
         flavor_req = dict((k.strip(), int(v.strip())) for k, v in
                           (item.split(':') for item in flavor_req.split(',')
                            ) if (k and v) and (k in supported_req))
-        return preparer.prepare_instances(image_path, flavor_req, avail_zone)
-
-    def _remove_vms(self):
-        preparer = self.get_preparer()
-        preparer.delete_instances()
+        return self.preparer.prepare_instances(image_path, flavor_req, avail_zone)
 
     def run_batch(self, tasks, *args, **kwargs):
         res = {'test_failures': [], 'test_success': [], 'test_not_found': []}
@@ -126,7 +119,7 @@ class SpeedTestRunner(run.Runner):
         finally:
             try:
                 LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
-                self._remove_vms()
+                self.preparer.delete_instances()
             except Exception:
                 LOG.error(
                     'Something went wrong when removing VMs. '
@@ -183,28 +176,8 @@ class SpeedTestRunner(run.Runner):
         r_average_all = []
         w_average_all = []
 
-        compute_node_ids = self.node_ids
-        compute_nodes_quantity = GET(self.config,
-                                     'compute_nodes_limit',
-                                     'speed')
-        if compute_nodes_quantity is not None:
-            try:
-                compute_nodes_quantity = int(compute_nodes_quantity)
-            except ValueError:
-                LOG.error(
-                    "Expected int type of "
-                    "'compute_nodes_limit' parameter, but "
-                    "got value {} instead.".format(compute_nodes_quantity))
-                self.test_failures.append(task)
-                return False
-            compute_node_ids = self.node_ids[:compute_nodes_quantity]
-            LOG.debug('Speed will be measured on {} compute nodes'.format(
-                len(compute_node_ids)))
-        else:
-            LOG.debug('Speed will be measured on all compute nodes')
-
         time_start = datetime.datetime.utcnow()
-        for node_id in compute_node_ids:
+        for node_id in self.node_ids:
             LOG.debug("Measuring speed on node %s" % node_id)
             try:
                 res, r_average, w_average = reporter.measure_speed(node_id)
