@@ -101,7 +101,7 @@ class SpeedTestRunner(run.Runner):
         preparer.delete_instances()
 
     def run_batch(self, tasks, *args, **kwargs):
-        res = {'test_failures': 1, 'test_success': 0, 'test_not_found': 0}
+        res = {'test_failures': [], 'test_success': [], 'test_not_found': []}
         LOG.info('Threshold is %s Mb/s\n' % self.threshold)
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
 
@@ -117,15 +117,11 @@ class SpeedTestRunner(run.Runner):
             return res
         except RuntimeError:
             LOG.error('Environment preparation error')
-            # TODO(albartash): It's a hard-hack. Refactor this place, please!
-            # It just prevents us from 'No attribute __getitem__'
             return res
         except Exception:
             LOG.error('Caught unexpected error, exiting. '
                       'Please check mcvconsoler logs')
             LOG.debug(traceback.format_exc())
-            # TODO(albartash): It's a hard-hack. Refactor this place, please!
-            # It just prevents us from 'No attribute __getitem__'
             return res
         finally:
             try:
@@ -136,9 +132,6 @@ class SpeedTestRunner(run.Runner):
                     'Something went wrong when removing VMs. '
                     'Please check mcvconsoler logs')
                 LOG.debug(traceback.format_exc())
-                # TODO(albartash): It's a hard-hack.
-                # Refactor this place, please!
-                # It just prevents us from 'No attribute __getitem__'
                 return res
 
     def generate_report(self, result, task):
