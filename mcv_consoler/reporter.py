@@ -153,7 +153,7 @@ def brew_a_report(stuff, name="mcv_result.html"):
 
             bad += 1
 
-        for el in value['results']['test_without_report']:
+        for el in value['results'].get('test_without_report', list()):
             res += test_string_without_report % {"fontcolor": "red",
                                                  "testname": el}
 

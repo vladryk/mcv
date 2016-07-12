@@ -258,11 +258,14 @@ class Consoler(object):
                 LOG.debug('Error: no results for %s' % key)
                 continue
 
-            test_success = results[key]['results']['test_success']
-            test_failures = results[key]['results']['test_failures']
-            test_not_found = results[key]['results']['test_not_found']
-            test_without_report = results[key]['results']['test_without_report']
-            time_of_tests = results[key]['results']['time_of_tests']
+            def get(item, default=None):
+                return results[key].get('results', {}).get(item, default)
+
+            test_success = get('test_success', [])
+            test_failures = get('test_failures', [])
+            test_not_found = get('test_not_found', [])
+            test_without_report = get('test_without_report', [])
+            time_of_tests = get('time_of_tests', {})
 
             msg = ""
 
