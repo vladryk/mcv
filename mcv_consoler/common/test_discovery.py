@@ -101,7 +101,9 @@ def listdir(path, fpattern=None):
 
 def get_rally():
     tdir = toolbox('rally/tests')
-    return listdir(tdir, 'load*.yaml')
+    res = listdir(tdir, '*.yaml')
+    res.append('certification')
+    return res
 
 
 def get_shaker():
@@ -166,10 +168,6 @@ def get_resources():
     return ['GeneralResourceSearch', 'ErrorResourceSearch']
 
 
-def get_workload():
-    return ['workload.yaml', 'big-data-workload.yaml']
-
-
 class CacheProxy(object):
 
     def __init__(self, func):
@@ -222,7 +220,6 @@ class _Discovery(object):
         self.speed = CacheProxy(get_speed)
         self.nwspeed = CacheProxy(get_nwspeed)
         self.resources = CacheProxy(get_resources)
-        self.workload = CacheProxy(get_workload)
         self.ostf = CacheProxy(get_ostf)
 
     def use(self, plugin_name):
@@ -233,14 +230,16 @@ class _Discovery(object):
         ostf_tests = self.ostf(None, None).get()
         ostf_suites = filter(no_semicolon, ostf_tests)
 
+        # TODO(ogrytsenko): remove filter after workloads are fixed
+        rally_load = lambda s: s.startswith(('load-', 'certification'))
+
         res = {
-            'rally': self.rally.get(),
+            'rally': self.rally.filter(rally_load),
             'shaker': self.shaker.get(),
             'tempest': self.tempest(cid=None).get(),
             'speed': self.speed.get(),
             'nwspeed': self.nwspeed.get(),
             'resources': self.resources.get(),
-            # 'workload': self.workload.get(),
             'ostf': ostf_suites,
         }
         # force cache cleaning as we used *_DUMMY objects
