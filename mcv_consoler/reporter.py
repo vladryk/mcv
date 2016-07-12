@@ -84,7 +84,7 @@ class _Dispatcher(object):
 
     @staticmethod
     def fix_rally(file_location):
-        block = """<div class="navcls" ng-click="location.path("")"><a href=../index.html>Back to Index</a></div> '"""
+        block = """<div class="navcls" ng-click="location.path("")"><a href=../index.html>Back to Index</a></div>"""
         cmd = ("sed -i '534 a \        %s' %s") % (block, file_location)
         LOG.debug('Fixing Rally report. Command: %s' % cmd)
         result = utils.run_cmd(cmd)
