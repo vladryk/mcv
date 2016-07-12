@@ -45,6 +45,8 @@ class Consoler(object):
         self.failure_indicator = CAError.NO_ERROR
         self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
         self.group_name = None
+        self.results_dir = None
+        self._name_parts = ['mcv', self.timestamp_str]
 
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
@@ -70,6 +72,14 @@ class Consoler(object):
             n=len(res), key=runner, tests=', '.join(res)))
         return res
 
+    def get_results_dir(self, dst_dir=None):
+        no_artifacts = lambda s: s.replace('.yaml', '').replace(':', '.')
+        parts = map(no_artifacts, self._name_parts)
+        dirname = '_'.join(parts)
+        if dst_dir is None:
+            return dirname
+        return os.path.join(dst_dir, dirname)
+
     def do_custom(self, test_group):
         LOG.warning('Deprecation Warning: Tests is running, but the command is obsolete.'
                     ' Please use command "... --run group ..." instead.')
@@ -77,6 +87,7 @@ class Consoler(object):
 
     def do_group(self, test_group):
         self.group_name = test_group
+        self._name_parts.append(test_group)
 
         def pretty_print_tests(tests):
             LOG.info("Amount of tests requested per available tools:")
@@ -98,6 +109,7 @@ class Consoler(object):
         The test must be specified as this: testool/tests/tesname
         """
         self.group_name = test_group
+        self._name_parts.extend((test_group, test_name))
         the_one = dict(((test_group, test_name),))
         return self.dispatch_tests_to_runners(the_one)
 
@@ -106,6 +118,7 @@ class Consoler(object):
         """
         kwargs = {'run_by_name': True}
         self.group_name = test_group
+        self._name_parts.extend((test_group, test_name.split('.')[-1]))
         the_one = dict(((test_group, test_name),))
         return self.dispatch_tests_to_runners(the_one, **kwargs)
 
@@ -133,8 +146,8 @@ class Consoler(object):
 
     def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
         dispatch_result = {}
-        self.results_vault = "/tmp/mcv_run_{dt}".format(dt=self.timestamp_str)
-        os.mkdir(self.results_vault)
+        self.results_dir = self.get_results_dir('/tmp')
+        os.mkdir(self.results_dir)
 
         f = open('/etc/mcv/times.json', 'r')
         db = json.loads(f.read())
@@ -177,7 +190,7 @@ class Consoler(object):
                 spawn_point = os.path.dirname(__file__)
                 path_to_runner = os.path.join(spawn_point, self.plugin_dir,
                                               key, "runner.py")
-                m = imp.load_source("runner" + key, path_to_runner)
+                module = imp.load_source("runner" + key, path_to_runner)
             except IOError as e:
                 LOG.debug("Looks like there is no such runner: " + key + ".")
                 dispatch_result[key]['major_crash'] = 1
@@ -191,9 +204,9 @@ class Consoler(object):
                 LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             else:
-                path = os.path.join(self.results_vault, key)
+                path = os.path.join(self.results_dir, key)
                 os.mkdir(path)
-                runner = getattr(m, self.config.get(key, 'runner')
+                runner = getattr(module, self.config.get(key, 'runner')
                                  )(self.access_helper,
                                    path,
                                    config=self.config)
@@ -364,37 +377,30 @@ class Consoler(object):
         self.update_config(run_results)
         try:
             reporter.brew_a_report(run_results,
-                                   self.results_vault + "/index.html")
+                                   self.results_dir + "/index.html")
         except Exception as e:
             LOG.warning("Brewing a report has failed with error: %s" % str(e))
             LOG.debug(traceback.format_exc())
             return
 
-        result_dict = {
-            "timestamp": self.timestamp_str,
-            "location": self.results_vault
-        }
-
         LOG.debug('Creating a .tar.gz archive with test reports')
         try:
-            cmd = ("tar -zcf /tmp/mcv_run_%(timestamp)s.tar.gz"
-                   " -C %(location)s .") % result_dict
+            archive_file = '%s.tar.gz' % self.results_dir
+            cmd = "tar -zcf {arch_file} -C {results_dir} .".format(
+                arch_file=archive_file, results_dir=self.results_dir)
             utils.run_cmd(cmd)
 
-            cmd = "rm -rf %(location)s" % {"location": self.results_vault}
+            cmd = "rm -rf %s" % self.results_dir
             utils.run_cmd(cmd)
         except subprocess.CalledProcessError:
             LOG.warning('Creation of .tar.gz archive has failed. See log '
                         'for details. You can still get your files from: '
-                        '%s' % self.results_vault)
+                        '%s' % self.results_dir)
             LOG.debug(traceback.format_exc())
             return
 
         LOG.debug("Finished creating a report.")
-        LOG.info("One page report could be found in "
-                     "/tmp/mcv_run_%(timestamp)s.tar.gz\n" % result_dict)
-
-        return result_dict
+        LOG.info("One page report could be found in %s\n" % archive_file)
 
     def console_user(self, event, result):
         self.event = event
@@ -404,6 +410,7 @@ class Consoler(object):
         if not runner:
             LOG.error('\nError: No such runner: %s\n' % self.args.run[0])
             return result.append(CAError.WRONG_RUNNER)
+        self._name_parts.append(self.args.run[0])
 
         port_fw = not self.args.no_tunneling
         try:
