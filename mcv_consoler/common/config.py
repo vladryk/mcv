@@ -96,3 +96,6 @@ RMT_CONTROLLER_PORT = 22
 
 # User on any controller to be used for reaching openrc
 RMT_CONTROLLER_USER = 'root'
+
+# Path to times.json
+TIMES_DB_PATH = '/home/mcv/toolbox/times.json'

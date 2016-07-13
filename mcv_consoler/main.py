@@ -97,7 +97,7 @@ def main():
     except Exception:
         LOG.error("Something unforeseen has just happened."
                   " The consoler is no more. You can get an insight from"
-                  " /var/log/mcvconsoler.log")
+                  " /home/mcv/toolbox/mcvconsoler.log")
         LOG.debug(traceback.format_exc())
         return CAError.UNKNOWN_EXCEPTION
     if res:

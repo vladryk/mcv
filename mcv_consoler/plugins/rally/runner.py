@@ -98,6 +98,7 @@ class RallyRunner(runner.Runner):
         if type(resulting_dict) != dict:
             LOG.debug(("Task {task} has failed with the following error: "
                       "{err}").format(task=task, err=resulting_dict))
+            self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
 
@@ -107,6 +108,7 @@ class RallyRunner(runner.Runner):
                 LOG.debug(("Task {task} has failed with the error: "
                            "{err}").format(task=task,
                                            err=resulting_dict['result']))
+                self.test_failures.append(task)
                 LOG.info(" * FAILED")
                 return False
             LOG.info(" * PASSED")
@@ -118,6 +120,7 @@ class RallyRunner(runner.Runner):
             LOG.debug(("Task {task} has failed with the following error: "
                        "{err}").format(task=task,
                                        err=resulting_dict['result']))
+            self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
         LOG.info(" * PASSED")

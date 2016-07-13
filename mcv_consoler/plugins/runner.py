@@ -22,6 +22,7 @@ import time
 import traceback
 
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
+from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
@@ -226,7 +227,7 @@ class Runner(object):
                 break
 
         if self.config.get('times', 'update') == 'True':
-            f = file("/etc/mcv/times.json", "w")
+            f = file(TIMES_DB_PATH, "w")
             f.write(json.dumps(db))
             f.close()
 

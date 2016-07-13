@@ -25,6 +25,7 @@ import traceback
 from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.config import PLUGINS_DIR_NAME
+from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.common.test_discovery import discovery
@@ -149,7 +150,7 @@ class Consoler(object):
         self.results_dir = self.get_results_dir('/tmp')
         os.mkdir(self.results_dir)
 
-        f = open('/etc/mcv/times.json', 'r')
+        f = open(TIMES_DB_PATH, 'r')
         db = json.loads(f.read())
         elapsed_time_by_group = dict()
         f.close()
@@ -181,7 +182,7 @@ class Consoler(object):
                 break
             if self.config.get('times', 'update') == 'True':
                 elapsed_time_by_group[key] = 0
-                f = open('/etc/mcv/times.json', 'r')
+                f = open(TIMES_DB_PATH, 'r')
                 db = json.loads(f.read())
                 f.close()
 
