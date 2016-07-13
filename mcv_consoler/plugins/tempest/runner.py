@@ -84,7 +84,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         # Hotfix. set rally's permission for .rally/ folder
         # Please remove this. Use: `sudo -u rally docker run` when
         # rally user gets its permissions to start docker containers
-        cmd = 'docker exec -t {cid} sudo chown -R rally:rally /home/rally/.rally'\
+        cmd = 'docker exec -t {cid} sudo chown rally:rally /home/rally/.rally'\
             .format(cid=self.container_id)
         utils.run_cmd(cmd)
 
