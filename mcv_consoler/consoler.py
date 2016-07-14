@@ -377,8 +377,7 @@ class Consoler(object):
         self.describe_results(run_results)
         self.update_config(run_results)
         try:
-            reporter.brew_a_report(run_results,
-                                   self.results_dir + "/index.html")
+            reporter.brew_a_report(run_results, self.results_dir, 'index.html')
         except Exception as e:
             LOG.warning("Brewing a report has failed with error: %s" % str(e))
             LOG.debug(traceback.format_exc())

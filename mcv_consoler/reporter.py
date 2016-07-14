@@ -69,34 +69,31 @@ class _Dispatcher(object):
         if not hasattr(self, inner_func):
             LOG.debug('Fix for \'%s\' report is not implemented.' % key)
             return
+        LOG.debug("Applying fix for '%s' report" % key)
+        if file_location and not os.path.isfile(file_location):
+            LOG.debug('ERROR: No such file: %s' % file_location)
+            return
         return getattr(self, inner_func)(file_location)
 
     @staticmethod
     def fix_shaker(file_location):
-        LOG.debug('Fixing Shaker report')
-        if not os.path.isfile(file_location):
-            return LOG.debug('File not found %s' % file_location)
         cmd = ("sed -i '/<div\ class=\"container\"\ id=\"container\">/"
                " a\  <li class=\"active\" style=\"list-style-type: none;\"><a "
                "href=\"../index.html\">Back to Index</a></li>' "
                "%s" % file_location)
-        utils.run_cmd(cmd)
+        return utils.run_cmd(cmd)
 
     @staticmethod
     def fix_rally(file_location):
         block = """<div class="navcls" ng-click="location.path("")"><a href=../index.html>Back to Index</a></div>"""
         cmd = ("sed -i '534 a \        %s' %s") % (block, file_location)
-        LOG.debug('Fixing Rally report. Command: %s' % cmd)
-        result = utils.run_cmd(cmd)
-        LOG.debug('Result: %s' % str(result))
+        return utils.run_cmd(cmd)
 
     @staticmethod
     def fix_tempest(file_location):
         block = """<span data-navselector=".status-skip"><a href=../index.html>Back to index</a></span>"""
         cmd = ("sed -i '116 a \     %s' %s") % (block, file_location)
-        LOG.debug('Fixing Tempest report. Command: %s' % cmd)
-        result = utils.run_cmd(cmd)
-        LOG.debug('Result: %s' % str(result))
+        return utils.run_cmd(cmd)
 
 fix_dispatcher = _Dispatcher()
 
@@ -114,10 +111,9 @@ def validate_section(res_dict, *required):
     return True
 
 
-def brew_a_report(stuff, name="mcv_result.html"):
+def brew_a_report(stuff, location, index_file='index.html'):
     result = ""
     good, bad, notfound = 0, 0, 0
-    location = name.rstrip("/index.html")
     for key, value in stuff.iteritems():
         if not validate_section(value):
             LOG.debug('Error: no results for %s' % key)
@@ -176,5 +172,6 @@ def brew_a_report(stuff, name="mcv_result.html"):
         "failure": str(bad)
     } + result + footer
 
-    with open(name, "w") as f:
+    index_path = os.path.join(location, index_file)
+    with open(index_path, "w") as f:
         f.write(out)
