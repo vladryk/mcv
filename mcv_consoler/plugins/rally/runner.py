@@ -19,8 +19,8 @@ import time
 import datetime
 
 from keystoneclient import exceptions as k_exc
-from glanceclient import exceptions as g_exc
-from neutronclient import exceptions as n_exc
+from glanceclient import exc as g_exc
+from neutronclient.common import exceptions as n_exc
 from novaclient import exceptions as no_exc
 
 from mcv_consoler.common.cfgparser import config_parser
