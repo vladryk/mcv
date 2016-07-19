@@ -71,14 +71,14 @@ class SpeedTestRunner(run.Runner):
 
     def _evaluate_task_results(self, task_results):
         res = True
+        status = 'PASSED'
         for speed in task_results:
             if speed < float(self.threshold):
                 res = False
                 LOG.warning('Average speed is under the threshold')
-                LOG.info(" * FAILED")
+                status = 'FAILED'
                 break
-            else:
-                LOG.info(" * PASSED")
+        LOG.info(' * %s' % status)
         return res
 
     def _prepare_vms(self):

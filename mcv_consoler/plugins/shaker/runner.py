@@ -65,12 +65,6 @@ class ShakerRunner(runner.Runner):
             except KeyError:
                 pass
 
-        if status:
-            LOG.debug("Task %s has completed successfully." % task)
-        else:
-            LOG.warning("Task %s has failed with the following error: %s" %
-                        (task, errors))
-            return status
         return status
 
     def _get_task_path(self, task):
@@ -387,14 +381,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         if len(speeds):
             to_gb = min(speeds) / 1024.0
             speed = '%.2f' % to_gb
-
         LOG.info('Average speed is %s Gb/s' % speed)
-        if (success):
-            LOG.info(' * PASSED')
-        else:
-            LOG.info('Average speed is less than threshold')
-            LOG.info(' * FAILED')
-        LOG.info('-' * 60)
 
         speed = ''
         node = ''
@@ -482,12 +469,14 @@ class ShakerOnDockerRunner(ShakerRunner):
             self.success &= report_status
 
             if self.success:
-                return True
+                LOG.info(' * PASSED')
             else:
-                LOG.warning("Task %s has failed with %s" % (
-                    task, '"Average network speed is less then threshold"'))
+                LOG.info('Average speed is less than threshold')
+                LOG.info(' * FAILED')
                 self.test_failures.append(task)
-                return False
+            LOG.info('-' * 60)
+
+            return self.success
 
         else:
             LOG.info("Haven't found any tasks in your conf")
