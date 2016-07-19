@@ -23,54 +23,6 @@ from mcv_consoler import utils
 
 TOOLBOX = '/home/mcv/toolbox'
 
-# Pre-hardcoded list of tests that are common for most OSTF versions
-# This is only used when we start a 'full' group.
-# Note: this is NOT! a list of tests to be run. Each listed test will be
-# validated later one-again, when docker container is Up. Some of them might
-# be excluded.
-# Basically this is a list of tests that we usually use for OSTF
-# FIXME(ogrytsenko): this seems not used anymore.
-# Should be removed after 'mcv-ostf' docker container is completely
-# removed from build
-OSTF_DUMMY = [
-    'SanityIdentityTest',
-    'SanityComputeTest',
-    'GlanceSanityTests',
-    'SanityHeatTest',
-    'NetworksTest',
-    'GlanceSmokeTests',
-    'FlavorsAdminTest',
-    'VolumesTest',
-    'TestImageAction',
-    'MuranoSanityTests',
-    'VanillaTwoTemplatesTest',
-    'HDPTwoTemplatesTest',
-    'CeilometerApiTests',
-    'HeatSmokeTests:test_actions',
-    'HeatSmokeTests:test_advanced_actions',
-    'HeatSmokeTests:test_update',
-    'HeatSmokeTests:test_rollback',
-]
-
-# This is only used when we run a 'full' group
-# TODO(ogrytsenko): remove hardcoded tests
-TEMPEST_DUMMY = [
-    'baremetal',
-    'compute',
-    'database',
-    'data_processing',
-    'identity',
-    'image',
-    'messaging',
-    'network',
-    'object_storage',
-    'orchestration',
-    'scenario',
-    'smoke',
-    'telemetry',
-    'volume',
-]
-
 
 ostf_py = """
 import sys
@@ -116,10 +68,6 @@ def get_shaker():
 
 
 def get_tempest(cid):
-    if cid is None:
-        # This is a special case which is currently used only for 'full' group
-        return TEMPEST_DUMMY
-
     cmd = 'docker exec {cid} 2>/dev/null python -c "{code}" '\
         .format(cid=cid, code=tempest_py)
     out = utils.run_cmd(cmd, quiet=True)
@@ -173,6 +121,7 @@ def get_selfcheck():
 
 
 class CacheProxy(object):
+    _allow_matching = set()
 
     def __init__(self, func):
         self.func = lru_cache(maxsize=32)(func)
@@ -187,6 +136,16 @@ class CacheProxy(object):
 
     def get(self):
         return self._res or self.__call__()._res
+
+    def allow_matching(self, *items):
+        """Allows adding specific tests that should be possible to run
+
+        Example:
+            - 'full' suite for tempest. In this case Rally does tests
+             discovery by itself. List of discovered tests might differ
+             for different MOS environments.
+        """
+        self._allow_matching.update(items)
 
     def filter(self, *filters):
         """Get a list of available tests and apply """
@@ -207,7 +166,7 @@ class CacheProxy(object):
         and list of not found tests
         """
         res = self.get()
-        found = set(res).intersection(items)
+        found = set(res).union(self._allow_matching).intersection(items)
         missing = set(items).difference(res)
         return list(found), list(missing)
 
@@ -228,6 +187,9 @@ class _Discovery(object):
         self.ostf = CacheProxy(get_ostf)
         self.selfcheck = CacheProxy(get_selfcheck)
 
+        # NOTE(ogrytsenko): 'full' suite is used for '--run full' mode
+        self.tempest.allow_matching('full')
+
     def use(self, plugin_name):
         return getattr(self, plugin_name)
 
@@ -247,16 +209,12 @@ class _Discovery(object):
             ('selfcheck', self.selfcheck.get()),
             ('ostf', ostf_suites),
             ('rally', self.rally.filter(rally_load)),
-            ('tempest', self.tempest(cid=None).get()),
+            ('tempest', ('full', )),
             ('resources', self.resources.get()),
             ('speed', self.speed.get()),
             ('nwspeed', self.nwspeed.get()),
             ('shaker', self.shaker.get()),
         ])
-        # force cache cleaning as we used *_DUMMY objects
-        # TODO(ogrytsenko): get rid of *_DUMMY lists. Do not clear cache here
-        self.tempest.cache_clear()
-        self.ostf.cache_clear()
         return res
 
 

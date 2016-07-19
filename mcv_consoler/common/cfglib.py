@@ -24,7 +24,7 @@ basic = cfg.OptGroup(name='basic',
 basic_opts = [
     cfg.StrOpt('auth_protocol', default='https',
                help='Authentication protocol'),
-    cfg.StrOpt('mos_version', default='8.0',
+    cfg.StrOpt('mos_version', choices=config.MOS_VERSIONS, default='8.0',
                help='MOS version'),
     cfg.StrOpt('instance_ip', required=True,
                help='MCV host'),
