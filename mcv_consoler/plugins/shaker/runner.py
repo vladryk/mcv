@@ -418,7 +418,6 @@ class ShakerOnDockerRunner(ShakerRunner):
         self._setup_shaker_on_docker()
         LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
         self.output = ''
-        self.success = True
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
 
         tasks, missing = self.discovery.match(tasks)
@@ -435,6 +434,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         return result
 
     def run_individual_task(self, task, *args, **kwargs):
+        self.success = True
         if task:
             LOG.info("Starting task %s" % task)
             self.failure_indicator = SpeedError.LOW_AVG_SPEED
