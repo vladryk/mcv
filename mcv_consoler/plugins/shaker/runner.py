@@ -205,7 +205,12 @@ class ShakerOnDockerRunner(ShakerRunner):
         # TODO(albartash): make port for Shaker configurable some day
 
         timeout = self.config.get("shaker", "timeout")
+        agents_timeout = utils.GET(
+            self.config, 'agents_timeout', 'shaker') or str(
+                app_conf.SHAKER_AGENTS_TIMEOUT)
+
         cmd = ("docker exec -t {cid} timeout {tout} shaker "
+               "--agent-loss-timeout {agent_tout} "
                "--image-name {image} "
                "--flavor-name {flavor} "
                "--server-endpoint {sep}:5999 "
@@ -217,6 +222,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "--log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
+                        agent_tout = agents_timeout,
                         image=self.image_name,
                         flavor=self.flavor_name,
                         sep=self.access_data['ips']["instance"],

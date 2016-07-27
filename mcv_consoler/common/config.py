@@ -106,3 +106,6 @@ RMT_CONTROLLER_USER = 'root'
 
 # Path to times.json
 TIMES_DB_PATH = '/home/mcv/toolbox/times.json'
+
+# Shaker timeout for agents
+SHAKER_AGENTS_TIMEOUT = 60
