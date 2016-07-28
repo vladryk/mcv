@@ -212,8 +212,8 @@ class SpeedTestRunner(run.Runner):
         self.time_of_tests[task] = {'duration': time_of_tests}
         r_av = round(sum(r_average_all) / len(r_average_all), 2)
         w_av = round(sum(w_average_all) / len(w_average_all), 2)
-        LOG.info('Average read speed for all nodes is %s' % str(r_av))
-        LOG.info('Average write speed for all nodes is %s' % str(w_av))
+        LOG.info('Average read speed for all nodes is %s Mb/s' % str(r_av))
+        LOG.info('Average write speed for all nodes is %s Mb/s' % str(w_av))
         self.generate_report(res_all, task)
         if self._evaluate_task_results([r_av, w_av]):
             return True
