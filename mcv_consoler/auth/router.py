@@ -11,11 +11,17 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+import copy
+import errno
+import os
 import re
+import shelve
 import socket
+import shlex
+import shutil
 import subprocess
 import time
-
 import paramiko
 from paramiko import client
 
@@ -23,14 +29,25 @@ from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
 
 from mcv_consoler.common import clients as Clients
+from mcv_consoler.common.ssh import SSHClient
 
 from mcv_consoler.common.config import DEBUG
+from mcv_consoler.common.config import DEFAULT_CREDS_PATH
+from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
+from mcv_consoler.common.config import MCV_LOCAL_PORT
+from mcv_consoler.common.config import RMT_CONTROLLER_PORT
+from mcv_consoler.common.config import RMT_CONTROLLER_USER
+
 from mcv_consoler import utils
 from mcv_consoler.utils import GET
 from novaclient import exceptions as nexc
 
 import traceback
 from mcv_consoler.logger import LOG
+
+from mcv_consoler.utils import run_cmd
+
+from mcv_consoler.common.procman import ProcessManager
 
 
 LOG = LOG.getLogger(__name__)
@@ -41,10 +58,13 @@ class Router(object):
 
     def __init__(self, **kwargs):
         self.config = kwargs["config"]
-        self.os_data = self.get_os_data()
+        self.os_data = self._get_os_data()
+        self.hosts = EtcHosts()
 
-    def get_os_data(self):
+    def _get_os_data(self):
+        # TODO(albartash): needs to be received from endpoint-list
         protocol = GET(self.config, 'auth_protocol')
+
         endpoint_ip = GET(self.config, 'auth_endpoint_ip', 'auth')
         auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
         tenant_name = GET(self.config, 'os_tenant_name', 'auth')
@@ -56,8 +76,10 @@ class Router(object):
         os_data = {'username': GET(self.config, 'os_username', 'auth'),
                    'password': password,
                    'tenant_name': tenant_name,
-                   'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
-
+                   'auth_url': auth_url_tpl.format(hprot=protocol,
+                                                   ip=endpoint_ip,
+                                                   port=5000,
+                                                   version="2.0"),
                    'ips': {
                        'controller': GET(self.config, 'controller_ip', 'auth'),
                        'endpoint': endpoint_ip,
@@ -77,21 +99,22 @@ class Router(object):
                        'ca_cert': "",
                        'cert': GET(self.config, 'ssh_cert', 'fuel'),
                    },
-
-                   'auth_url': auth_url_tpl.format(hprot=protocol,
-                                                   ip=endpoint_ip,
-                                                   port=5000,
-                                                   version="2.0"),
-                   'insecure': insecure,
-                   'region_name': GET(self.config, 'region_name', 'auth'),
+                  'debug': DEBUG,
+                  'insecure': insecure,
+                  'mos_version': GET(self.config, 'mos_version', 'basic'),
+                  'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
                    # nova tenant
                    'project_id': tenant_name,
                    # nova and cinder passwd
-                   'api_key': password,
-                   'debug': DEBUG
+                   'api_key': password
                    }
 
         return os_data
+
+    def stop_all_docker_containers(self):
+        LOG.debug('Stopping docker containers')
+        cmd = 'docker ps -q | xargs -r docker stop'
+        return run_cmd(cmd)
 
     def setup_connections(self):
         """Set up connections for routing requests."""
@@ -102,16 +125,396 @@ class Router(object):
         raise NotImplementedError
 
 
+class MRouter(Router):
+
+    def __init__(self, **kwargs):
+        super(MRouter, self).__init__(**kwargs)
+        # TODO: For L2 segment
+
+
 class CRouter(Router):
 
     def __init__(self, **kwargs):
         super(CRouter, self).__init__(**kwargs)
 
+        self.procman = ProcessManager()
+
+    def _load_creds(self):
+        creds = shelve.open(DEFAULT_CREDS_PATH)
+        return creds
+
+    def get_os_data(self):
+        # TODO: maybe, use just os_data here?
+        base_data = self.os_data
+
+        creds = self._load_creds()
+
+        try:
+            tenant = creds['OS_TENANT_NAME']
+            password = creds['OS_PASSWORD']
+            os_data = {'auth_url': creds['OS_AUTH_URL'],
+                       'username': creds['OS_USERNAME'],
+                       'password': creds['OS_PASSWORD'],
+                       'tenant_name': tenant,
+                       'region_name': creds['OS_REGION_NAME'],
+
+                       'ips': {'endpoint': creds['AUTH_ENDPOINT_IP']},
+
+                       # nova tenant
+                       'project_id': tenant,
+                       # nova and cinder passwd
+                       'api_key': password,
+
+                       # NOTE(albartash): Actually, this option does not belong to
+                       # openrc, but we store it in such file for usability
+                       'auth_fqdn': creds['AUTH_FQDN'],
+                       'mos_version': creds['MOS_VERSION'],
+                       'insecure': creds['INSECURE'],
+                       'public_endpoint_ip': creds['PUBLIC_ENDPOINT_IP']}
+
+        except KeyError:
+                LOG.debug('Fail to extract some options from openrc file!')
+                LOG.debug(traceback.format_exc())
+                return {}
+
+        # NOTE(albartash): a trick to protect all data from erasing
+        full_data = copy.deepcopy(base_data)
+        full_data.update(os_data)
+        full_data['ips'].update(base_data['ips'])
+
+        return full_data
+
+    def get_rsa_key(self):
+        client = SSHClient(host=self.os_data['fuel']['nailgun'],
+                           username=self.os_data['fuel']['username'],
+                           password=self.os_data['fuel']['password'])
+
+        key_path = self.os_data['fuel']['cert']
+
+        if not client.connect():
+            LOG.error('Fail to get RSA key!')
+            return False
+
+        sout, serr = client.exec_cmd("cat {fpath}".format(fpath=key_path))
+
+        client.close()
+
+        if serr:
+            LOG.debug("Caught error on Master Node: {err}".format(err=serr))
+            return False
+
+        keyfile_path = DEFAULT_RSA_KEY_PATH
+        try:
+            LOG.debug('Saving RSA key to file {fname}...'.format(
+                fname=keyfile_path))
+            fp = open(keyfile_path, 'w')
+            fp.write(sout)
+            fp.close()
+            LOG.debug('Successfully saved RSA key.')
+        except IOError as e:
+            LOG.error('Fail to store RSA key on MCV host!')
+            LOG.debug(traceback.format_exc())
+            return False
+
+        return True
+
+    def _get_controllers(self):
+        client = SSHClient(host=self.os_data['fuel']['nailgun'],
+                           username=self.os_data['fuel']['username'],
+                           password=self.os_data['fuel']['password'])
+
+        if not client.connect():
+            LOG.debug('Cannot access Fuel Master Node with provided '
+                      'credentials!')
+            return []
+
+        cmd = 'fuel node --list 2>/dev/null'
+        controllers = []
+        try:
+            result = client.exec_cmd(cmd)[0]
+
+            re_ip = re.compile('\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)')
+
+            for line in result.splitlines():
+                if 'controller' not in line:
+                    continue
+                ip = re_ip.search(line)
+                if not ip:
+                    LOG.debug('Fail to get controller IP from line: {line}'.format(
+                        line=line))
+                    continue
+                controllers.append(ip.groups()[0])
+        except paramiko.SSHException:
+            return []
+        finally:
+            client.close()
+
+        return controllers
+
+    def _get_mos_version(self):
+        client = SSHClient(host=self.os_data['fuel']['nailgun'],
+                           username=self.os_data['fuel']['username'],
+                           password=self.os_data['fuel']['password'])
+
+        if not client.connect():
+            LOG.debug('Cannot access Fuel Master Node with provided '
+                      'credentials!')
+            return []
+
+        # NOTE(albartash): If we switch to Python3.4+ once,
+        # please use stdout to get Fuel version. Otherwise,
+        # this data must be extracted from stderr!
+        cmd = 'fuel --version'
+        v = ''
+        try:
+            result = client.exec_cmd(cmd)[1]
+
+            re_version = re.compile('^([0-9]+\.[0-9]+)')
+
+            version = re_version.search(result)
+            if not version:
+                LOG.debug('Fail to get version from Fuel Master Node!')
+                v = ''
+            else:
+                v = version.groups()[0]
+        except subprocess.CalledProcessError:
+                LOG.debug('Fail to get version from Fuel Master Node!')
+                v = ''
+        finally:
+            client.close()
+
+        return v
+
+    def _get_credentials(self, ctrl):
+        # get openrc as dict from controller
+        # using Fuel private key
+
+        key = paramiko.RSAKey.from_private_key_file(DEFAULT_RSA_KEY_PATH)
+        client = SSHClient(host=ctrl, username=RMT_CONTROLLER_USER,
+                           rsa_key=key)
+        if not client.connect():
+            LOG.debug('Fail to reach controller node at "{addr}" with '
+                      'provided RSA key!'.format(addr=ctrl))
+            return {}
+
+        openrc = {}
+
+        cmd = 'cat /root/openrc'
+        lines = client.exec_cmd(cmd)[0]
+
+        re_var = re.compile(
+            '^\s*export\s+([a-zA-Z_0-9]+)\s*=\s*[\']*([^\']+)[\']*\s*$')
+
+        for line in lines.splitlines():
+            result = re_var.search(line)
+            if not result or len(result.groups()) != 2:
+                continue
+
+            name, value = result.groups()
+            openrc[name] = value
+
+        openrc['AUTH_ENDPOINT_IP'] = openrc['OS_AUTH_URL'].split(':')[1].strip('/')
+
+        # NOTE(albartash): A very important moment. As we use Keystone v2.0,
+        # here we must specify a concrete version for OS_AUTH_URL in case
+        # when MOS>=8.0, as this information is not presented in openrc!
+        ks_version = 'v2.0'
+        if not openrc['OS_AUTH_URL'].rstrip('/').endswith(ks_version):
+            openrc['OS_AUTH_URL'] = openrc['OS_AUTH_URL'].rstrip('/') + '/v2.0/'
+
+        data = {'username': openrc['OS_USERNAME'],
+                'password': openrc['OS_PASSWORD'],
+                'tenant_name': openrc['OS_TENANT_NAME'],
+                'auth_url': openrc['OS_AUTH_URL'],
+               }
+        self.keystoneclient = Clients.get_keystone_client(data)
+        public_url = self.keystoneclient.service_catalog.get_endpoints(
+            'identity')['identity'][0]['publicURL']
+        openrc['INSECURE'] = ("https" == re.findall(r'https|http', public_url)[0])
+        ip = re.findall('[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', public_url)
+        if ip:
+            openrc['AUTH_FQDN'] = ''
+            openrc['PUBLIC_ENDPOINT_IP'] = ip[0]
+        else:
+            fqdn = re.sub(r'http.*://', '', re.sub(r':5000.*', '', public_url))
+            openrc['AUTH_FQDN'] = fqdn
+            cmd = "cat /etc/hosts | grep %s| awk '{print $1}'" % fqdn
+            host_resolve = client.exec_cmd(cmd)[0]
+            openrc['PUBLIC_ENDPOINT_IP'] = host_resolve.rstrip()
+
+        client.close()
+
+        return openrc
+
+    def get_and_store_credentials(self):
+        # Extract credentials from openrc files
+        # 0. Get list of controllers from Fuel
+        # 1. SSH to controller using ssh_cert from Fuel
+        # 2. Get credentials from openrc
+        # 3. Store credentials in file on MCV host
+
+
+        mos_version = self._get_mos_version()
+        controllers = self._get_controllers()
+
+        openrc = {}
+        for ctrl in controllers:
+            try:
+                LOG.debug('Trying to extract openrc from controller '
+                          '{ctrl}'.format(ctrl=ctrl))
+
+                openrc = self._get_credentials(ctrl)
+                if openrc:
+                    break
+            except Exception:
+                LOG.debug('Cannot extract openrc from controller '
+                          '{ctrl}'.format(ctrl=ctrl))
+
+        if not openrc:
+            LOG.debug('Cannot get credentials from controllers!')
+            return False
+
+        fp = shelve.open(DEFAULT_CREDS_PATH)
+        for cred in openrc:
+            fp[cred] = openrc[cred]
+
+        fp['MOS_VERSION'] = mos_version
+        fp.close()
+
+        return True
+
+    def _make_tunnel_to_controller(self):
+        """Make SSH tunnel to a controller node from MCV host."""
+
+        #!!! Perhaps, I do something wrong here.
+        # We need to make ssh tunnel to a controller.
+        # When I tried to do it separately, SSH said
+        # 'Cannot fork into background without a command
+        # to execute'.
+
+        for ctrl in self._get_controllers():
+            try:
+                cmd = ("sshpass -p {fuel_pwd} "
+                       "ssh -q -L {local_port}:{controller}:{rmt_port} "
+                       "{fuel_user}@{fuel_host} "
+                       "-o UserKnownHostsFile=/dev/null "
+                       "-o StrictHostKeyChecking=no "
+                       "-i {key_path}").format(
+                    fuel_pwd=self.os_data['fuel']['password'],
+                    local_port=MCV_LOCAL_PORT,
+                    controller=ctrl,
+                    rmt_port=RMT_CONTROLLER_PORT,
+                    fuel_user=self.os_data['fuel']['username'],
+                    fuel_host=self.os_data['fuel']['nailgun'],
+                    key_path=DEFAULT_RSA_KEY_PATH)
+
+                retcode = self.procman.run_standalone_process(cmd)
+                if retcode is None:
+                    break
+            except Exception:
+                LOG.debug('Controller {ctrl} is not ready for tunnelling...'.format(ctrl=ctrl))
+                continue
+        else:
+            LOG.debug('Cannot establish tunnel to any controller!')
+            return False
+
+        LOG.debug('SSH tunnel to controller has been established '
+                  'successfully.')
+        return True
+
+    def _encapsulate_networks_to_ssh_tunnel(self):
+        """Encapsulate cloud networks using Sshuttle."""
+
+        cmd = ("sudo -u mcv "
+               "sshpass -p {fuel_pwd} "
+               "sshuttle --listen 0.0.0.0:0 -vNHr "
+               "{fuel_user}@localhost:{local_port} "
+               "--dns --ssh-cmd "
+               "\"ssh -q -o UserKnownHostsFile=/dev/null "
+               "-o StrictHostKeyChecking=no -i {key_path}\" "
+               "127.0.0.1/26").format(fuel_user=self.os_data['fuel']['username'],
+                                   fuel_pwd=self.os_data['fuel']['password'],
+                                   local_port=MCV_LOCAL_PORT,
+                                   key_path=DEFAULT_RSA_KEY_PATH)
+
+        # NOTE(albartash): sshuttle sometimes cannot runs properly, so we need
+        # to do some attempts.
+        attempts = 5
+        for counter in xrange(0, attempts):
+            try:
+                retcode = self.procman.run_standalone_process(cmd)
+                if retcode is None:
+                    break
+            except Exception as e:
+                LOG.debug('An error while running Sshuttle: {msg}'.format(
+                    msg=str(e)))
+        else:
+            LOG.debug('Failed to run sshuttle! Exit.')
+            return False
+
+        LOG.debug('Cloud networks have been encapsulated successfully.')
+        return True
+
+    def make_sure_controller_name_could_be_resolved(self):
+        LOG.debug('Trying to update /etc/hosts file')
+        openrc = self._load_creds()
+        a_fqdn = openrc['AUTH_FQDN']
+        public_ip = openrc['PUBLIC_ENDPOINT_IP']
+        if not a_fqdn:
+            LOG.debug('No FQDN specified. Nothing to update')
+            return
+        if not public_ip:
+            LOG.debug("Public IP is empty or missing. Can't patch anything")
+            return
+        LOG.debug('Adding new record: %s \t%s' % (a_fqdn, public_ip))
+        self.hosts.modify({a_fqdn: public_ip})
+
+    def setup_ssh_tunnels(self):
+        if not self._make_tunnel_to_controller():
+            LOG.debug('Cannot make an SSH tunnel to controller using '
+                      'Fuel Master Node!')
+            return False
+
+        if not self._encapsulate_networks_to_ssh_tunnel():
+            LOG.debug('Cannot encapsulate cloud networks to the created '
+                      'SSH tunnel!')
+            return False
+
+        LOG.debug('Tunnels have been set successfully.')
+        return True
+
     def setup_connections(self):
-        pass
+        # check cert on host
+        if not self.get_rsa_key():
+            LOG.debug('No RSA key exists to access cloud!')
+            return False
+        if not self.setup_ssh_tunnels():
+            LOG.debug('Cannot set up SSH tunnels!')
+            return False
+        if not self.get_and_store_credentials():
+            LOG.debug('No credentials specified to access cloud!')
+            return False
+        self.make_sure_controller_name_could_be_resolved()
+
+        LOG.debug('Connections have been set successfully.')
+        return True
 
     def cleanup(self):
-        pass
+
+        LOG.debug('Removing files with credentials to cloud.')
+        for pth in (DEFAULT_RSA_KEY_PATH, DEFAULT_CREDS_PATH):
+            try:
+                os.remove(pth)
+            except OSError as e:
+                LOG.debug('Cannot remove file {fp}. Reason: {reason}'.format(
+                    fp=pth, reason=str(e)))
+
+        LOG.debug('Cleanup all started subprocesses.')
+        self.procman.cleanup()
+        LOG.debug('Finish cleanup of subprocesses.')
+        LOG.debug('Restoring /etc/hosts')
+        self.hosts.restore()
+        self.stop_all_docker_containers()
 
 
 class IRouter(Router):
@@ -128,9 +531,44 @@ class IRouter(Router):
         self.server = None
         self.mcvgroup = None
 
+    def get_os_data(self):
+
+        base_data = self.os_data
+
+        protocol = GET(self.config, 'auth_protocol')
+        endpoint_ip = GET(self.config, 'auth_endpoint_ip', 'auth')
+        auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
+        tenant_name = GET(self.config, 'os_tenant_name', 'auth')
+        password = GET(self.config, 'os_password', 'auth')
+        insecure = (protocol == "https")
+        # NOTE(albartash): port 8443 is not ready to use somehow
+        nailgun_port = 8000
+
+        os_data = {
+                   'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
+
+                   'ips': {
+                       'controller': GET(self.config, 'controller_ip', 'auth'),
+                       'endpoint': endpoint_ip},
+                   'auth': {
+                       'controller_uname': GET(self.config, 'controller_uname',
+                                               'auth'),
+                       'controller_pwd': GET(self.config, 'controller_pwd',
+                                             'auth')},
+                   'insecure': insecure,
+                   'region_name': GET(self.config, 'region_name', 'auth'),
+                   'public_endpoint_ip': endpoint_ip,
+                   }
+
+        full_data = copy.deepcopy(base_data)
+        full_data.update(os_data)
+        full_data['ips'].update(base_data['ips'])
+
+        return full_data
+
     def setup_connections(self):
         if not self.check_and_fix_access_data():
-            self.restore_hosts_config()
+            self.hosts.restore()
             return False
 
         # TODO(albartash): This check will never happen. We should investigate
@@ -143,7 +581,7 @@ class IRouter(Router):
             LOG.debug('Port forwarding will be done automatically')
             if self.check_and_fix_iptables_rule() == -1:
                 LOG.error('Fail to check iptables rules')
-                self.restore_hosts_config()
+                self.hosts.restore()
                 return False
         else:
             LOG.debug('No port forwarding required')
@@ -177,16 +615,17 @@ class IRouter(Router):
         return True
 
     def make_sure_controller_name_could_be_resolved(self):
+        LOG.debug('Trying to update /etc/hosts file')
         a_fqdn = self.os_data["auth_fqdn"]
-        if a_fqdn:
-            LOG.debug("FQDN is specified. Value=%s" % a_fqdn)
-            f = open('/etc/hosts', 'a+r')
-            for line in f.readlines():
-                if line.find(a_fqdn) != -1:
-                    return
-            f.write(' '.join([self.os_data['ips']['endpoint'],
-                    self.os_data['auth_fqdn'], "\n"]))
-            f.close()
+        public_ip = self.os_data['ips']['endpoint']
+        if not a_fqdn:
+            LOG.debug('No FQDN specified. Nothing to update')
+            return
+        if not public_ip:
+            LOG.debug("Public IP is empty or missing. Can't patch anything")
+            return
+        LOG.debug('Adding new record: %s \t%s' % (a_fqdn, public_ip))
+        self.hosts.modify({a_fqdn: public_ip})
 
     def check_and_fix_floating_ips(self):
         res = self.novaclient.floating_ips.list()
@@ -284,19 +723,6 @@ class IRouter(Router):
                 floating_ip.delete()
             except Exception as e:
                 LOG.debug("Error removing floating IP: %s" % e.message)
-
-    def restore_hosts_config(self):
-        a_fqdn = self.os_data["auth_fqdn"]
-        if a_fqdn:
-            LOG.debug("Restoring hosts config")
-            f = open("/etc/hosts", "r+")
-            lines = f.readlines()
-            f.seek(0)
-            for line in lines:
-                if line.find(a_fqdn) == -1:
-                    f.write(line)
-            f.truncate()
-            f.close()
 
     def check_and_fix_access_data(self):
         if not self.verify_access_data_is_set():
@@ -452,4 +878,54 @@ class IRouter(Router):
         self.remove_security_group()
         self.stop_forwarding()
         self.delete_floating_ips()
-        self.restore_hosts_config()
+        self.hosts.restore()
+        self.stop_all_docker_containers()
+
+
+class EtcHosts(object):
+    HOSTS_FILE = '/etc/hosts'
+    TEMP_FILE = '/tmp/etc-hosts.mcv~'
+    COMMENT = "# added by MCV tool"
+
+    def __init__(self):
+        self.__changed = False
+        self.__restored = False
+
+    def modify(self, hosts_dict):
+        etc_hosts = self.HOSTS_FILE
+        temp_file = self.TEMP_FILE
+
+        with open(etc_hosts) as f:
+            orig_content = f.read()
+        stats = os.stat(etc_hosts)
+
+        with open(temp_file, 'w') as f:
+            for line in orig_content.rstrip().split('\n'):
+                if line.find(self.COMMENT) >= 0:
+                    continue
+                f.write('%s\n' % line)
+            for (name, ip) in sorted(hosts_dict.items()):
+                f.write('%-30s %s\n' % ('%s %s' % (ip, name), self.COMMENT))
+
+        os.chown(temp_file, stats.st_uid, stats.st_gid)
+        os.chmod(temp_file, stats.st_mode)
+        shutil.copyfile(temp_file, etc_hosts)
+        os.remove(temp_file)
+        self.__changed = True
+
+    def restore(self):
+        if self.__changed:
+            self.modify(hosts_dict={})
+            self.__changed = False
+        self.__restored = True
+
+    def __del__(self):
+        # this method should never fail
+        if not self.__changed:
+            return
+        if self.__restored:
+            return
+        try:
+            self.restore()
+        except:
+            pass

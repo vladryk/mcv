@@ -39,9 +39,9 @@ LOG = LOG.getLogger(__name__)
 
 class OSTFOnDockerRunner(runner.Runner):
 
-    def __init__(self, accessor, path, *args, **kwargs):
+    def __init__(self, access_data, path, *args, **kwargs):
         self.config = kwargs["config"]
-        self.access_data = accessor.os_data
+        self.access_data = access_data
         self.path = path
         self.identity = "ostf"
         self.config_section = "ostf"
@@ -114,10 +114,10 @@ class OSTFOnDockerRunner(runner.Runner):
             return False
 
         add_host = ""
-        if self.access_data["auth_fqdn"]:
+        if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                        fqdn=self.access_data["auth_fqdn"],
-                       endpoint=self.access_data["ips"]["endpoint"])
+                       endpoint=self.access_data["public_endpoint_ip"])
 
         protocol = "https" if self.access_data['insecure'] else 'http'
         nailgun_port = str(self.access_data["fuel"]["nailgun_port"])

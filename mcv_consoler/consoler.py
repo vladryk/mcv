@@ -208,7 +208,7 @@ class Consoler(object):
                 path = os.path.join(self.results_dir, key)
                 os.mkdir(path)
                 runner = getattr(module, self.config.get(key, 'runner')
-                                 )(self.access_helper,
+                        )(self.access_helper.router.get_os_data(),
                                    path,
                                    config=self.config)
 
@@ -412,9 +412,11 @@ class Consoler(object):
             return result.append(CAError.WRONG_RUNNER)
         self._name_parts.append(self.args.run[0])
 
-        port_fw = not self.args.no_tunneling
+        mode = self.args.mode
         try:
-            self.access_helper = AccessSteward(self.config, event, port_fw)
+            kwargs = {'port_forwarding': not self.args.no_tunneling}
+            self.access_helper = AccessSteward(self.config, event, mode,
+                    **kwargs)
             env_ready = self.access_helper.check_and_fix_environment()
         except Exception as e:
             LOG.info("Something went wrong with checking credentials "

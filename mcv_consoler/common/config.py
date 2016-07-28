@@ -15,6 +15,13 @@
 # Enables DEBUG logging
 DEBUG = False
 
+# Available modes to run MCV
+
+MODES = (1, # L1 segment (as an instance)
+         2, # L2 segment (separate node in admin network)
+         3, # L3 segment (separate node in external network)
+         )
+
 # Project name and name of executable file of Consoler
 PROJECT_NAME = "mcvconsoler"
 
@@ -24,7 +31,7 @@ PROJECT_DESCRIPTION = """The main tool in Mirantis Cloudvalidation Project."""
 # Help message for Consoler CLI
 RUN_DESCRIPTION = r"""Here is an example of running MCV Consoler:
 
-    # mcvconsoler --run group quick
+    # mcvconsoler --run group quick --mode 1
 
     Also it is recommended to run the tool as a superuser, running it as an
     ordinary user might cause unexpected errors in strange places for odd

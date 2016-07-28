@@ -35,7 +35,7 @@ LOG = LOG.getLogger(__name__)
 
 class ShakerRunner(runner.Runner):
 
-    def __init__(self, accessor=None, config_location=None, *args, **kwargs):
+    def __init__(self, access_data=None, config_location=None, *args, **kwargs):
         super(ShakerRunner, self).__init__()
         self.config = kwargs["config"]
         self.identity = "shaker"
@@ -113,10 +113,10 @@ class ShakerRunner(runner.Runner):
 
 class ShakerOnDockerRunner(ShakerRunner):
 
-    def __init__(self, accessor, path, *args, **kwargs):
+    def __init__(self, access_data, path, *args, **kwargs):
         self.config = kwargs["config"]
         self.container_id = None
-        self.access_data = accessor.os_data
+        self.access_data = access_data
         self.path = path
         self.image_name = utils.GET(
             self.config, 'image_name', 'shaker') or 'shaker-image'
@@ -129,7 +129,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              'threshold',
              'network_speed', str(app_conf.DEFAULT_SHAKER_THRESHOLD))
 
-        super(ShakerOnDockerRunner, self).__init__(accessor, path, *args,
+        super(ShakerOnDockerRunner, self).__init__(access_data, path, *args,
                                                    **kwargs)
 
         self.heat = Clients.get_heat_client(self.access_data)
@@ -156,10 +156,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         add_host = ""
 
         # TODO(albartash): Refactor this place!
-        if self.config.get("auth", "auth_fqdn") != '':
+        if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                 fqdn=self.access_data["auth_fqdn"],
-                endpoint=self.access_data["ips"]["endpoint"])
+                endpoint=self.access_data["public_endpoint_ip"])
 
         network_name = utils.GET(
             self.config, 'network_ext_name', 'network_speed') or ""

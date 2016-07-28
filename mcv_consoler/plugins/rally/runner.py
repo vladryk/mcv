@@ -41,7 +41,7 @@ LOG = LOG.getLogger(__name__)
 
 rally_json_template = """{
 "type": "ExistingCloud",
-"auth_url": "%(auth_protocol)s://%(ip_address)s:5000/v2.0/",
+"auth_url": "%(auth_url)s",
 "region_name": "%(region)s",
 "endpoint_type": "public",
 "admin": {
@@ -176,11 +176,11 @@ class RallyRunner(runner.Runner):
 
 class RallyOnDockerRunner(RallyRunner):
 
-    def __init__(self, accessor, path, *args, **kwargs):
+    def __init__(self, access_data, path, *args, **kwargs):
         self.config = kwargs["config"]
         self.path = path
         self.container = None
-        self.access_data = accessor.os_data
+        self.access_data = access_data
         self.skip = False
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
@@ -326,7 +326,7 @@ class RallyOnDockerRunner(RallyRunner):
         if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                 fqdn=self.access_data["auth_fqdn"],
-                endpoint=self.access_data["ips"]["endpoint"])
+                endpoint=self.access_data["public_endpoint_ip"])
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
@@ -443,7 +443,8 @@ class RallyOnDockerRunner(RallyRunner):
                        "upass": self.access_data["password"],
                        "uten": self.access_data["tenant_name"],
                        "auth_protocol": auth_protocol,
-                       "insecure": str(self.access_data['insecure']).lower()}
+                       "insecure": str(self.access_data['insecure']).lower(),
+                       "auth_url": self.access_data['auth_url']}
 
         f = open(os.path.join(self.homedir, "conf", "existing.json"), "w")
         f.write(rally_json_template % credentials)

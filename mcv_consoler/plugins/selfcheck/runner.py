@@ -21,7 +21,7 @@ LOG = LOG.getLogger(__name__)
 
 
 class SelfCheckRunner(run.Runner):
-    def __init__(self, accessor, path, *args, **kwargs):
+    def __init__(self, access_data, path, *args, **kwargs):
         self.test_failures = []
         super(SelfCheckRunner, self).__init__()
         self.failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER

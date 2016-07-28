@@ -35,7 +35,7 @@ class BaseStorageSpeed(object):
 
         self.glance_url = "{protocol}://{endpoint}:9292/v2".format(
             protocol=protocol,
-            endpoint=self.access_data['ips']['endpoint'])
+            endpoint=self.access_data['public_endpoint_ip'])
 
         self.timeout = 0
         self.test_vm = None
@@ -463,7 +463,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
             self.access_data['tenant_name'],
             self.access_data['username'],
             self.access_data['password'],
-            self.access_data['auth_url'])
+            self.access_data['auth_url'].rstrip('/'))
 
         res = self.run_ssh_cmd(cmd)
         out = res['out']

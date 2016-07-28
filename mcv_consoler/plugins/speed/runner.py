@@ -49,8 +49,8 @@ class BlockTable(Table):
 
 
 class SpeedTestRunner(run.Runner):
-    def __init__(self, accessor, path, *args, **kwargs):
-        self.access_data = accessor.os_data
+    def __init__(self, access_data, path, *args, **kwargs):
+        self.access_data = access_data
         self.identity = "speed"
         self.config_section = "speed"
         self.config = kwargs.get('config')

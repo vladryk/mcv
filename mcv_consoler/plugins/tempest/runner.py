@@ -34,8 +34,8 @@ LOG = LOG.getLogger(__name__)
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
-    def __init__(self, accessor, path, *args, **kwargs):
-        super(TempestOnDockerRunner, self).__init__(accessor,
+    def __init__(self, access_data, path, *args, **kwargs):
+        super(TempestOnDockerRunner, self).__init__(access_data,
                                                     path,
                                                     *args,
                                                     **kwargs)
@@ -56,10 +56,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.debug("Bringing up Tempest container with credentials")
         add_host = ""
         # TODO(albartash): Refactor this place!
-        if self.config.get("auth", "auth_fqdn") != '':
+        if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
                 fqdn=self.access_data["auth_fqdn"],
-                endpoint=self.access_data["ips"]["endpoint"])
+                endpoint=self.access_data["public_endpoint_ip"])
 
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
@@ -166,7 +166,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         install = glob.glob(self.homedir + '/for-deployment-*')
         run_by_name = kwargs.get('run_by_name')
         if not install:
-            LOG.info("No Tempest installation found. Installing tempest...")
+            LOG.debug("No Tempest installation found. Installing tempest...")
             cmd = ("docker exec -t {cid} "
                    "rally verify install "
                    "--deployment existing --source /tempest").format(

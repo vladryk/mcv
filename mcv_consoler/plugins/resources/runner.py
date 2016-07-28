@@ -23,9 +23,9 @@ LOG = LOG.getLogger(__name__)
 
 class ResourceReportRunner(run.Runner):
 
-    def __init__(self, accessor, path, *args, **kwargs):
+    def __init__(self, access_data, path, *args, **kwargs):
         self.config = kwargs.get("config")
-        self.access_data = accessor.os_data
+        self.access_data = access_data
         self.identity = "resources"
         self.config_section = "resources"
         self.path = path

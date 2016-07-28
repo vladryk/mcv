@@ -15,8 +15,12 @@
 import time
 
 import mcv_consoler.common.config as app_conf
+from mcv_consoler.common.ssh import SSHClient
 from mcv_consoler.logger import LOG
+from mcv_consoler.auth.router import Router
 from mcv_consoler.auth.router import IRouter
+from mcv_consoler.auth.router import CRouter
+from mcv_consoler.auth.router import MRouter
 from mcv_consoler import utils
 
 
@@ -24,11 +28,20 @@ LOG = LOG.getLogger(__name__)
 
 
 class AccessSteward(object):
-    def __init__(self, config, event, port_fw=True):
+    def __init__(self, config, event, mode, **kwargs):
         self.config = config
         self.event = event
-        self.router = IRouter(config=self.config, port_forwarding=port_fw)
-        self.os_data = self.router.os_data
+        self.router = self.get_router(config, mode, **kwargs)
+
+    def get_router(self, config, mode, **kwargs):
+        """Discovers which router to create and returns the possible one."""
+
+        router_classes = {app_conf.MODES[0]: IRouter,
+                          app_conf.MODES[1]: CRouter, # monkey fix until
+                                                      # MRouter created
+                          app_conf.MODES[2]: CRouter}
+
+        return router_classes.get(mode, Router)(config=config, **kwargs)
 
     def check_docker_images(self):
         LOG.debug('Validating that all docker images required by '
