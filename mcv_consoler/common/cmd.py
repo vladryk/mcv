@@ -35,6 +35,11 @@ def _get_parser():
         nargs='+',
         help="""Run one of specified test suites.""")
 
+    one_of_is_required.add_argument(
+        "--compare-resources",
+        default=False,
+        help="""Compare current resources with yaml-file""")
+
     parser.add_argument(
         "--config",
         help="""Provide custom config file instead of the default one""")

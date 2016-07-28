@@ -95,6 +95,7 @@ def main():
 
     rcode = [None]
     t = threading.Thread(target=thread_wrapper, args=[consoler, rcode])
+
     try:
         t.start()
         while t.isAlive():

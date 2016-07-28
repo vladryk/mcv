@@ -14,6 +14,7 @@
 
 from ConfigParser import NoSectionError
 from datetime import datetime
+from distutils import util
 import imp
 import json
 import logging
@@ -38,6 +39,7 @@ from mcv_consoler import exceptions
 from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section
 from mcv_consoler import utils
+from mcv_consoler.common import cleanup
 
 LOG = logging.getLogger(__name__)
 
@@ -57,6 +59,7 @@ class Consoler(object):
         self.group_name = None
         self.results_dir = None
         self._name_parts = ['mcv', self.timestamp_str]
+        self.cloud_cleanup = None
 
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
@@ -408,6 +411,10 @@ class Consoler(object):
         LOG.info("One page report could be found in %s\n" % archive_file)
 
     def __call__(self):
+        if self.ctx.args.compare_resources:
+            self._show_resources()
+            return
+
         params = self.ctx.args.run[:]
         method = params.pop(0)
 
@@ -419,24 +426,15 @@ class Consoler(object):
 
         self._name_parts.append(method)
 
-        self.access_helper = AccessSteward(
-            self.ctx, self.ctx.args.run_mode,
-            port_forwarding=not self.ctx.args.no_tunneling)
-
         try:
-            try:
-                if not self.access_helper.check_and_fix_environment():
-                    raise exceptions.AccessError(
-                        'Unable to setup access to OS cloud.')
-            except Exception as e:
-                LOG.info("Something went wrong with checking credentials "
-                         "and preparing environment")
-                LOG.error("The following error has terminated "
-                          "the consoler: %s", repr(e))
-                LOG.debug('Error details', exc_info=True)
+            if not self._check_fix_env():
                 return CAError.WRONG_CREDENTIALS
-
+            cleanup_status = utils.GET(self.config, 'show_trash', 'cleanup')
             try:
+                if util.strtobool(cleanup_status):
+                    self.cloud_cleanup = cleanup.Cleanup(
+                        self.config, self.access_helper.access_data())
+                    self.cloud_cleanup.get_started_resources()
                 run_results = handler(*params)
                 self._do_finalization(run_results)
             except Exception:
@@ -445,6 +443,13 @@ class Consoler(object):
                 LOG.debug('Error details', exc_info=True)
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
         finally:
+            try:
+                if self.cloud_cleanup:
+                    self.cloud_cleanup.get_finished_resources()
+            except Exception:
+                LOG.debug(traceback.format_exc())
+                LOG.info("Cleanup failed")
+
             for handler in (
                     self.access_helper.cleanup,
                     self.ctx.resources.terminate):
@@ -456,3 +461,35 @@ class Consoler(object):
                         e, exc_info=True)
 
         return self.failure_indicator
+
+    def _show_resources(self):
+        if not self._check_fix_env():
+            self.access_helper.cleanup()
+            return CAError.WRONG_CREDENTIALS
+        cloud_cleanup = cleanup.Cleanup(
+            self.config, self.access_helper.access_data())
+        try:
+            cloud_cleanup.compare_yaml_resources(self.ctx.args.compare_resources[0])
+        except Exception:
+            LOG.debug("Cleanup failed", exc_info=True)
+        finally:
+            self.access_helper.cleanup()
+
+    def _check_fix_env(self):
+        # TODO(vokhrimenko): need rewrite function.
+        # Best way - using a context manager
+        try:
+            self.access_helper = AccessSteward(
+                self.ctx, self.ctx.args.run_mode,
+                port_forwarding=not self.ctx.args.no_tunneling)
+            if not self.access_helper.check_and_fix_environment():
+                raise exceptions.AccessError(
+                    'Unable to setup access to OS cloud.')
+            return True
+        except Exception as e:
+            LOG.info("Something went wrong with checking credentials "
+                     "and preparing environment")
+            LOG.error("The following error has terminated "
+                      "the consoler: %s", repr(e))
+            LOG.debug('Error details', exc_info=True)
+            return False

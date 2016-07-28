@@ -47,3 +47,15 @@ class ParseError(MCVException):
 
 class ResourceDestroyBlockCtrl(MCVException):
     pass
+
+
+class OpenStackResourceAccessError(AccessError):
+    pass
+
+
+class ReadOutdatedFileError(MCVException):
+    pass
+
+
+class ClientsError(MCVException):
+    pass

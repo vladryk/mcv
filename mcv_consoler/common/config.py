@@ -124,3 +124,12 @@ SHAKER_AGENTS_TIMEOUT = 60
 # Default values for network names to be used for launching instances
 DEFAULT_NETWORK_NAME_INT = 'admin_internal_net'
 DEFAULT_NETWORK_NAME_EXT = 'admin_floating_net'
+
+# Path to cleanup-files
+CLEANUP_FILES_PATH = '/home/mcv/toolbox/cleanup/'
+
+# Tags for cleanup
+CLEANUP_TAGS = ('rally', 'ostf', 'ost1', 'tempest', 'shaker', 'speed', 'mcv')
+
+# Default max age of cleanup-files, in seconds
+CLEANUP_AGE_LIMIT = 86400
