@@ -463,7 +463,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
             self.access_data['tenant_name'],
             self.access_data['username'],
             self.access_data['password'],
-            self.access_data['auth_url'].rstrip('/'))
+            self.access_data['public_auth_url'].rstrip('/'))
 
         res = self.run_ssh_cmd(cmd)
         out = res['out']

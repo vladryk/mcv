@@ -170,8 +170,8 @@ class CRouter(Router):
                        'auth_fqdn': creds['AUTH_FQDN'],
                        'mos_version': creds['MOS_VERSION'],
                        'insecure': creds['INSECURE'],
-                       'public_endpoint_ip': creds['PUBLIC_ENDPOINT_IP']}
-
+                       'public_endpoint_ip': creds['PUBLIC_ENDPOINT_IP'],
+                       'public_auth_url': creds['PUBLIC_AUTH_URL']}
         except KeyError:
                 LOG.debug('Fail to extract some options from openrc file!')
                 LOG.debug(traceback.format_exc())
@@ -331,6 +331,7 @@ class CRouter(Router):
         public_url = self.keystoneclient.service_catalog.get_endpoints(
             'identity')['identity'][0]['publicURL']
         openrc['INSECURE'] = ("https" == re.findall(r'https|http', public_url)[0])
+
         ip = re.findall('[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', public_url)
         if ip:
             openrc['AUTH_FQDN'] = ''
@@ -341,6 +342,15 @@ class CRouter(Router):
             cmd = "cat /etc/hosts | grep %s| awk '{print $1}'" % fqdn
             host_resolve = client.exec_cmd(cmd)[0]
             openrc['PUBLIC_ENDPOINT_IP'] = host_resolve.rstrip()
+
+        # NOTE(albartash): In some cases we need public endpoint URL, so better
+        # to make it here and use in other places as-is.
+        protocol = 'https' if openrc['INSECURE'] else 'http'
+        openrc['PUBLIC_AUTH_URL'] = '{prot}://{ip}:{port}/{version}/'.format(
+            prot=protocol,
+            ip=openrc['PUBLIC_ENDPOINT_IP'],
+            port=5000,
+            version='v2.0')
 
         client.close()
 
@@ -558,6 +568,10 @@ class IRouter(Router):
                    'insecure': insecure,
                    'region_name': GET(self.config, 'region_name', 'auth'),
                    'public_endpoint_ip': endpoint_ip,
+
+                   # NOTE(albartash): As in L1 endpoint is public,
+                   # we will duplicate it here.
+                   'public_auth_url': self.os_data['auth_url']
                    }
 
         full_data = copy.deepcopy(base_data)
