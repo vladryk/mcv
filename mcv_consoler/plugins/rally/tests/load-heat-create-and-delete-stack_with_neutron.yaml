@@ -3,6 +3,7 @@
     -
       args:
         template_path: "{{ current_path }}/templates/server_with_ports.yml.template"
+        parameters: {{ parameters }}
       runner:
         type: "constant"
         times: {{ compute }}

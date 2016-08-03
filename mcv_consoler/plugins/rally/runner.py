@@ -570,6 +570,7 @@ class RallyOnDockerRunner(RallyRunner):
 
         else:
             LOG.info("Running task %s" % task)
+            ext_net, rou = self.get_network_router_id()
             location = os.path.join(self.home, 'tests/%s' % task)
             gre_enabled = utils.GET(self.config, 'gre_enabled', 'rally')
             vlan_amount = utils.GET(self.config, 'vlan_amount', 'rally')
@@ -583,7 +584,8 @@ class RallyOnDockerRunner(RallyRunner):
                          "current_path": os.path.join(self.home, 'tests'),
                          "gre_enabled": gre_enabled,
                          "vlan_amount": vlan_amount,
-                         'network': network
+                         'network': network,
+                         'parameters': {'public_net': ext_net}
                          }
 
             cmd = self.create_cmd_for_task(location, task_args)
