@@ -13,6 +13,7 @@
 #    under the License.
 
 import copy
+import itertools
 import os
 import re
 import shelve
@@ -25,10 +26,13 @@ from paramiko import client
 
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
+import yaml
 
+import mcv_consoler.exceptions
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common import ssh
 
+from mcv_consoler.common import config as mcv_config
 from mcv_consoler.common.config import DEBUG
 from mcv_consoler.common.config import DEFAULT_CREDS_PATH
 from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
@@ -51,8 +55,32 @@ from mcv_consoler.common.procman import ProcessManager
 LOG = LOG.getLogger(__name__)
 
 
+REMOTE_GRAB_FUEL_CREDENTIALS = """\
+from __future__ import print_function
+
+import os
+import sys
+
+import fuelclient.fuelclient_settings
+
+devnull = open(os.devnull, 'wt')
+stdout, sys.stdout = sys.stdout, devnull
+
+try:
+    settings = fuelclient.fuelclient_settings.get_settings()
+finally:
+    sys.stdout = stdout
+
+print(settings.dump())
+"""
+
+
 class Router(object):
     """Defines base class for Routing."""
+
+    _idx = itertools.count()
+    SSH_DEST_FUELMASTER = next(_idx)
+    del _idx
 
     def __init__(self, **kwargs):
         self.config = kwargs["config"]
@@ -122,6 +150,27 @@ class Router(object):
         """Clean up routing rules if necessary."""
         raise NotImplementedError
 
+    def _ssh_connect(self, dest, connect=False):
+        if dest == self.SSH_DEST_FUELMASTER:
+            auth = self.os_data['fuel']
+            args = {
+                'host': auth['nailgun'],
+                'username': auth['username'],
+                'password': auth['password']}
+        else:
+            raise ValueError(
+                'Invalid value for argument "dest": {!r}'.format(dest))
+
+        client = ssh.SSHClient(**args)
+
+        if connect:
+            if not client.connect():
+                raise mcv_consoler.exceptions.AccessError(
+                    'Can\'t access FUEL master node via SSH {}'.format(
+                        client.identity))
+
+        return client
+
 
 class MRouter(Router):
 
@@ -183,35 +232,30 @@ class CRouter(Router):
         return full_data
 
     def get_rsa_key(self):
-        client = ssh.SSHClient(
-            host=self.os_data['fuel']['nailgun'],
-            username=self.os_data['fuel']['username'],
-            password=self.os_data['fuel']['password'])
+        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
+        proc = fuel.exec_cmd(
+            "cat {}".format(self.os_data['fuel']['cert']),
+            exc=True)
 
-        key_path = self.os_data['fuel']['cert']
-
-        if not client.connect():
-            LOG.error('Fail to get RSA key!')
-            return False
-
-        sout, serr = client.exec_cmd("cat {fpath}".format(fpath=key_path))
-
-        client.close()
-
-        if serr:
-            LOG.debug("Caught error on Master Node: {err}".format(err=serr))
-            return False
-
-        ssh.save_private_key(DEFAULT_RSA_KEY_PATH, sout)
+        ssh.save_private_key(DEFAULT_RSA_KEY_PATH, proc.stdout)
         LOG.debug('Saving RSA key to file %s...', DEFAULT_RSA_KEY_PATH)
 
-        return True
+    def get_fuelclient_credentials(self):
+        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
+
+        proc = fuel.exec_cmd(
+            'python', stdin=REMOTE_GRAB_FUEL_CREDENTIALS, exc=True)
+
+        # overwrite fuelmaster host address, because we can receive address
+        # from different interface
+        settings = yaml.load(proc.stdout)
+        settings['SERVER_ADDRESS'] = self.os_data['fuel']['nailgun']
+
+        with open(mcv_config.FUELCLIENT_CONFIG, 'wt') as fd:
+            yaml.dump(settings, fd)
 
     def _get_controllers(self):
-        client = ssh.SSHClient(
-            host=self.os_data['fuel']['nailgun'],
-            username=self.os_data['fuel']['username'],
-            password=self.os_data['fuel']['password'])
+        client = self._ssh_connect(self.SSH_DEST_FUELMASTER)
 
         if not client.connect():
             LOG.debug('Cannot access Fuel Master Node with provided '
@@ -485,16 +529,16 @@ class CRouter(Router):
         return True
 
     def setup_connections(self):
-        # check cert on host
-        if not self.get_rsa_key():
-            LOG.debug('No RSA key exists to access cloud!')
-            return False
+        self.get_fuelclient_credentials()
+        self.get_rsa_key()
+
         if not self.setup_ssh_tunnels():
             LOG.debug('Cannot set up SSH tunnels!')
             return False
         if not self.get_and_store_credentials():
             LOG.debug('No credentials specified to access cloud!')
             return False
+
         self.make_sure_controller_name_could_be_resolved()
 
         LOG.debug('Connections have been set successfully.')

@@ -12,89 +12,111 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
 import os
 import socket
-import traceback
 
-from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
+import paramiko
+
 import mcv_consoler.exceptions
+from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
 from mcv_consoler.logger import LOG
-
-from paramiko import AuthenticationException
-from paramiko import AutoAddPolicy
-from paramiko import SSHException
-from paramiko import client
 
 
 LOG = LOG.getLogger(__name__)
 
+ProcOutput = collections.namedtuple(
+    'ProcOutput', 'stdout, stderr, rcode')
+
 
 class SSHClient(object):
+    connected = False
+    show_password = False
 
     def __init__(self, host, username,
                  password=None,
                  rsa_key=None,
                  timeout=DEFAULT_SSH_TIMEOUT):
 
-        self.client = client.SSHClient()
-        self.client.set_missing_host_key_policy(AutoAddPolicy())
+        self.client = paramiko.client.SSHClient()
+        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        self.host = host
-        self.username = username
-        self.password = password
-        self.rsa_key = rsa_key
-        self.timeout = timeout
-        self.connected = False
+        self.connect_args = {
+            'hostname': host,
+            'username': username,
+            'timeout': timeout}
+        if password:
+            self.connect_args['password'] = password
+        if rsa_key:
+            self.connect_args['pkey'] = rsa_key
 
     def connect(self):
         self.connected = False
         try:
-            kwargs = {'hostname': self.host,
-                      'username': self.username,
-                      'timeout': self.timeout}
-            if self.password:
-                kwargs['password'] = self.password
-            if self.rsa_key:
-                kwargs['pkey'] = self.rsa_key
-
-            self.client.connect(**kwargs)
-        except AuthenticationException:
-            LOG.error('Cannot connect to {host}: Invalid credentials!'.format(
-                host=self.host))
-            LOG.debug(traceback.format_exc())
-            return False
-        except SSHException as e:
-            LOG.error('Cannot connect to {host}: SSH error occurred!'.format(
-                host=self.host))
-            LOG.debug(traceback.format_exc())
-            return False
-        except socket.error as e:
-            LOG.error('Cannot connect to {host}: Socket error occurred!'.format(
-                host=self.host))
-            LOG.debug(str(e))
-            LOG.debug(traceback.format_exc())
+            self.client.connect(**self.connect_args)
+        except (
+                paramiko.AuthenticationException,
+                paramiko.SSHException,
+                socket.error) as e:
+            LOG.error('SSH connect {}: {}'.format(self.identity, e))
+            LOG.debug('Error details', exc_info=True)
             return False
 
         self.connected = True
         return self.connected
 
-    def exec_cmd(self, cmd):
+    def exec_cmd(self, cmd, stdin=None, exc=False):
         if not self.connected:
             LOG.debug('Client is not connected to SSH. Command will not be run!')
             return ('', '')
 
-        LOG.debug('Running SSH command: {cmd}'.format(cmd=cmd))
-        sout, serr = self.client.exec_command(cmd)[1:]
-        out = sout.read()
-        err = serr.read()
-        LOG.debug('Results:\n\tStdout: {sout}\n\tStderr: {serr}'.format(
-            sout=out, serr=err))
-        return out, err
+        LOG.debug('{} Running SSH command: {}'.format(self.identity, cmd))
+        inp, out, err = self.client.exec_command(cmd)
+
+        if stdin:
+            inp.write(stdin)
+        inp.channel.shutdown(2)
+
+        args = (out.read(), err.read(), inp.channel.recv_exit_status())
+        results = ProcOutput(*args)
+
+        LOG.debug('{identity} Results:\n'
+                  '\trcode: {0.rcode}\n'
+                  '\tstdout: {0.stdout}\n'
+                  '\tstderr: {0.stderr}'.format(
+            results, identity=self.identity))
+
+        if results.rcode and exc:
+            raise mcv_consoler.exceptions.RemoteError(
+                'Command {!r} failed on {}'.format(
+                    cmd, self.identity), results)
+
+        return results
 
     def close(self):
         if self.connected:
             self.client.close()
             self.connected = False
+
+    @property
+    def identity(self):
+        auth = []
+        try:
+            pwd = self.connect_args['password']
+            if not self.show_password:
+                pwd = '*' * 5
+            auth.append(pwd)
+        except KeyError:
+            pass
+        if 'pkey' in self.connect_args:
+            auth.append('{private-key}')
+        auth = '/'.join(auth)
+        if auth:
+            auth = ':' + auth
+
+        return '{login}{auth}@{host}'.format(
+            login=self.connect_args['username'],
+            auth=auth, host=self.connect_args['hostname'])
 
 
 def save_private_key(dest, payload):

@@ -19,3 +19,11 @@ class MCVException(Exception):
 
 class FrameworkError(MCVException):
     pass
+
+
+class RemoteError(MCVException):
+    pass
+
+
+class AccessError(RemoteError):
+    pass

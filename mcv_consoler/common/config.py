@@ -90,6 +90,9 @@ DEFAULT_RSA_KEY_PATH = "/home/mcv/toolbox/keys/id_rsa"
 # Default path to file with credentials received from the cloud
 DEFAULT_CREDS_PATH = "/home/mcv/toolbox/keys/openrc"
 
+FUELCLIENT_SETTINGS_ENV_VAR = 'FUELCLIENT_CUSTOM_SETTINGS'
+FUELCLIENT_CONFIG = '/home/mcv/toolbox/fuelclient-config.yaml'
+
 #
 # Configuration for SSH tunneling
 #
