@@ -36,6 +36,10 @@ from mcv_consoler import utils
 
 LOG = LOG.getLogger(__name__)
 
+TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
+                          "Failed: {test_failed}, Skipped: {test_skipped}, " \
+                          "Expected failures: {expected_failures}"
+
 
 class Consoler(object):
     def __init__(self, config, args):
@@ -82,8 +86,9 @@ class Consoler(object):
         return os.path.join(dst_dir, dirname)
 
     def do_custom(self, test_group):
-        LOG.warning('Deprecation Warning: Tests is running, but the command is obsolete.'
-                    ' Please use command "... --run group ..." instead.')
+        LOG.warning('Deprecation Warning: Tests is running, but the command '
+                    'is obsolete. Please use command "... --run group ..." '
+                    'instead.')
         return self.do_group(test_group)
 
     def do_group(self, test_group):
@@ -165,8 +170,8 @@ class Consoler(object):
                     try:
                         self.all_time += db[key][test]
                     except KeyError:
-                        LOG.info(("You must update the database time tests. "
-                                 "There is no time for %s") % test)
+                        LOG.info("You must update the database time tests. "
+                                 "There is no time for %s", test)
 
             msg = "Expected time to complete all the tests: " \
                   "%s\n" % self.seconds_to_time(self.all_time)
@@ -193,7 +198,7 @@ class Consoler(object):
                                               key, "runner.py")
                 module = imp.load_source("runner" + key, path_to_runner)
             except IOError as e:
-                LOG.debug("Looks like there is no such runner: " + key + ".")
+                LOG.debug("Looks like there is no such runner: %s.", key)
                 dispatch_result[key]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
                 LOG.debug(traceback.format_exc())
@@ -207,18 +212,20 @@ class Consoler(object):
             else:
                 path = os.path.join(self.results_dir, key)
                 os.mkdir(path)
-                runner = getattr(module, self.config.get(key, 'runner')
-                        )(self.access_helper.router.get_os_data(),
-                                   path,
-                                   config=self.config)
+                runner = getattr(
+                    module,
+                    self.config.get(key, 'runner'))(self.access_helper.router
+                                                    .get_os_data(),
+                                                    path,
+                                                    config=self.config)
 
                 batch = test_dict[key]
                 if isinstance(batch, basestring):
                     batch = self.split_tests(key, batch)
 
-                LOG.debug("Running {batch} for {key}".format(
-                          batch=str(len(batch)),
-                          key=key))
+                LOG.debug("Running {batch} for {key}"
+                          .format(batch=len(batch),
+                                  key=key))
 
                 try:
                     run_failures = runner.run_batch(
@@ -260,20 +267,26 @@ class Consoler(object):
     def describe_results(self, results):
         """Pretty printer for results"""
 
-        x = prettytable.PrettyTable(["Group", "Plugin", "Test", "Time Duration", "Status"])
+        def time_of_test(t):
+            return time_of_tests.get(t, {}).get('duration', '0s')
 
-        x.add_row([self.group_name, "", "", "", ""])
+        def get(item, default=None):
+            return results[key].get('results', {}).get(item, default)
+
+        res_table = prettytable.PrettyTable(
+            ["Group", "Plugin", "Test", "Time Duration", "Status"])
+
+        res_table.add_row([self.group_name, "", "", "", ""])
         for key in results.iterkeys():
 
             if results[key].get('major_crash') is not None:
-                LOG.info("A major tool failure has been detected for plugin '%s'" % key)
+                LOG.info(
+                    "A major tool failure has been detected for plugin '%s'",
+                    key)
                 continue
             if not validate_section(results[key]):
-                LOG.debug('Error: no results for %s' % key)
+                LOG.debug('Error: no results for %s', key)
                 continue
-
-            def get(item, default=None):
-                return results[key].get('results', {}).get(item, default)
 
             test_success = get('test_success', [])
             test_failures = get('test_failures', [])
@@ -281,30 +294,47 @@ class Consoler(object):
             test_without_report = get('test_without_report', [])
             time_of_tests = get('time_of_tests', {})
 
-            msg = ""
+            tempest_tests_details = get('tempest_tests_details', {})
 
-            if test_success:
-                msg += "SUCCESSFUL: " + str(len(test_success)) + ", "
-            if test_failures or test_without_report:
-                msg += "FAILED: " + str(len(test_failures + test_without_report)) + ", "
-            if test_not_found:
-                msg += "NOT FOUND: " + str(len(test_not_found)) + ", "
-            msg = msg[:-2]
+            if tempest_tests_details:
+                for suit, suit_results in tempest_tests_details.iteritems():
+                    status = ("FAILED" if suit_results["test_failed"]
+                              else "SUCCESS")
+                    suit_res = TEMPEST_OUTPUT_TEMPLATE.format(**suit_results)
+                    msg = "{suit}\n{res}".format(suit=suit,
+                                                 res=suit_res)
 
-            x.add_row(["", key, msg, "", ""])
+                    res_table.add_row(
+                        ["", key, msg, time_of_test(suit), status])
+            else:
+                msg_parts = []
+                if test_success:
+                    msg_parts.append("Successful: {}".format(len(test_success)))
+                if test_failures or test_without_report:
+                    msg_parts.append("Failed: {}"
+                                     .format(len(test_failures +
+                                                 test_without_report)))
+                if test_not_found:
+                    msg_parts.append("Not found: {}"
+                                     .format(len(test_not_found)))
 
-            time_of_test = lambda x: time_of_tests[x].get('duration', '0s') if time_of_tests.get(x, None) else '0s'
+                msg = ", ".join(msg_parts)
 
-            for test in test_success:
-                x.add_row(["", "", test, time_of_test(test), " OK "])
-            for test in (test_failures + test_without_report):
-                x.add_row(["", "", test, time_of_test(test), " FAILED "])
-            for test in test_not_found:
-                x.add_row(["", "", test, time_of_test(test), " NOT FOUND "])
-            x.add_row(["", "", "", "", ""])
+                res_table.add_row(["", key, msg, "", ""])
 
-        x.align = "l"
-        print(x)
+                for test in test_success:
+                    res_table.add_row(
+                        ["", "", test, time_of_test(test), " OK "])
+                for test in (test_failures + test_without_report):
+                    res_table.add_row(
+                        ["", "", test, time_of_test(test), " FAILED "])
+                for test in test_not_found:
+                    res_table.add_row(
+                        ["", "", test, time_of_test(test), " NOT FOUND "])
+            res_table.add_row(["", "", "", "", ""])
+
+        res_table.align = "l"
+        print(res_table)
 
     def _search_and_remove_group_failed(self, file_to_string):
         object_for_search = re.compile(
@@ -416,7 +446,7 @@ class Consoler(object):
         try:
             kwargs = {'port_forwarding': not self.args.no_tunneling}
             self.access_helper = AccessSteward(self.config, event, mode,
-                    **kwargs)
+                                               **kwargs)
             env_ready = self.access_helper.check_and_fix_environment()
         except Exception as e:
             LOG.info("Something went wrong with checking credentials "

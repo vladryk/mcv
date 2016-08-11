@@ -28,12 +28,10 @@ from mcv_consoler.logger import LOG
 from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler import utils
 
-
 LOG = LOG.getLogger(__name__)
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
-
     def __init__(self, access_data, path, *args, **kwargs):
         super(TempestOnDockerRunner, self).__init__(access_data,
                                                     path,
@@ -85,9 +83,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         # Hotfix. set rally's permission for .rally/ folder
         # Please remove this. Use: `sudo -u rally docker run` when
         # rally user gets its permissions to start docker containers
-        cmd = 'docker exec -t {cid} sudo chown rally:rally /home/rally/.rally'\
-            .format(cid=self.container_id)
-        utils.run_cmd(cmd)
+        cmd = 'docker exec -t {cid} sudo chown rally:rally /home/rally/.rally'
+        utils.run_cmd(cmd.format(cid=self.container_id))
 
         self.copy_config()
 
@@ -95,9 +92,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.info('Copying image files required by tempest')
         # here we fix glance image issues
         subprocess.Popen(["sudo", "chmod", "a+r",
-                         os.path.join(self.home,
-                                      "images",
-                                      "cirros-0.3.4-x86_64-disk.img")],
+                          os.path.join(self.home,
+                                       "images",
+                                       "cirros-0.3.4-x86_64-disk.img")],
                          stdout=subprocess.PIPE,
                          preexec_fn=utils.ignore_sigint).stdout.read()
 
@@ -122,9 +119,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
               % dict(cid=self.container_id)
         deployment_id = utils.run_cmd(cmd, quiet=True).strip()
 
-        cmd = 'docker exec -t {cid} mkdir -p {out_dir}'\
-            .format(cid=self.container_id, out_dir=details_dir)
-        utils.run_cmd(cmd, quiet=True)
+        cmd = 'docker exec -t {cid} mkdir -p {out_dir}'
+        utils.run_cmd(cmd.format(cid=self.container_id, out_dir=details_dir),
+                      quiet=True)
 
         # Note(ogrytsenko): tool subunit2pyunit returns exit code '1' if
         # at leas one test failed in a test suite. It also returns exit
@@ -142,7 +139,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         cmd = 'docker exec -t {cid} test -e {out_file} ' \
               '&& echo yes || echo no'.format(
-                    cid=self.container_id, out_file=details_file)
+            cid=self.container_id, out_file=details_file)
         exists = utils.run_cmd(cmd)
         if exists == 'no':
             LOG.debug('ERROR: Failed to create detailed report for '
@@ -152,9 +149,11 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cmd = 'mkdir -p {path}/details'.format(path=self.path)
         utils.run_cmd(cmd, quiet=True)
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = 'cp {reports}/details/{task}.txt {path}/details'.format(
-                reports=reports_dir, task=task, path=self.path)
-        utils.run_cmd(cmd, quiet=True)
+        cmd = 'cp {reports}/details/{task}.txt {path}/details'
+        utils.run_cmd(
+            cmd.format(reports=reports_dir, task=task, path=self.path),
+            quiet=True
+        )
         LOG.debug(
             "Finished creating detailed report for '{task}'. "
             "File: {details_file}".format(task=task, details_file=details_file)
@@ -173,7 +172,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 cid=self.container_id)
 
             p = utils.run_cmd(cmd, quiet=True)
-            cmd = "docker exec -t %(container)s rally verify genconfig" %\
+            cmd = "docker exec -t %(container)s rally verify genconfig" % \
                   {"container": self.container_id}
 
             p = utils.run_cmd(cmd, quiet=True)
@@ -224,7 +223,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         utils.run_cmd(cmd, quiet=True)
 
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = "cp {reports}/{task}.html {path} ".\
+        cmd = "cp {reports}/{task}.html {path} ". \
             format(reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
 
@@ -234,8 +233,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.debug('ERROR: \n' + traceback.format_exc())
 
         cmd = "docker exec -t {cid} /bin/sh -c " \
-              "\"rally verify results --json 2>/dev/null\" ".format(
-                    cid=self.container_id)
+              "\"rally verify results --json 2>/dev/null\" "\
+              .format(cid=self.container_id)
 
         return utils.run_cmd(cmd, quiet=True)
 
@@ -316,6 +315,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             self.test_not_found.extend(missing)
 
         t = []
+        tempest_task_results_details = {}
         LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
         for task in tasks:
             LOG.info("-" * 60)
@@ -333,8 +333,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 except KeyError:
                     current_time = 0
 
-                msg = "Expected time to complete %s: %s" %(task,
-                    self.seconds_to_time(current_time * multiplier))
+                msg = "Expected time to complete %s: %s" \
+                      % (task,
+                         self.seconds_to_time(current_time * multiplier))
                 if not current_time:
                     LOG.debug(msg)
                 else:
@@ -378,6 +379,15 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
                 break
 
+            tempest_task_results_details[task] = {
+                # overall number of tests in suit
+                "tests": self.task.get("tests", 0),
+                "test_succeed": self.task.get("success", 0),
+                "test_failed": self.task.get("failures", 0),
+                "test_skipped": self.task.get("skipped", 0),
+                "expected_failures": self.task.get("expected_failures", 0)
+            }
+
         if self.config.get('times', 'update') == 'True':
             f = file(TIMES_DB_PATH, "w")
             f.write(json.dumps(db))
@@ -388,7 +398,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found,
-                "time_of_tests": self.time_of_tests}
+                "time_of_tests": self.time_of_tests,
+                "tempest_tests_details": tempest_task_results_details,
+                }
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
