@@ -203,18 +203,27 @@ class CRouter(Router):
             LOG.debug("Caught error on Master Node: {err}".format(err=serr))
             return False
 
-        keyfile_path = DEFAULT_RSA_KEY_PATH
+        keyfile = DEFAULT_RSA_KEY_PATH
+
+        LOG.debug('Saving RSA key to file {fname}...'.format(
+            fname=keyfile))
+
+        umask = os.umask(0177)
         try:
-            LOG.debug('Saving RSA key to file {fname}...'.format(
-                fname=keyfile_path))
-            fp = open(keyfile_path, 'w')
-            fp.write(sout)
-            fp.close()
-            LOG.debug('Successfully saved RSA key.')
+            with open(keyfile, 'wt') as fp:
+                fp.write(sout)
+
+            # If file exist on time when we made "open()" call, it will be not
+            # recreated and will keep it's old permission bits. We should make
+            # chmod call to be sure that file get correct permission in all
+            # cases.
+            os.chmod(keyfile, 0600)
         except IOError as e:
             LOG.error('Fail to store RSA key on MCV host!')
             LOG.debug(traceback.format_exc())
             return False
+        finally:
+            os.umask(umask)
 
         return True
 
