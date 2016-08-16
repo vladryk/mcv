@@ -14,12 +14,14 @@
 
 import json
 import math
-import paramiko
 import time
 
+import paramiko
+
 from mcv_consoler.common import clients as Clients
-import mcv_consoler.common.config as app_conf
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.logger import LOG
+from mcv_consoler.plugins.speed import config
 from mcv_consoler.utils import GET
 
 
@@ -29,8 +31,10 @@ LOG = LOG.getLogger(__name__)
 class BaseStorageSpeed(object):
 
     def __init__(self, access_data, *args, **kwargs):
-        self.config = kwargs.get('config')
         self.access_data = access_data
+        self.config = kwargs.get('config')
+        self.work_dir = kwargs['work_dir']
+
         protocol = 'https' if self.access_data['insecure'] else 'http'
 
         self.glance_url = "{protocol}://{endpoint}:9292/v2".format(
@@ -53,25 +57,22 @@ class BaseStorageSpeed(object):
                        ip['OS-EXT-IPS:type'] == 'floating'][0]
         return vm, floating_ip
 
-    def set_ssh_connection(self, ip):
-        hostname = ip
+    def set_ssh_connection(self, hostname):
         port = 22
-        username = 'fedora'
-        k = paramiko.RSAKey.from_private_key_file('/home/mcv/fedora.pem')
-        conn = False
+        pkey = paramiko.RSAKey.from_private_key_file(
+            config.tool_vm_keypair_path(self.work_dir))
         for i in range(0, 100):
             try:
                 self.client = paramiko.Transport((hostname, port))
-                self.client.connect(username=username, pkey=k)
-                conn = True
+                self.client.connect(username=config.tool_vm_login, pkey=pkey)
                 break
-            except paramiko.SSHException:
-                LOG.debug('Waiting for test VM became available')
+            except paramiko.SSHException as e:
+                LOG.debug('Waiting for test VM became available (%s)', e)
             time.sleep(10)
-        if conn:
-            LOG.debug('SSH connection to test VM successfully established')
         else:
             raise RuntimeError("Can't connect to test vm")
+
+        LOG.debug('SSH connection to test VM successfully established')
 
     def run_ssh_cmd(self, cmd):
         command = 'sudo ' + cmd

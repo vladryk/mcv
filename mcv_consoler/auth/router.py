@@ -13,12 +13,10 @@
 #    under the License.
 
 import copy
-import errno
 import os
 import re
 import shelve
 import socket
-import shlex
 import shutil
 import subprocess
 import time
@@ -29,7 +27,7 @@ from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
 
 from mcv_consoler.common import clients as Clients
-from mcv_consoler.common.ssh import SSHClient
+from mcv_consoler.common import ssh
 
 from mcv_consoler.common.config import DEBUG
 from mcv_consoler.common.config import DEFAULT_CREDS_PATH
@@ -185,9 +183,10 @@ class CRouter(Router):
         return full_data
 
     def get_rsa_key(self):
-        client = SSHClient(host=self.os_data['fuel']['nailgun'],
-                           username=self.os_data['fuel']['username'],
-                           password=self.os_data['fuel']['password'])
+        client = ssh.SSHClient(
+            host=self.os_data['fuel']['nailgun'],
+            username=self.os_data['fuel']['username'],
+            password=self.os_data['fuel']['password'])
 
         key_path = self.os_data['fuel']['cert']
 
@@ -203,34 +202,16 @@ class CRouter(Router):
             LOG.debug("Caught error on Master Node: {err}".format(err=serr))
             return False
 
-        keyfile = DEFAULT_RSA_KEY_PATH
-
-        LOG.debug('Saving RSA key to file {fname}...'.format(
-            fname=keyfile))
-
-        umask = os.umask(0177)
-        try:
-            with open(keyfile, 'wt') as fp:
-                fp.write(sout)
-
-            # If file exist on time when we made "open()" call, it will be not
-            # recreated and will keep it's old permission bits. We should make
-            # chmod call to be sure that file get correct permission in all
-            # cases.
-            os.chmod(keyfile, 0600)
-        except IOError as e:
-            LOG.error('Fail to store RSA key on MCV host!')
-            LOG.debug(traceback.format_exc())
-            return False
-        finally:
-            os.umask(umask)
+        ssh.save_private_key(DEFAULT_RSA_KEY_PATH, sout)
+        LOG.debug('Saving RSA key to file %s...', DEFAULT_RSA_KEY_PATH)
 
         return True
 
     def _get_controllers(self):
-        client = SSHClient(host=self.os_data['fuel']['nailgun'],
-                           username=self.os_data['fuel']['username'],
-                           password=self.os_data['fuel']['password'])
+        client = ssh.SSHClient(
+            host=self.os_data['fuel']['nailgun'],
+            username=self.os_data['fuel']['username'],
+            password=self.os_data['fuel']['password'])
 
         if not client.connect():
             LOG.debug('Cannot access Fuel Master Node with provided '
@@ -261,9 +242,10 @@ class CRouter(Router):
         return controllers
 
     def _get_mos_version(self):
-        client = SSHClient(host=self.os_data['fuel']['nailgun'],
-                           username=self.os_data['fuel']['username'],
-                           password=self.os_data['fuel']['password'])
+        client = ssh.SSHClient(
+            host=self.os_data['fuel']['nailgun'],
+            username=self.os_data['fuel']['username'],
+            password=self.os_data['fuel']['password'])
 
         if not client.connect():
             LOG.debug('Cannot access Fuel Master Node with provided '
@@ -299,8 +281,8 @@ class CRouter(Router):
         # using Fuel private key
 
         key = paramiko.RSAKey.from_private_key_file(DEFAULT_RSA_KEY_PATH)
-        client = SSHClient(host=ctrl, username=RMT_CONTROLLER_USER,
-                           rsa_key=key)
+        client = ssh.SSHClient(
+            host=ctrl, username=RMT_CONTROLLER_USER, rsa_key=key)
         if not client.connect():
             LOG.debug('Fail to reach controller node at "{addr}" with '
                       'provided RSA key!'.format(addr=ctrl))

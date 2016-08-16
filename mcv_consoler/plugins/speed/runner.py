@@ -67,7 +67,7 @@ class SpeedTestRunner(run.Runner):
         self.threshold = GET(self.config,
                              'threshold',
                              'speed', str(app_conf.DEFAULT_SPEED_STORAGE))
-        self.preparer = Preparer(self.access_data)
+        self.preparer = Preparer(self.access_data, self.path)
 
     def _evaluate_task_results(self, task_results):
         res = True
@@ -147,13 +147,15 @@ class SpeedTestRunner(run.Runner):
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
-        # runs a set of commands
-        if self.node_ids is None:
+        if not self.node_ids:
             LOG.error('Failed to measure speed - no test VMs was created')
             self.test_failures.append(task)
             return False
-        i_s = GET(self.config, 'image_size', 'speed', '1G')
-        v_s = GET(self.config, 'volume_size', 'speed', '1G')
+
+        kwargs['work_dir'] = self.path
+        kwargs['image_size'] = GET(self.config, 'image_size', 'speed', '1G')
+        kwargs['volume_size'] = GET(self.config, 'volume_size', 'speed', '1G')
+
         LOG.debug('Start generating %s' % task)
         try:
             speed_class = getattr(st, task)
@@ -161,9 +163,9 @@ class SpeedTestRunner(run.Runner):
             LOG.error('Incorrect task: %s' % task)
             self.test_not_found.append(task)
             return False
+
         try:
-            reporter = speed_class(self.access_data, image_size=i_s,
-                                   volume_size=v_s, *args, **kwargs)
+            reporter = speed_class(self.access_data, *args, **kwargs)
         except Exception:
             LOG.error('Error creating class %s. Please check mcvconsoler logs '
                       'for more info' % task)

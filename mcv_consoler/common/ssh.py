@@ -12,11 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import socket
 import traceback
 
 from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
-
+import mcv_consoler.exceptions
 from mcv_consoler.logger import LOG
 
 from paramiko import AuthenticationException
@@ -94,3 +95,21 @@ class SSHClient(object):
         if self.connected:
             self.client.close()
             self.connected = False
+
+
+def save_private_key(dest, payload):
+    umask = os.umask(0177)
+    try:
+        with open(dest, 'wt') as fp:
+            fp.write(payload)
+
+        # If file exist on time when we made "open()" call, it will be not
+        # recreated and will keep it's old permission bits. We should make
+        # chmod call to be sure that file get correct permission in all
+        # cases.
+        os.chmod(dest, 0600)
+    except IOError as e:
+        raise mcv_consoler.exceptions.FrameworkError(
+            'Fail to store RSA key', e)
+    finally:
+        os.umask(umask)
