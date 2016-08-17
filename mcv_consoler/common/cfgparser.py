@@ -16,7 +16,7 @@ import ConfigParser
 
 
 def _init_parser():
-    parser = ConfigParser.SafeConfigParser()
+    parser = ConfigParser.RawConfigParser()
     return parser
 
 config_parser = _init_parser()
