@@ -14,10 +14,13 @@
 
 from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
+import datetime
+import json
 import re
 import signal
 import subprocess
 
+from mcv_consoler import exceptions
 from mcv_consoler.logger import LOG
 
 warnings = ('SNIMissingWarning',
@@ -45,9 +48,15 @@ def run_cmd(cmd, quiet=False):
     return result
 
 
-def GET(config, key, section="basic", default=None):
+def GET(config, key, section="basic", default=None, convert=None):
     try:
         value = config.get(section, key)
+        if convert:
+            value = convert(value)
+    except (ValueError, TypeError) as e:
+        raise exceptions.ConfigurationError(
+            'Invalid value for option {}, converter {!r}: {}'.format(
+                '.'.join((section, key)), convert, e))
     except NoSectionError:
         LOG.debug('Section {sec} missed in configuration file. '
                   'It may be dangerous'.format(sec=section))
@@ -61,3 +70,87 @@ def GET(config, key, section="basic", default=None):
         value = default
     return value
 
+
+class TokenFactory(object):
+    _token = None
+
+    def __init__(self, auth, connect, obsolescence_boundary=600):
+        self.auth = auth
+        self.connect = connect
+        self.obsolescence_boundary = datetime.timedelta(
+            seconds=obsolescence_boundary)
+        # force token allocate on first query
+        self._etime = (datetime.datetime.utcnow() -
+                       datetime.timedelta(seconds=1))
+
+    def __call__(self):
+        now = datetime.datetime.utcnow()
+        if self._etime < now + self.obsolescence_boundary:
+            self._allocate(now)
+        return self._token
+
+    def __str__(self):
+        return self()
+
+    def __unicode__(self):
+        return self().decode('ascii')
+
+    def _allocate(self, now):
+        auth = {
+            'username': self.auth['username'],
+            'password': self.auth['password']}
+        auth = {
+            'tenantName': self.auth['tenant_name'],
+            'passwordCredentials': auth}
+        auth = {'auth': auth}
+        auth = json.dumps(auth)
+
+        cmd = (
+            'curl --insecure --silent '
+            '--header "Content-type: application/json" '
+            '--data \'{payload}\' '
+            '{url_base}/tokens'
+        ).format(
+            payload=auth,
+            url_base=self.auth['public_auth_url'].rstrip('/'))
+
+        try:
+            proc = self.connect.exec_cmd(cmd, exc=True)
+            payload = json.loads(proc.stdout)
+            self._token = payload['access']['token']['id']
+            expires = payload['access']['token']['expires']
+            expires = datetime.datetime.strptime(expires, '%Y-%m-%dT%H:%M:%SZ')
+        except (KeyError, ValueError, TypeError, exceptions.RemoteError) as e:
+            raise exceptions.AccessError(
+                'Unable to allocate OpenStack auth token: {}'.format(e))
+        self._etime = expires
+
+
+class TimeTrack(object):
+    def __init__(self):
+        self.metrics = {}
+
+    def record(self, name=None):
+        self.metrics[name] = m = TimeMetric()
+        return m
+
+    def query(self, name):
+        try:
+            m = self.metrics[name]
+        except KeyError:
+            raise exceptions.MissingDataError(
+                'There is no time metric named {!r}'.format(name))
+        return m
+
+
+class TimeMetric(object):
+    def __init__(self):
+        self.start = self.end = self.value = None
+
+    def __enter__(self):
+        self.start = datetime.datetime.utcnow()
+        return self
+
+    def __exit__(self, *exc_info):
+        self.end = datetime.datetime.utcnow()
+        self.value = self.end - self.start

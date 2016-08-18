@@ -155,6 +155,9 @@ class SpeedTestRunner(run.Runner):
         kwargs['work_dir'] = self.path
         kwargs['image_size'] = GET(self.config, 'image_size', 'speed', '1G')
         kwargs['volume_size'] = GET(self.config, 'volume_size', 'speed', '1G')
+        kwargs['iterations'] = GET(
+            self.config, 'attempts', 'speed',
+            default=app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT, convert=int)
 
         LOG.debug('Start generating %s' % task)
         try:

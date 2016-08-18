@@ -21,9 +21,17 @@ class FrameworkError(MCVException):
     pass
 
 
+class ConfigurationError(FrameworkError):
+    pass
+
+
 class RemoteError(MCVException):
     pass
 
 
 class AccessError(RemoteError):
+    pass
+
+
+class MissingDataError(MCVException):
     pass

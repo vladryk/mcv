@@ -12,17 +12,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
+import functools
 import json
 import math
 import time
 
 import paramiko
 
-from mcv_consoler.common import clients as Clients
+from mcv_consoler.common import clients
 from mcv_consoler.common import config as app_conf
+from mcv_consoler.common import ssh
+from mcv_consoler import exceptions
 from mcv_consoler.logger import LOG
 from mcv_consoler.plugins.speed import config
-from mcv_consoler.utils import GET
+from mcv_consoler import utils
 
 
 LOG = LOG.getLogger(__name__)
@@ -43,13 +47,13 @@ class BaseStorageSpeed(object):
 
         self.timeout = 0
         self.test_vm = None
-        self.init_clients()
 
-    def init_clients(self):
-        LOG.debug("Trying to obtain authenticated OS clients")
-        self.cinderclient = Clients.get_cinder_client(self.access_data)
-        self.novaclient = Clients.get_nova_client(self.access_data)
-        LOG.debug('Authentication ends well')
+        self.cinderclient = clients.get_cinder_client(self.access_data)
+        self.novaclient = clients.get_nova_client(self.access_data)
+        self.glance = clients.get_glance_client(self.access_data)
+
+    def cleanup(self, vm_uuid):
+        pass
 
     def get_test_vm(self, node_id):
         vm = self.novaclient.servers.find(id=node_id)
@@ -355,9 +359,9 @@ class BlockStorageSpeed(BaseStorageSpeed):
         w_res_iop = []
         LOG.info('Starting measuring block storage r/w speed')
 
-        self.attempts = GET(self.config,
-                            'attempts', 'speed',
-                            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
+        self.attempts = utils.GET(
+            self.config, 'attempts', 'speed',
+            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
         try:
             self.attempts = int(self.attempts)
         except ValueError:
@@ -413,233 +417,204 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.debug('Cleanup finished')
 
 
-def object_measure_dec(measure):
-    def wrapper(self, image_id=None, token=None):
-        if image_id is None:
-            return 0
-        if token is None:
-            token = self.get_token()
-        else:
-            token = self.get_token() if self.is_expired() else token
-        start_time = time.time()
-        measure(self, image_id, token)
-        return time.time() - start_time
-    return wrapper
-
-
 class ObjectStorageSpeed(BaseStorageSpeed):
-
     def __init__(self, access_data, *args, **kwargs):
         super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size_str = kwargs.get('image_size')
-        self.size = 0
-        self.start_time = 0
-        self.config = kwargs.get('config')
+        self.size = self.prepare_size(kwargs['image_size'])
+        self.iterations = kwargs['iterations']
 
-    def is_expired(self):
-        if time.time() - self.start_time > 3600:
-            return True
-        else:
-            return False
-
-    def separate_out(self, out):
-        res = out.split('---')
-        try:
-            data = res[0]
-            code = int(res[1])
-            LOG.debug("Http code - %d, data - %s" % (code, data))
-            return code, data
-        except KeyError:
-            LOG.error('Parsing out failed')
-            raise RuntimeError
-
-    def get_token(self):
-        self.start_time = time.time()
-
-        cmd = ('curl -k -s -w "---%%{http_code}" '
-               '-d \'{"auth":{"tenantName": "%s", '
-               '"passwordCredentials": {"username": "%s", '
-               '"password": "%s"}}}\' -H "Content-type: application/json" '
-               '%s/tokens') % (
-            self.access_data['tenant_name'],
-            self.access_data['username'],
-            self.access_data['password'],
-            self.access_data['public_auth_url'].rstrip('/'))
-
-        res = self.run_ssh_cmd(cmd)
-        out = res['out']
-        ret = res['ret']
-        if not out:
-            LOG.warning('Token has not received, retrying')
-            return self.get_token()
-        code, data = self.separate_out(out)
-        if ret or code != 200:
-            LOG.error('Get token error, exit code - %s, '
-                      'http code - %s' % (ret, code))
-            raise RuntimeError
-        else:
-            try:
-                token_id = json.loads(data)['access']['token']['id']
-                return token_id
-            except KeyError:
-                LOG.error('Invalid token data received')
-                raise RuntimeError
-
-    def create_image(self, token):
-        cmd = ('curl -k -s -w "---%%{http_code}" '
-               '-X POST -H \'X-Auth-Token: %s\' '
-               '-H \'Content-Type: application/json\' '
-               '-d \'{"name": "speedtest", "container_format": "bare", '
-               '"disk_format": "raw"}\' '
-               '%s/images') % (
-            token,
-            self.glance_url)
-
-        res = self.run_ssh_cmd(cmd)
-        out = res['out']
-        ret = res['ret']
-        if not out:
-            LOG.warning('Creating failed, retrying')
-            return self.create_image(token)
-        code, data = self.separate_out(out)
-        if ret or code != 201:
-            LOG.error('Create image error, exit code - %s, '
-                      'http code - %s' % (ret, code))
-            raise RuntimeError
-        else:
-            try:
-                image_id = json.loads(data)['id']
-                return image_id
-            except KeyError:
-                LOG.error('Invalid image data received')
-                raise RuntimeError
-
-    @object_measure_dec
-    def upload_image(self, image_id, token):
-        LOG.debug('Uploading image')
-
-        cmd = ('dd if=/dev/zero bs=32k count=%d | '
-               'curl -k -s -w "---%%{http_code}" -X PUT -H '
-               '\'X-Auth-Token: %s\' '
-               '-H \'Content-Type: application/octet-stream\' '
-               '-T - %s/images/%s/file') % (
-            int(self.size * 32),
-            token,
-            self.glance_url,
-            image_id)
-
-        res = self.run_ssh_cmd(cmd)
-        out = res['out']
-        ret = res['ret']
-        code = self.separate_out(out)[0]
-        if ret or code != 204:
-            LOG.error('Upload image error, exit code - %s, '
-                      'http code - %s' % (ret, code))
-            raise RuntimeError
-
-    @object_measure_dec
-    def download_image(self, image_id, token):
-        LOG.debug('Downloading image')
-
-        cmd = ('curl -k -s -w "---%%{http_code}" '
-               '-X GET -H \'X-Auth-Token: %s\' '
-               '%s/images/%s/file -o /dev/null') % (
-            token,
-            self.glance_url,
-            image_id)
-        res = self.run_ssh_cmd(cmd)
-        out = res['out']
-        ret = res['ret']
-        code = self.separate_out(out)[0]
-        if ret or code != 200:
-            LOG.error('Download image error, exit code - %s, '
-                      'http code - %s' % (ret, code))
-            raise RuntimeError
-
-    def delete_image(self, image_id, token):
-        cmd = ('curl -k -s -w "---%%{http_code}" '
-               '-X DELETE -H \'X-Auth-Token: %s\' '
-               '%s/images/%s') % (
-            token,
-            self.glance_url,
-            image_id)
-        res = self.run_ssh_cmd(cmd)
-        out = res['out']
-        ret = res['ret']
-        code = self.separate_out(out)[0]
-        if ret or code != 204:
-            LOG.error('Delete image error, exit code - %s, '
-                      'http code - %s' % (ret, code))
-            raise RuntimeError
+        self.fuel = clients.FuelClientProxy(self.access_data)
+        cluster = utils.GET(self.config, 'cluster_id', 'fuel')
+        cluster = int(cluster)
+        self.nodes = self.fuel.node.get_all(environment_id=cluster)
 
     def measure_speed(self, node_id):
-        self.size = self.prepare_size(self.size_str)
-        self.test_vm, test_vm_ip = self.get_test_vm(node_id)
-        self.set_ssh_connection(test_vm_ip)
-        compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
-        r_res = []
-        w_res = []
         LOG.info('Running measuring object storage r/w speed...')
-        token = self.get_token()
 
-        self.attempts = GET(self.config,
-                            'attempts', 'speed',
-                            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
+        node = self._get_node_by_instance(node_id)
+
+        measures = []
+        for _ in range(self.iterations):
+            measures.append(GlanceToComputeSpeedMetric(self, node).measures)
+
+        return self.generate_report(node['fqdn'], measures)
+
+    def generate_report(self, node_name, measures):
+        record = functools.partial(dict, node=node_name, size=self.size)
+        results_read, results_write = [], []
+
+        for idx, value in enumerate(measures):
+            results_read.append(record(
+                action='read', attempt=idx + 1,
+                speed=float(self.size) / value.download.value.total_seconds()))
+            results_write.append(record(
+                action='write', attempt=idx + 1,
+                speed=float(self.size) / value.upload.value.total_seconds()))
+
+        average_read = sum(x['speed'] for x in results_read) / len(measures)
+        average_write = sum(x['speed'] for x in results_write) / len(measures)
+
+        results = results_read + results_write
+        results.append(
+            record(action='read', attempt='average', speed=average_read))
+        results.append(
+            record(action='write', attempt='average', speed=average_write))
+
+        LOG.info("Compute %s average IO with glance API results:" % node_name)
+        LOG.info("Read %.3f MB/s", average_read)
+        LOG.info("Write %.3f MB/s", average_write)
+
+        return results, average_read, average_write
+
+    def _get_node_by_instance(self, idnr):
+        instance = self.novaclient.servers.get(idnr)
+        hostname = getattr(instance, 'OS-EXT-SRV-ATTR:hypervisor_hostname')
+        for node in self.nodes:
+            if node['fqdn'] != hostname:
+                continue
+            break
+        else:
+            raise exceptions.FrameworkError(
+                'Unable to locate compute node, that host VM {}'.format(idnr))
+        return node
+
+    @staticmethod
+    def get_node_address(node, network='fuelweb_admin'):
+        for net in node['network_data']:
+            if net['name'] != network:
+                continue
+            break
+        else:
+            raise exceptions.FrameworkError(
+                'Unable to network {} in node {}'.format(
+                    network, node['fqdn']))
         try:
-            self.attempts = int(self.attempts)
-        except ValueError:
-            LOG.error(
-                "Expected 'attempts' to be a number, "
-                "but got {} value instead!".format(
-                    self.attempts))
-            LOG.debug("Default value {} is used for 'attempts'".format(
-                app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT))
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
+            addr = net['ip']
+        except:
+            raise exceptions.FrameworkError(
+                'There is no IP address on node {} in network {}'.format(
+                    node['fqdn'], network))
+        return addr.split('/')[0]
 
-        for _ in range(0, self.attempts):
-            image_id = self.create_image(
-                self.get_token() if self.is_expired() else token)
-            w_res.append(self.upload_image(image_id=image_id, token=token))
-            r_res.append(self.download_image(image_id=image_id, token=token))
-            self.delete_image(image_id,
-                              self.get_token() if self.is_expired() else token)
-            time.sleep(1)
 
-        self.cleanup(node_id)
-        return self.generate_report('Object', compute_name, r_res, w_res)
+class _MetricAbstract(object):
+    def __init__(self, context):
+        self.context = context
 
-    def cleanup(self, node_id):
-        images = self.novaclient.images.findall(name='speedtest')
-        [image.delete() for image in images]
 
-    def generate_report(self, storage, compute_name, r_res, w_res):
-        resulting_list = []
-        # Calculate read speed, fill result with read data
-        r_res = [float(self.size) / i for i in r_res]
-        r_average = round(sum(r_res) / float(len(r_res)), 2)
-        for i in range(len(r_res)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='read', size=self.size, speed=r_res[i]))
+class GlanceToComputeSpeedMetric(_MetricAbstract):
+    def __init__(self, context, node):
+        super(GlanceToComputeSpeedMetric, self).__init__(context)
+        self.node = node
 
-        # Calculate write speed, fill result with write data
-        w_res = [float(self.size) / i for i in w_res]
-        w_average = round(sum(w_res) / float(len(w_res)), 2)
-        for i in range(len(w_res)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='write', size=self.size, speed=w_res[i]))
+        time_track = utils.TimeTrack()
+        connect = self._open_ssh_connect(node)
+        token = utils.TokenFactory(self.context.access_data, connect)
 
-        # Add average values
-        resulting_list.append(
-            dict(node=compute_name, attempt='average',
-                 action='write', size=self.size, speed=w_average))
-        resulting_list.append(
-            dict(node=compute_name, attempt='average',
-                 action='read', size=self.size, speed=r_average))
+        glance_image_idnr = self._new_glace_image_request(connect, token)
 
-        LOG.info("Compute %s average results:" % compute_name)
-        LOG.info("Read %s MB/s" % r_average)
-        LOG.info("Write %s MB/s\n" % w_average)
+        try:
+            with time_track.record('upload'):
+                self._push_glance_image_payload(
+                    connect, token, glance_image_idnr)
+            with time_track.record('download'):
+                self._fetch_glance_image_payload(
+                    connect, token, glance_image_idnr)
+        finally:
+            try:
+                self._delete_glance_image(connect, token, glance_image_idnr)
+            except exceptions.AccessError as e:
+                LOG.error('Unable to complete cleanup: %s', e)
+                LOG.debug('Error details', exc_info=True)
 
-        return resulting_list, r_average, w_average
+        self.measures = _GlanceSpeedResults(
+            time_track.query('upload'),
+            time_track.query('download'))
+
+    def _open_ssh_connect(self, node):
+        addr = self.context.get_node_address(node)
+        pkey = paramiko.RSAKey.from_private_key_file(
+            app_conf.DEFAULT_RSA_KEY_PATH)
+        connect = ssh.SSHClient(
+            addr, config.compute_login, rsa_key=pkey)
+
+        if not connect.connect():
+            raise exceptions.AccessError(
+                'Can\'t access node {} via SSH {}'.format(
+                    node['fqdn'], connect.identity))
+
+        return connect
+
+    def _new_glace_image_request(self, connect, token):
+        payload = {
+            'name': 'speedtest',
+            'container_format': 'bare',
+            'disk_format': "raw"}
+        payload = json.dumps(payload)
+
+        cmd = (
+            'curl -X POST --insecure --silent '
+            '--header "Content-type: application/json" '
+            '--header "X-Auth-Token: {token}" '
+            '--data \'{payload}\' '
+            '{url_base}/images'
+        ).format(
+            token=token, payload=payload, url_base=self.context.glance_url)
+
+        try:
+            proc = connect.exec_cmd(cmd, exc=True)
+            payload = json.loads(proc.stdout)
+            idnr = payload['id']
+        except (KeyError, ValueError, TypeError, exceptions.RemoteError) as e:
+            raise exceptions.AccessError(
+                'Image create request to glance have failed: {}'.format(e))
+        return idnr
+
+    def _push_glance_image_payload(self, connect, token, idnr):
+        cmd = (
+            'dd if=/dev/zero bs=32k count={count} | '
+            'curl -X PUT --insecure --silent '
+            '--header "X-Auth-Token: {token}" '
+            '--header "Content-Type: application/octet-stream" '
+            '--upload-file - '
+            '{url_base}/images/{idnr}/file'
+        ).format(
+            count=int(self.context.size * 32), token=token,
+            url_base=self.context.glance_url, idnr=idnr)
+
+        try:
+            connect.exec_cmd(cmd, exc=True)
+        except exceptions.RemoteError as e:
+            raise exceptions.AccessError(
+                'Image create request to glance have failed: {}'.format(e))
+
+    def _fetch_glance_image_payload(self, connect, token, idnr):
+        cmd = (
+            'curl -X GET --insecure --silent '
+            '--header "X-Auth-Token: {token}" '
+            '--output /dev/null '
+            '{url_base}/images/{idnr}/file'
+        ).format(
+            token=token, url_base=self.context.glance_url, idnr=idnr)
+
+        try:
+            connect.exec_cmd(cmd, exc=True)
+        except exceptions.RemoteError as e:
+            raise exceptions.AccessError(
+                'Image create request to glance have failed: {}'.format(e))
+
+    def _delete_glance_image(self, connect, token, idnr):
+        cmd = (
+            'curl -X DELETE --insecure --silent '
+            '--header "X-Auth-Token: {token}" '
+            '{url_base}/images/{idnr}'
+        ).format(token=token, url_base=self.context.glance_url, idnr=idnr)
+        try:
+            connect.exec_cmd(cmd, exc=True)
+        except exceptions.RemoteError as e:
+            raise exceptions.AccessError(
+                'Image create request to glance have failed: {}'.format(e))
+
+
+_GlanceSpeedResults = collections.namedtuple(
+    '_GlanceSpeedresults', 'upload, download')
