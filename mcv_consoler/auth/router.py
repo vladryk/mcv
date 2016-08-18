@@ -470,24 +470,37 @@ class CRouter(Router):
     def _encapsulate_networks_to_ssh_tunnel(self):
         """Encapsulate cloud networks using Sshuttle."""
 
-        cmd = ("sudo -u mcv "
-               "sshpass -p {fuel_pwd} "
-               "sshuttle --listen 0.0.0.0:0 -vNHr "
-               "{fuel_user}@localhost:{local_port} "
-               "--dns --ssh-cmd "
-               "\"ssh -q -o UserKnownHostsFile=/dev/null "
-               "-o StrictHostKeyChecking=no -i {key_path}\" "
-               "127.0.0.1/26").format(fuel_user=self.os_data['fuel']['username'],
-                                   fuel_pwd=self.os_data['fuel']['password'],
-                                   local_port=MCV_LOCAL_PORT,
-                                   key_path=DEFAULT_RSA_KEY_PATH)
+        exclude = (self.os_data['fuel']['nailgun'], '127.0.0.1')
+        exclude = ('--exclude={}'.format(x) for x in exclude)
+        exclude = ' '.join(exclude)
 
-        # NOTE(albartash): sshuttle sometimes cannot runs properly, so we need
-        # to do some attempts.
+        ssh_command = (
+            'ssh -q -i {keyfile} '
+            '-o UserKnownHostsFile=/dev/null '
+            '-o StrictHostKeyChecking=no'
+        ).format(keyfile=DEFAULT_RSA_KEY_PATH)
+
+        dest = '127.0.0.1/26'
+
+        command = (
+            'sshpass -p {passwd} sshuttle '
+            '{exclude} '
+            '--ssh-cmd="{ssh}" '
+            '--dns --listen=0.0.0.0:0 -vNHr '
+            '{login}@localhost:{port} '
+            '{dest}'
+        ).format(
+            exclude=exclude, dest=dest, port=MCV_LOCAL_PORT,
+            ssh=ssh_command,
+            login=self.os_data['fuel']['username'],
+            passwd=self.os_data['fuel']['password'])
+
+        # FiXME(dbogun): MCV-815 - make proper port forwarding
+        # (self._make_tunnel_to_controller) and remove multiple attempts here
         attempts = 5
         for counter in xrange(0, attempts):
             try:
-                retcode = self.procman.run_standalone_process(cmd)
+                retcode = self.procman.run_standalone_process(command)
                 if retcode is None:
                     break
             except Exception as e:
