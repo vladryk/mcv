@@ -218,13 +218,16 @@ class RallyOnDockerRunner(RallyRunner):
         LOG.debug('Cleaning up test image')
         try:
             i_list = self.glanceclient.images.list()
+            for im in i_list:
+                if im.name == name:
+                    self.glanceclient.images.delete(im.id)
         except g_exc.HTTPUnauthorized:
             # Exception means that token expired, so we need to refresh client
             self.glanceclient = Clients.get_glance_client(self.access_data)
             i_list = self.glanceclient.images.list()
-        for im in i_list:
-            if im.name == name:
-                self.glanceclient.images.delete(im.id)
+            for im in i_list:
+                if im.name == name:
+                    self.glanceclient.images.delete(im.id)
 
     def cleanup_fedora_image(self):
         self.cleanup_image('mcv-test-fedora')
