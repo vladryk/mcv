@@ -18,7 +18,7 @@ import socket
 
 import paramiko
 
-import mcv_consoler.exceptions
+from mcv_consoler import exceptions
 from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
 from mcv_consoler.log import LOG
 
@@ -67,7 +67,7 @@ class SSHClient(object):
 
     def exec_cmd(self, cmd, stdin=None, exc=False):
         if not self.connected:
-            raise mcv_consoler.exceptions.RemoteError(
+            raise exceptions.RemoteError(
                 'SSH {} is not connected'.format(self.identity))
 
         LOG.debug('{} Running SSH command: {}'.format(self.identity, cmd))
@@ -87,7 +87,7 @@ class SSHClient(object):
             results, identity=self.identity))
 
         if results.rcode and exc:
-            raise mcv_consoler.exceptions.RemoteError(
+            raise exceptions.RemoteError(
                 'Command {!r} failed on {}'.format(
                     cmd, self.identity), results)
 
@@ -131,7 +131,20 @@ def save_private_key(dest, payload):
         # cases.
         os.chmod(dest, 0600)
     except IOError as e:
-        raise mcv_consoler.exceptions.FrameworkError(
+        raise exceptions.FrameworkError(
             'Fail to store RSA key', e)
     finally:
         os.umask(umask)
+
+
+def get_rsa_obj(rsa_path):
+    try:
+        # re-save file, so it got correct permissions and ownership
+        with open(rsa_path) as f:
+            payload = f.read()
+        save_private_key(rsa_path, payload)
+    except IOError as e:
+        raise exceptions.FrameworkError(str(e))
+    return paramiko.RSAKey.from_private_key_file(rsa_path)
+
+

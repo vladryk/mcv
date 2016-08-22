@@ -99,6 +99,8 @@ DEFAULT_CREDS_PATH = "/home/mcv/toolbox/keys/openrc"
 FUELCLIENT_SETTINGS_ENV_VAR = 'FUELCLIENT_CUSTOM_SETTINGS'
 FUELCLIENT_CONFIG = '/home/mcv/toolbox/fuelclient-config.yaml'
 
+FUEL_MANAGEMENT_NETWORK_NAME = 'management'
+
 #
 # Configuration for SSH tunneling
 #

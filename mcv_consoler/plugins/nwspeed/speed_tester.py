@@ -13,36 +13,85 @@
 #    under the License.
 
 import os
-import paramiko
-import subprocess
 import time
 
-from mcv_consoler.common import clients as Clients
+import mcv_consoler.common.config as app_conf
 from mcv_consoler.log import LOG
+from mcv_consoler import exceptions
 from mcv_consoler.utils import GET
+from mcv_consoler.common import ssh
 
 LOG = LOG.getLogger(__name__)
 
 
 class Node2NodeSpeed(object):
-    def __init__(self, access_data, *args, **kwargs):
-        self.nova = Clients.get_nova_client(access_data)
-        self.config = kwargs.get('config')
-        self.node_name = ""
-        self.test_nodes = []
-        self.ssh_conns = {}
-        self.port_n = 45535
-        self.port_pool = range(45536, 45600)
+    def __init__(self, config, nodes):
+        self.config = config
+        self.nodes = nodes
+        self.ssh_conns = dict()
         # Port for testing speed between nodes
         self.test_port = GET(self.config, 'test_port', 'nwspeed', 5903)
         # Data size for testing in megabytes
         self.data_size = GET(self.config, 'data_size', 'nwspeed', 100)
+        rsa_file = GET(self.config, 'ssh_key', 'auth')
+        self.rsa_obj = ssh.get_rsa_obj(rsa_file)
 
-    def generate_report(self, spd_res):
+    def init_ssh_conns(self):
+        if not self.nodes:
+            return
+        root = app_conf.RMT_CONTROLLER_USER
+        for node in self.nodes:
+            conn = self._ssh_connect(root, node.ip, self.rsa_obj)
+            self.ssh_conns[node.fqdn] = conn
+
+    @staticmethod
+    def _ssh_connect(username, ip, rsa_obj):
+        connect = ssh.SSHClient(ip, username, rsa_key=rsa_obj)
+        if connect.connect():
+            return connect
+        raise exceptions.AccessError("Can't access node {} via SSH".format(ip))
+
+    def measure_speed(self, node):
+        res = dict()
+        for target in self.nodes:
+            if target is node:
+                continue
+            node_res = self._do_measure(node, target)
+            res[target.fqdn] = node_res
+        return res
+
+    def _do_measure(self, from_node, to_node, attempts=3):
+        nc_listen = 'nc -l -k -p {port} > /dev/null'
+        nc_send = 'dd if=/dev/zero bs=1M count={count} | ' \
+                  'nc {fqdn} {port}'
+        ctrl_c = chr(3)  # Ctrl+C pressed
+
+        res = list()
+        from_ssh = self.ssh_conns[from_node.fqdn]
+        to_ssh = self.ssh_conns[to_node.fqdn]
+
+        LOG.debug('Starting netcat server on node %s', to_node.fqdn)
+        cmd = nc_listen.format(port=self.test_port)
+        LOG.debug('%s Running SSH command: %s', to_ssh.identity, cmd)
+        sin, _, _ = to_ssh.client.exec_command(cmd, get_pty=True)
+
+        cmd = nc_send.format(count=self.data_size, fqdn=to_node.fqdn,
+                             port=self.test_port)
+        try:
+            for _ in xrange(attempts):
+                start = time.time()
+                from_ssh.exec_cmd(cmd)
+                total_time = round(time.time() - start, 2)
+                res.append(total_time)
+        finally:
+            # terminate netcat server
+            sin.write(ctrl_c)
+        return res
+
+    def generate_report(self, node, spd_res):
         path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
-        temp = open(path, 'r')
-        template = temp.read()
-        temp.close()
+        with open(path) as f:
+            template = f.read()
         html_res = ''
         avg_spds = []
 
@@ -67,141 +116,11 @@ class Node2NodeSpeed(object):
 
         total_avg_spd = round(sum(avg_spds) / float(len(avg_spds)), 2)
         LOG.info("Node %s average network speed: %s MB/s \n" % (
-            self.node_name, total_avg_spd))
-        return template.format(node_name=self.node_name,
+            node.fqdn, total_avg_spd))
+        return template.format(node_name=node.fqdn,
                                attempts=html_res,
                                avg=total_avg_spd), total_avg_spd
 
-    def prepare_tunnels(self):
-        controller_ip = GET(self.config, 'controller_ip', 'auth')
-        ssh_key = GET(self.config, 'ssh_key', 'auth')
-        # Creating tunnel for current node
-        subprocess.call(
-            'ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '
-            '-i %s -4 -f -N -L %s:%s:22 root@%s &' % (ssh_key,
-                                                      self.port_n,
-                                                      self.node_name,
-                                                      controller_ip),
-            shell=True)
-        self.set_ssh_connection('localhost', self.port_n, self.node_name)
-        # Creating tunnels for test nodes
-        for i, test_node in enumerate(self.test_nodes):
-            subprocess.call(
-                'ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '
-                '-i %s -4 -f -N -L %s:%s:22 root@%s' % (ssh_key,
-                                                        self.port_pool[i],
-                                                        test_node,
-                                                        controller_ip),
-                shell=True)
-            self.set_ssh_connection('localhost', self.port_pool[i], test_node)
-
-    def set_ssh_connection(self, ip, prt, node_name):
-        hostname = ip
-        port = prt
-        username = 'root'
-        ssh_key = GET(self.config, 'ssh_key', 'auth')
-        rsa_key = paramiko.RSAKey.from_private_key_file(ssh_key)
-
-        conn = False
-        for i in range(0, 20):
-            try:
-                self.ssh_conns[node_name] = paramiko.Transport((hostname, port))
-                self.ssh_conns[node_name].connect(username=username,
-                                                  pkey=rsa_key)
-                conn = True
-                break
-            except paramiko.SSHException:
-                LOG.debug('Waiting for establishing SSH connection')
-            time.sleep(1)
-        if conn:
-            LOG.debug('SSH connection to node %s '
-                      'successfully established' % node_name)
-        else:
-            raise RuntimeError("Can't connect to node %s" % node_name)
-
-    def run_ssh_cmd(self, cmd, ssh_conn, nocheck=False):
-        command = 'sudo ' + cmd
-        buff_size = 4096
-        stdout_data = []
-        stderr_data = []
-        session = ssh_conn.open_channel(kind='session')
-        session.exec_command(command)
-        if nocheck:
-            return
-        while True:
-            if session.recv_ready():
-                stdout_data.append(session.recv(buff_size))
-            if session.recv_stderr_ready():
-                stderr_data.append(session.recv_stderr(buff_size))
-            if session.exit_status_ready():
-                break
-
-        status = session.recv_exit_status()
-        while session.recv_ready():
-            stdout_data.append(session.recv(buff_size))
-        while session.recv_stderr_ready():
-            stderr_data.append(session.recv_stderr(buff_size))
-
-        out = ''.join(stdout_data)
-        err = ''.join(stderr_data)
-        session.close()
-
-        if status != 0:
-            LOG.info('Command "%s" finished with exit code %d' % (cmd, status))
-        else:
-            LOG.debug('Command "%s" finished with exit code %d' % (cmd,
-                                                                  status))
-        LOG.debug('Stdout: %s' % out)
-        LOG.debug('Stderr: %s' % err)
-        return {'ret': status, 'out': out, 'err': err}
-
-    def measure_nw_speed(self, ip):
-        # Starting nc server
-        self.run_ssh_cmd('nc -vvlnp %s > /dev/null' % self.test_port,
-                         self.ssh_conns[ip],
-                         nocheck=True)
-        time.sleep(1)
-        start_time = time.time()
-        # Starting nc client
-        ret = self.run_ssh_cmd('dd if=/dev/zero bs=1M count=%s '
-                               'conv=notrunc,fsync | nc -vv %s %s' % (
-                                   self.data_size, ip, self.test_port),
-                               self.ssh_conns[self.node_name])['ret']
-        return time.time() - start_time if ret == 0 else -1
-
-    def measure_speed(self, node_name, target_nodes):
-        self.node_name = node_name
-        self.test_nodes = target_nodes
-        self.prepare_tunnels()
-        LOG.info('Start measuring HW network speed on node %s' % node_name)
-        res = {}
-        for test_node in self.test_nodes:
-            spd = []
-            for i in range(0, 3):
-                speed = self.measure_nw_speed(test_node)
-                if speed != -1:
-                    spd.append(speed)
-            res[test_node] = spd
-
-        time.sleep(3)
-        self.cleanup()
-        return self.generate_report(res)
-
     def cleanup(self):
-        # Killing all ssh tunneling processes
-        LOG.debug("Killing ssh tunnelling processes")
-        n_pid = subprocess.check_output(
-            "lsof -i :%s | tail -n +2 | awk "
-            "'{if ($10==\"(LISTEN)\") print $2}'" % self.port_n, shell=True,
-            stderr=subprocess.STDOUT)
-        if 1 < int(n_pid) < 32768:
-            LOG.debug("Killing process %s" % n_pid)
-            subprocess.call('kill %s > /dev/null 2>&1' % n_pid, shell=True)
-        for i in range(0, len(self.test_nodes)):
-            pid = subprocess.check_output(
-                "lsof -i :%s | tail -n +2 | awk "
-                "'{if ($10==\"(LISTEN)\") print $2}'" % self.port_pool[i],
-                shell=True, stderr=subprocess.STDOUT)
-            if 1 < int(pid) < 32768:
-                LOG.debug("Killing process %s" % pid)
-                subprocess.call('kill %s > /dev/null 2>&1' % pid, shell=True)
+        ssh_close = lambda c: c.close()
+        return map(ssh_close, self.ssh_conns.values())

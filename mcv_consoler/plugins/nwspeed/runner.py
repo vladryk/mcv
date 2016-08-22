@@ -12,17 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import datetime
+import os
 import traceback
+from collections import namedtuple
+from datetime import datetime
 
+import mcv_consoler.common.config as app_conf
+import mcv_consoler.plugins.runner as run
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import NWSpeedError
 from mcv_consoler.log import LOG
-import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.nwspeed import speed_tester as st
 from mcv_consoler.utils import GET
+from mcv_consoler import exceptions
 
 LOG = LOG.getLogger(__name__)
+
+
+Node = namedtuple('Node', ('fqdn', 'ip'))
 
 
 class NWSpeedTestRunner(run.Runner):
@@ -46,88 +53,90 @@ class NWSpeedTestRunner(run.Runner):
         # 2. Each speed value should be higher than
         #    value from 1 point * range in percents (see MCV-288 description)
         res = True
-        threshold = float(GET(self.config, 'threshold', 'nwspeed', 100))
+        threshold = GET(self.config, 'threshold', 'nwspeed', 100, float)
         LOG.info('Threshold is %s MB/s' % threshold)
         if self.av_speed < threshold:
             res = False
             LOG.warning('Average network speed is under threshold')
             self.failure_indicator = NWSpeedError.LOW_AVG_SPEED
             return res
-        percent_range = float(GET(self.config, 'range', 'nwspeed', 10))
+        percent_range = GET(self.config, 'range', 'nwspeed', 10, float)
         LOG.info('Threshold range is %s percents from average' % percent_range)
         range_speed = self.av_speed - (self.av_speed * (percent_range / 100.0))
         for speed in task_results:
-            if speed < float(range_speed):
+            if speed < range_speed:
                 res = False
                 LOG.warning('One of speed test results is under the threshold')
                 self.failure_indicator = NWSpeedError.LOW_NODE_SPEED
                 break
         return res
 
+    # TODO(ogrytsenko): this method is a copy/paste from another commit
+    # gerrit:61573. When it is merged to master - be sure to remove this
+    @staticmethod
+    def _filter_nodes_by_status(nodes, status):
+        for node in nodes:
+            if node['status'] == status:
+                yield node
+            else:
+                msg = 'Node \'%s\' has status: %s. Skipped from test'
+                LOG.warning(msg, node['fqdn'], node['status'])
+
     def _prepare_nodes(self):
-        # Preparing HW node list. Using set for removing duplicates
-        nova = Clients.get_nova_client(self.access_data)
-        hw_nodes = {host.host_name for host in nova.hosts.list()}
-        all_nodes = list(hw_nodes)
-        LOG.debug('Discovered %s nodes' % len(all_nodes))
+        cluster_id = GET(self.config, 'cluster_id', 'fuel', convert=int)
+        fuel = Clients.get_fuel_client({})
+        all_nodes = fuel.node.get_all(environment_id=cluster_id)
+        LOG.debug('Discovered %s nodes', len(all_nodes))
 
-        nodes_limit = GET(self.config, 'nodes_limit', 'nwspeed', None)
-        if nodes_limit is None:
-            LOG.debug('Tests will be run on all nodes')
-            return all_nodes
+        mgmt_net = app_conf.FUEL_MANAGEMENT_NETWORK_NAME
+        res = list()
+        for node in self._filter_nodes_by_status(all_nodes, 'ready'):
+            mgmt_ip = fuel.get_node_address(node, network=mgmt_net)
+            res.append(Node(node['fqdn'], mgmt_ip))
 
-        limit = int(nodes_limit)
-        nodes = all_nodes[:limit]
-        LOG.debug('Node limit is %s' % limit)
-        LOG.debug('Following nodes were selected for tests: %s' % nodes)
-        return nodes
+        limit = GET(self.config, 'nodes_limit', 'nwspeed', None, int)
+        if limit is None:
+            return res
+        res = sorted(res)[:limit]
+        LOG.debug('Node limit is %s', limit)
+        LOG.debug('Following nodes were selected for tests: %s', res)
+        return res
 
     def run_batch(self, tasks, *args, **kwargs):
 
         tasks, missing = self.discovery.match(tasks)
         self.test_not_found.extend(missing)
 
-        try:
-            self.hw_nodes = self._prepare_nodes()
-            res = super(NWSpeedTestRunner, self).run_batch(tasks,
-                                                           *args,
-                                                           **kwargs)
-            return res
-        except Exception:
-            LOG.error('Caught unexpected error, exiting. '
-                      'Please check mcvconsoler logs')
-            LOG.debug(traceback.format_exc())
-            return False
+        self.hw_nodes = self._prepare_nodes()
+        return super(NWSpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
 
     def generate_report(self, html, task):
-        LOG.debug('Generating report in speed.html file')
-        report = file('%s/%s.html' % (self.path, task), 'w')
-        report.write(html)
-        report.close()
+        html_file = '%s.html' % task
+        html_path = os.path.join(self.path, html_file)
+        LOG.debug('Generating report in %s file', html_file)
+        with open(html_path, 'w') as report:
+            report.write(html)
 
     def run_individual_task(self, task, *args, **kwargs):
-        # runs a set of commands
-        if self.hw_nodes is None:
-            LOG.error('Failed to measure speed - no HW nodes found')
-            self.test_failures.append(task)
-            return False
         LOG.debug('Start generating %s' % task)
+        runner_obj = None
         try:
-            speed_class = getattr(st, task)
+            runner_cls = getattr(st, task)
+            runner_obj = runner_cls(self.config, self.hw_nodes)
+            runner_obj.init_ssh_conns()
         except AttributeError:
-            LOG.error('Incorrect task: %s' % task)
+            LOG.error('Incorrect task: %s', task)
             self.test_not_found.append(task)
             return False
-        try:
-            reporter = speed_class(self.access_data, *args, **kwargs)
-        except Exception:
-            LOG.error('Error creating class %s. Please check mcvconsoler logs '
-                      'for more info' % task)
+        except exceptions.AccessError as e:
+            LOG.error(e.message)
             LOG.debug(traceback.format_exc())
             self.test_failures.append(task)
+            if runner_obj:
+                runner_obj.cleanup()
             return False
 
-        res_all = ("<!DOCTYPE html>\n"
+        report_all = ("<!DOCTYPE html>\n"
                    "<html lang=\"en\">\n"
                    "<head>\n"
                    "    <meta charset=\"UTF-8\">\n"
@@ -137,52 +146,35 @@ class NWSpeedTestRunner(run.Runner):
 
         average_all = []
 
-        time_start = datetime.datetime.utcnow()
-        LOG.info("\nTime start: %s UTC\n" % str(time_start))
+        time_start = datetime.utcnow()
+        LOG.info("\nTime start: %s UTC\n", time_start)
 
-        for hw_node in self.hw_nodes:
-            LOG.info("Measuring network speed on node %s" % hw_node)
-            try:
-                target_nodes = self.hw_nodes[:]
-                target_nodes.remove(hw_node)
-                # Getting html report and node average speed
-                res, average = reporter.measure_speed(hw_node, target_nodes)
-                res_all += res
+        try:
+            for node in self.hw_nodes:
+                LOG.info("Measuring network speed on node %s" % node.fqdn)
+                res = runner_obj.measure_speed(node)
+                report, average = runner_obj.generate_report(node, res)
                 average_all.append(average)
-            except RuntimeError:
-                LOG.error('Failed to measure speed')
-                try:
-                    reporter.cleanup()
-                except Exception:
-                    LOG.warning('Unexpected cleanup error. '
-                                'Please check mcvconsoler logs')
-                    LOG.debug(traceback.format_exc())
-                self.test_failures.append(task)
-                return False
-            except Exception:
-                LOG.error('Failed to measure speed, caught unexpected error. '
-                          'Please check mcvconsoler logs')
-                LOG.debug(traceback.format_exc())
-                try:
-                    reporter.cleanup()
-                except Exception:
-                    LOG.warning('Unexpected cleanup error. '
-                                'Please check mcvconsoler logs')
-                    LOG.debug(traceback.format_exc())
-                self.test_failures.append(task)
-                return False
+                report_all += report
+        except Exception:
+            LOG.error('Failed to measure speed, caught unexpected error. '
+                      'Please check mcvconsoler logs', exc_info=1)
+            self.test_failures.append(task)
+            return False
+        finally:
+            runner_obj.cleanup()
 
-        time_end = datetime.datetime.utcnow()
+        time_end = datetime.utcnow()
         LOG.info("Time end: %s UTC" % str(time_end))
-        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
-        self.time_of_tests[task] = {'duration': time_of_tests}
+        time_of_tests = (time_end - time_start).seconds
+        self.time_of_tests[task] = {'duration': str(time_of_tests) + 's'}
 
         self.av_speed = round(sum(average_all) / len(average_all), 2)
-        res_all += '<br><h4> Overall average results - {} MB/s '.format(
+        report_all += '<br><h4> Overall average results - {} MB/s '.format(
             self.av_speed)
 
-        res_all += "</body>\n</html>"
-        self.generate_report(res_all, task)
+        report_all += "</body>\n</html>"
+        self.generate_report(report_all, task)
         if self._evaluate_task_results(average_all):
             return True
         else:
