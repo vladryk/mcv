@@ -79,6 +79,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                   'ID = %s' % str(res))
 
         self._verify_rally_container_is_up()
+        self._patch_rally()
 
         # Hotfix. set rally's permission for .rally/ folder
         # Please remove this. Use: `sudo -u rally docker run` when
@@ -87,6 +88,21 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         utils.run_cmd(cmd.format(cid=self.container_id))
 
         self.copy_config()
+
+    def _patch_rally(self):
+        dist = '/tempest/requirements.txt'
+        LOG.debug('Patching tempest requirements')
+        tempest_patch = '/mcv/custom_patches/requirements.patch'
+        self._os_patch(dist, tempest_patch, self.container_id)
+
+        git_commit_cmd = 'cd /tempest && ' \
+                         'git config --global user.name  \"mcv-team\" && ' \
+                         'git config --global user.email \"mirantis-cloud-validation-support@mirantis.com\" && ' \
+                         'sudo git add . && ' \
+                         'sudo git commit -m \"added markupsafe to requirements, which is needed for pbr\"'
+        utils.run_cmd('docker exec -t {cid} sh -c "{cmd}"'.format(
+            cid=self.container_id,
+            cmd=git_commit_cmd))
 
     def copy_tempest_image(self):
         LOG.info('Copying image files required by tempest')

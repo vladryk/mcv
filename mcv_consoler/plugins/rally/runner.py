@@ -398,7 +398,7 @@ class RallyOnDockerRunner(RallyRunner):
          'container_id' (optional). If provided - perform an operation
         inside a docker container
         """
-        tmp = 'sudo patch --dry-run {target} -i {patch} && ' \
+        tmp = 'sudo patch --dry-run --forward {target} -i {patch} && ' \
               'sudo patch {target} -i {patch}'
         if container_id:
             tmp = 'docker exec -t {cid} /bin/sh -c \"' + tmp + '\"'
