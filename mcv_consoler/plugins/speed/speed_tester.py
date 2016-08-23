@@ -424,8 +424,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         self.iterations = kwargs['iterations']
 
         self.fuel = clients.FuelClientProxy(self.access_data)
-        cluster = utils.GET(self.config, 'cluster_id', 'fuel')
-        cluster = int(cluster)
+        cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
         self.nodes = self.fuel.node.get_all(environment_id=cluster)
 
     def measure_speed(self, node_id):

@@ -15,7 +15,6 @@
 import time
 
 import mcv_consoler.common.config as app_conf
-from mcv_consoler.common.ssh import SSHClient
 from mcv_consoler.logger import LOG
 from mcv_consoler.auth.router import Router
 from mcv_consoler.auth.router import IRouter

@@ -209,7 +209,7 @@ class Consoler(object):
                 runner = getattr(
                     module,
                     self.config.get(key, 'runner'))(self.access_helper.router
-                                                    .get_os_data(),
+                                                    .os_data,
                                                     path,
                                                     config=self.config)
 
@@ -426,14 +426,14 @@ class Consoler(object):
         LOG.debug("Finished creating a report.")
         LOG.info("One page report could be found in %s\n" % archive_file)
 
-    def console_user(self, event, result):
+    def console_user(self, event):
         self.event = event
 
         runner = getattr(self, "do_" + self.args.run[0], None)
         params = self.args.run[1:]
         if not runner:
             LOG.error('\nError: No such runner: %s\n' % self.args.run[0])
-            return result.append(CAError.WRONG_RUNNER)
+            return CAError.WRONG_RUNNER
         self._name_parts.append(self.args.run[0])
 
         run_mode = self.args.run_mode
@@ -448,12 +448,10 @@ class Consoler(object):
             LOG.error("The following error has terminated "
                       "the consoler: %s", repr(e))
             LOG.debug(traceback.format_exc())
-            result.append(CAError.WRONG_CREDENTIALS)
-            return
+            return CAError.WRONG_CREDENTIALS
         if not env_ready:
-            result.append(CAError.WRONG_CREDENTIALS)
             self.access_helper.cleanup()
-            return
+            return CAError.WRONG_CREDENTIALS
 
         try:
             run_results = runner(*params)
@@ -466,4 +464,4 @@ class Consoler(object):
         finally:
             self.access_helper.cleanup()
 
-        result.append(self.failure_indicator)
+        return self.failure_indicator

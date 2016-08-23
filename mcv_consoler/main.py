@@ -29,7 +29,7 @@ from mcv_consoler.common.config import DEFAULT_CONFIG_FILE, RUN_MODES
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
-from mcv_consoler import consoler
+import mcv_consoler.consoler
 from mcv_consoler.logger import LOG
 
 
@@ -86,32 +86,44 @@ def main():
         LOG.error("There is another instance of MCVConsoler! Stop.")
         return CAError.TOO_MANY_INSTANCES
 
-    consolerr = consoler.Consoler(config=conf, args=args)
+    consoler = mcv_consoler.consoler.Consoler(config=conf, args=args)
 
     if args.test is not None:
-        return consolerr.do_test()
+        return consoler.do_test()
 
     e = threading.Event()
-    res = []
-    t = threading.Thread(target=consolerr.console_user, args=[e, res])
+    rcode = [None]
+    t = threading.Thread(target=thread_wrapper, args=[consoler.console_user,
+                                                      rcode, e])
     try:
         t.start()
         while t.isAlive():
             time.sleep(1)
+        result = rcode[0]
     except KeyboardInterrupt:
         LOG.info("Consoler will be interrupted after finish of current task. "
                  "Results of it will be lost")
         e.set()
-        return CAError.KEYBOARD_INTERRUPT
+        result = CAError.KEYBOARD_INTERRUPT
     except Exception:
         LOG.error("Something unforeseen has just happened."
                   " The consoler is no more. You can get an insight from"
                   " /home/mcv/toolbox/mcvconsoler.log")
         LOG.debug(traceback.format_exc())
-        return CAError.UNKNOWN_EXCEPTION
-    if res:
-        LOG.debug('Consoler finished with exit code %s' % res[0])
-        return res[0]
+        result = CAError.UNKNOWN_EXCEPTION
+
+    LOG.debug('Consoler finished with exit code %s', result)
+    return result
+
+
+def thread_wrapper(worker, rcode_holder, *args):
+    rcode = CAError.UNKNOWN_EXCEPTION
+    try:
+        rcode = worker(*args)
+    except Exception as e:
+        LOG.error('Unhandled exception in worker thread: %s', e)
+        LOG.debug('Error details', exc_info=True)
+    rcode_holder[:] = [rcode]
 
 
 if __name__ == "__main__":

@@ -12,29 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import copy
 import itertools
 import os
 import re
-import shelve
 import socket
 import shutil
 import subprocess
 import time
 import paramiko
-from paramiko import client
+import yaml
 
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
-import yaml
 
 import mcv_consoler.exceptions
-from mcv_consoler.common import clients as Clients
+from mcv_consoler.common import clients
 from mcv_consoler.common import ssh
-
 from mcv_consoler.common import config as mcv_config
 from mcv_consoler.common.config import DEBUG
-from mcv_consoler.common.config import DEFAULT_CREDS_PATH
 from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
 from mcv_consoler.common.config import MCV_LOCAL_PORT
 from mcv_consoler.common.config import RMT_CONTROLLER_PORT
@@ -84,10 +79,11 @@ class Router(object):
 
     def __init__(self, **kwargs):
         self.config = kwargs["config"]
-        self.os_data = self._get_os_data()
         self.hosts = EtcHosts()
 
-    def _get_os_data(self):
+        self.os_data = self.get_os_data()
+
+    def get_os_data(self):
         # TODO(albartash): needs to be received from endpoint-list
         protocol = GET(self.config, 'auth_protocol')
 
@@ -173,10 +169,7 @@ class Router(object):
 
 
 class MRouter(Router):
-
-    def __init__(self, **kwargs):
-        super(MRouter, self).__init__(**kwargs)
-        # TODO: For L2 segment
+    pass
 
 
 class CRouter(Router):
@@ -185,51 +178,6 @@ class CRouter(Router):
         super(CRouter, self).__init__(**kwargs)
 
         self.procman = ProcessManager()
-
-    def _load_creds(self):
-        creds = shelve.open(DEFAULT_CREDS_PATH)
-        return creds
-
-    def get_os_data(self):
-        # TODO: maybe, use just os_data here?
-        base_data = self.os_data
-
-        creds = self._load_creds()
-
-        try:
-            tenant = creds['OS_TENANT_NAME']
-            password = creds['OS_PASSWORD']
-            os_data = {'auth_url': creds['OS_AUTH_URL'],
-                       'username': creds['OS_USERNAME'],
-                       'password': creds['OS_PASSWORD'],
-                       'tenant_name': tenant,
-                       'region_name': creds['OS_REGION_NAME'],
-
-                       'ips': {'endpoint': creds['AUTH_ENDPOINT_IP']},
-
-                       # nova tenant
-                       'project_id': tenant,
-                       # nova and cinder passwd
-                       'api_key': password,
-
-                       # NOTE(albartash): Actually, this option does not belong to
-                       # openrc, but we store it in such file for usability
-                       'auth_fqdn': creds['AUTH_FQDN'],
-                       'mos_version': creds['MOS_VERSION'],
-                       'insecure': creds['INSECURE'],
-                       'public_endpoint_ip': creds['PUBLIC_ENDPOINT_IP'],
-                       'public_auth_url': creds['PUBLIC_AUTH_URL']}
-        except KeyError:
-                LOG.debug('Fail to extract some options from openrc file!')
-                LOG.debug(traceback.format_exc())
-                return {}
-
-        # NOTE(albartash): a trick to protect all data from erasing
-        full_data = copy.deepcopy(base_data)
-        full_data.update(os_data)
-        full_data['ips'].update(base_data['ips'])
-
-        return full_data
 
     def get_rsa_key(self):
         fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
@@ -362,7 +310,7 @@ class CRouter(Router):
                 'tenant_name': openrc['OS_TENANT_NAME'],
                 'auth_url': openrc['OS_AUTH_URL'],
                }
-        self.keystoneclient = Clients.get_keystone_client(data)
+        self.keystoneclient = clients.get_keystone_client(data)
         public_url = self.keystoneclient.service_catalog.get_endpoints(
             'identity')['identity'][0]['publicURL']
         openrc['INSECURE'] = ("https" == re.findall(r'https|http', public_url)[0])
@@ -402,7 +350,6 @@ class CRouter(Router):
         mos_version = self._get_mos_version()
         controllers = self._get_controllers()
 
-        openrc = {}
         for ctrl in controllers:
             try:
                 LOG.debug('Trying to extract openrc from controller '
@@ -414,17 +361,16 @@ class CRouter(Router):
             except Exception:
                 LOG.debug('Cannot extract openrc from controller '
                           '{ctrl}'.format(ctrl=ctrl))
-
-        if not openrc:
+        else:
             LOG.debug('Cannot get credentials from controllers!')
             return False
 
-        fp = shelve.open(DEFAULT_CREDS_PATH)
-        for cred in openrc:
-            fp[cred] = openrc[cred]
-
-        fp['MOS_VERSION'] = mos_version
-        fp.close()
+        for src in openrc:
+            dst = src.lower()
+            if dst.startswith('os_'):
+                dst = dst[3:]
+            self.os_data[dst] = openrc[src]
+        self.os_data['mos_version'] = mos_version
 
         return True
 
@@ -515,9 +461,8 @@ class CRouter(Router):
 
     def make_sure_controller_name_could_be_resolved(self):
         LOG.debug('Trying to update /etc/hosts file')
-        openrc = self._load_creds()
-        a_fqdn = openrc['AUTH_FQDN']
-        public_ip = openrc['PUBLIC_ENDPOINT_IP']
+        a_fqdn = self.os_data['auth_fqdn']
+        public_ip = self.os_data['public_endpoint_ip']
         if not a_fqdn:
             LOG.debug('No FQDN specified. Nothing to update')
             return
@@ -560,12 +505,12 @@ class CRouter(Router):
     def cleanup(self):
 
         LOG.debug('Removing files with credentials to cloud.')
-        for pth in (DEFAULT_RSA_KEY_PATH, DEFAULT_CREDS_PATH):
+        for name in (DEFAULT_RSA_KEY_PATH, ):
             try:
-                os.remove(pth)
+                os.remove(name)
             except OSError as e:
                 LOG.debug('Cannot remove file {fp}. Reason: {reason}'.format(
-                    fp=pth, reason=str(e)))
+                    fp=name, reason=str(e)))
 
         LOG.debug('Cleanup all started subprocesses.')
         self.procman.cleanup()
@@ -583,50 +528,25 @@ class IRouter(Router):
 
         self.fresh_floating_ips = []
 
-        self.novaclient = Clients.get_nova_client(self.os_data)
-        self.keystoneclient = Clients.get_keystone_client(self.os_data)
+        self.novaclient = clients.get_nova_client(self.os_data)
+        self.keystoneclient = clients.get_keystone_client(self.os_data)
         self.secure_group_name = 'mcv-special-group'
         self.server = None
         self.mcvgroup = None
 
     def get_os_data(self):
+        data = super(IRouter, self).get_os_data()
 
-        base_data = self.os_data
+        data.update({
+            'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
+            'region_name': GET(self.config, 'region_name', 'auth'),
+            'public_endpoint_ip': GET(self.config, 'auth_endpoint_ip', 'auth'),
+        })
+        # NOTE(albartash): As in L1 endpoint is public,
+        # we will duplicate it here.
+        data['public_auth_url'] = data['auth_url']
 
-        protocol = GET(self.config, 'auth_protocol')
-        endpoint_ip = GET(self.config, 'auth_endpoint_ip', 'auth')
-        auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
-        tenant_name = GET(self.config, 'os_tenant_name', 'auth')
-        password = GET(self.config, 'os_password', 'auth')
-        insecure = (protocol == "https")
-        # NOTE(albartash): port 8443 is not ready to use somehow
-        nailgun_port = 8000
-
-        os_data = {
-                   'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
-
-                   'ips': {
-                       'controller': GET(self.config, 'controller_ip', 'auth'),
-                       'endpoint': endpoint_ip},
-                   'auth': {
-                       'controller_uname': GET(self.config, 'controller_uname',
-                                               'auth'),
-                       'controller_pwd': GET(self.config, 'controller_pwd',
-                                             'auth')},
-                   'insecure': insecure,
-                   'region_name': GET(self.config, 'region_name', 'auth'),
-                   'public_endpoint_ip': endpoint_ip,
-
-                   # NOTE(albartash): As in L1 endpoint is public,
-                   # we will duplicate it here.
-                   'public_auth_url': self.os_data['auth_url']
-                   }
-
-        full_data = copy.deepcopy(base_data)
-        full_data.update(os_data)
-        full_data['ips'].update(base_data['ips'])
-
-        return full_data
+        return data
 
     def setup_connections(self):
         if not self.check_and_fix_access_data():
@@ -832,7 +752,7 @@ class IRouter(Router):
                   "%(cnt_ip)s:7654:%(kpeip)s:35357 localhost" %\
                   port_substitution
 
-        ssh = client.SSHClient()
+        ssh = paramiko.client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             ssh.connect(hostname=self.os_data["ips"]["controller"],
@@ -912,7 +832,7 @@ class IRouter(Router):
 
     def stop_forwarding(self):
         LOG.debug("Reverting changes needed for access to admin network")
-        ssh = client.SSHClient()
+        ssh = paramiko.client.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         try:
