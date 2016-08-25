@@ -67,8 +67,8 @@ class SSHClient(object):
 
     def exec_cmd(self, cmd, stdin=None, exc=False):
         if not self.connected:
-            LOG.debug('Client is not connected to SSH. Command will not be run!')
-            return ('', '')
+            raise mcv_consoler.exceptions.RemoteError(
+                'SSH {} is not connected'.format(self.identity))
 
         LOG.debug('{} Running SSH command: {}'.format(self.identity, cmd))
         inp, out, err = self.client.exec_command(cmd)

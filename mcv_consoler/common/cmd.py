@@ -35,12 +35,6 @@ def _get_parser():
         nargs='+',
         help="""Run one of specified test suites.""")
 
-    one_of_is_required.add_argument(
-        "--test",
-        nargs='+',
-        dest='test',
-        help="""testing mcv test groups""")
-
     parser.add_argument(
         "--config",
         help="""Provide custom config file instead of the default one""")

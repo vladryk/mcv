@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
 import datetime
 import os.path
 # TODO(albartash): replace with traceback2

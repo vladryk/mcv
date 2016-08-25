@@ -366,33 +366,6 @@ class Consoler(object):
         with open(DEFAULT_CONFIG_FILE, 'w') as f:
             f.write(result + default_str)
 
-    def get_total_failures(self, results):
-        t_failures = 0
-        for key in results.iterkeys():
-            if validate_section(results[key], 'test_failures'):
-                t_failures += len(results[key]['results']['test_failures'])
-        return t_failures
-
-    def existing_plugin(self, plugin):
-        base = os.path.join(os.path.dirname(__file__), self.plugin_dir)
-        dirstolist = os.listdir(base)
-        dirlist = filter(lambda x: os.path.isdir(os.path.join(base, x)),
-                         dirstolist)
-        return plugin in dirlist
-
-    def a_real_file(self, fname, group):
-        dir_to_walk = os.path.join(os.path.dirname(__file__), self.plugin_dir,
-                                   group, "tests")
-        return fname in os.listdir(dir_to_walk)
-
-    def do_test(self):
-        arguments = ' '.join(i for i in self.args.test)
-        subprocess.call(('/opt/mcv-consoler/tests/tmux_mcv_tests_runner.sh '
-                         '"({0})"').format(arguments),
-                        shell=True,
-                        preexec_fn=utils.ignore_sigint)
-        return 1
-
     def _do_finalization(self, run_results):
         if run_results is None:
             LOG.warning("For some reason test tools have returned nothing")

@@ -88,9 +88,6 @@ def main():
 
     consoler = mcv_consoler.consoler.Consoler(config=conf, args=args)
 
-    if args.test is not None:
-        return consoler.do_test()
-
     e = threading.Event()
     rcode = [None]
     t = threading.Thread(target=thread_wrapper, args=[consoler.console_user,
