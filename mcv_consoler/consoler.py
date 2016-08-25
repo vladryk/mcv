@@ -32,6 +32,7 @@ from mcv_consoler.common import context
 from mcv_consoler.common import clients
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
+from mcv_consoler.common import resource
 from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler import exceptions
 from mcv_consoler import reporter
@@ -47,7 +48,7 @@ TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
 
 class Consoler(object):
     def __init__(self, ctx):
-        self.ctx = ctx
+        self.ctx = context.Context(ctx, resources=resource.Pool())
         self.config = ctx.config
         self.all_time = 0
         self.plugin_dir = PLUGINS_DIR_NAME
@@ -444,6 +445,14 @@ class Consoler(object):
                 LOG.debug('Error details', exc_info=True)
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
         finally:
-            self.access_helper.cleanup()
+            for handler in (
+                    self.access_helper.cleanup,
+                    self.ctx.resources.terminate):
+                try:
+                    handler()
+                except Exception as e:
+                    LOG.error(
+                        'Unhandled error during housekeeping stage: {}',
+                        e, exc_info=True)
 
         return self.failure_indicator

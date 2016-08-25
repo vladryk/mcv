@@ -43,3 +43,7 @@ class MissingDataError(MCVException):
 
 class ParseError(MCVException):
     pass
+
+
+class ResourceDestroyBlockCtrl(MCVException):
+    pass
