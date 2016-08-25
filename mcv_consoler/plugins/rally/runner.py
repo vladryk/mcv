@@ -207,11 +207,22 @@ class RallyOnDockerRunner(RallyRunner):
         for im in i_list:
             if im.name == 'mcv-test-fedora':
                 return im.id
+
+        img_fp = None
+        try:
+            img_fp = open(FEDORA_IMAGE_PATH)
+        except IOError as e:
+            LOG.debug('Cannot open file {path}: {err}'.format(
+                path=FEDORA_IMAGE_PATH,
+                err=str(e)))
+            return
         im = self.glanceclient.images.create(name='mcv-test-fedora',
                                              disk_format="qcow2",
                                              is_public=True,
                                              container_format="bare",
-                                             data=open(FEDORA_IMAGE_PATH))
+                                             data=img_fp)
+
+        img_fp.close()
         return im.id
 
     def cleanup_image(self, name):
@@ -248,13 +259,26 @@ class RallyOnDockerRunner(RallyRunner):
                 return im.id
         if mos_version == '8.0':
             sahara_image_path = SAHARA_IMAGE_PATH80
-        else:
+        elif mos_version == '7.0':
             sahara_image_path = SAHARA_IMAGE_PATH70
+        else:
+            LOG.debug('You are trying to run BigData Workload Task against '
+                      'unsupported MOS version: %s', mos_version)
+            return
+
+        img_fp = None
+        try:
+            img_fp = open(sahara_image_path)
+        except IOError as e:
+            LOG.debug('Cannot open file {path}: {err}'.format(
+                path=sahara_image_path, err=str(e)))
+            return
+
         im = self.glanceclient.images.create(name='mcv-workload-sahara',
                                              disk_format="qcow2",
                                              is_public=True,
                                              container_format="bare",
-                                             data=open(sahara_image_path))
+                                             data=img_fp)
         sahara.images.update_image(
             image_id=im.id, user_name='ubuntu', desc="")
         if mos_version == '8.0':
@@ -264,6 +288,7 @@ class RallyOnDockerRunner(RallyRunner):
             sahara.images.update_tags(
                 image_id=im.id, new_tags=["vanilla", "2.6.0"])
 
+        img_fp.close()
         return im.id
 
     def create_or_get_flavor(self):
@@ -513,6 +538,10 @@ class RallyOnDockerRunner(RallyRunner):
 
     def prepare_workload_task(self):
         image_id = self.create_fedora_image()
+        if image_id is None:
+            LOG.debug('Fail to prepare image for Rally Workload Task!')
+            return
+
         net, rou = self.get_network_router_id()
         concurrency = utils.GET(self.config, 'concurrency', 'workload')
         instance_count = utils.GET(self.config, 'instance_count', 'workload')
@@ -528,7 +557,22 @@ class RallyOnDockerRunner(RallyRunner):
 
     def prepare_big_data_task(self):
         mos_version = utils.GET(self.config, 'mos_version', 'basic')
+
         image_id = self.create_sahara_image(mos_version)
+        if image_id is None:
+            LOG.warning('Fail to prepare image for BigData Workload Task!')
+            LOG.debug('Cannot upload Sahara image (mcv-workload-sahara) '
+                      'for BigData Workload Task.')
+            return
+
+        try:
+            # Checking accessibility for JAR file
+            tera_fp = open(TERASORT_JAR_PATH)
+            tera_fp.close()
+        except IOError as e:
+            LOG.debug('File "%s" is inaccessible!', TERASORT_JAR_PATH)
+            return
+
         flavor_id = self.create_or_get_flavor()
         file_size = utils.GET(self.config, 'file_size', 'workload')
         worker = utils.GET(self.config, 'workers_count', 'workload')
@@ -562,12 +606,20 @@ class RallyOnDockerRunner(RallyRunner):
         elif task == 'workload.yaml':
             LOG.info("Running Workload")
             task_args = self.prepare_workload_task()
+            if not task_args:
+                self.skip = True
+                self.test_not_found.append(task)
+                return
             location = os.path.join(self.home, "tests/workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
 
         elif task == 'big-data-workload.yaml':
             LOG.info("Running BigData Workload")
             task_args = self.prepare_big_data_task()
+            if not task_args:
+                self.skip = True
+                self.test_not_found.append(task)
+                return
             location = os.path.join(self.home, "tests/big-data-workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
 

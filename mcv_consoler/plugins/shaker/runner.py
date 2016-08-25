@@ -421,12 +421,21 @@ class ShakerOnDockerRunner(ShakerRunner):
         report.close()
 
     def run_batch(self, tasks, *args, **kwargs):
-        self._setup_shaker_on_docker()
-        LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
-        self.output = ''
-        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+        try:
+            self._setup_shaker_on_docker()
+        except RuntimeError:
+            LOG.debug('Caught RuntimeError. Probably Shaker failed to build '
+                      'its infrastructure. Please check if you have an access'
+                      ' to an Internet, or Shaker image is already '
+                      'uploaded to Glance with your own.')
+            tasks, missing = [], list(tasks)
+        else:
+            LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
+            self.output = ''
+            LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
 
-        tasks, missing = self.discovery.match(tasks)
+            tasks, missing = self.discovery.match(tasks)
+
         self.test_not_found.extend(missing)
 
         result = super(ShakerOnDockerRunner, self).run_batch(
