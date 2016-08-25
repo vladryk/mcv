@@ -514,10 +514,8 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
 
     def _open_ssh_connect(self, node):
         addr = self.context.fuel.get_node_address(node)
-        pkey = paramiko.RSAKey.from_private_key_file(
-            app_conf.DEFAULT_RSA_KEY_PATH)
         connect = ssh.SSHClient(
-            addr, config.compute_login, rsa_key=pkey)
+            addr, config.compute_login, rsa_key=app_conf.DEFAULT_RSA_KEY_PATH)
 
         if not connect.connect():
             raise exceptions.AccessError(

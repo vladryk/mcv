@@ -20,7 +20,6 @@ from datetime import datetime
 
 import mcv_consoler.common.config as app_conf
 import mcv_consoler.plugins.runner as run
-from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import NWSpeedError
 from mcv_consoler.plugins.nwspeed import speed_tester as st
 from mcv_consoler.utils import GET
@@ -71,27 +70,17 @@ class NWSpeedTestRunner(run.Runner):
                 break
         return res
 
-    # TODO(ogrytsenko): this method is a copy/paste from another commit
-    # gerrit:61573. When it is merged to master - be sure to remove this
-    @staticmethod
-    def _filter_nodes_by_status(nodes, status):
-        for node in nodes:
-            if node['status'] == status:
-                yield node
-            else:
-                msg = 'Node \'%s\' has status: %s. Skipped from test'
-                LOG.warning(msg, node['fqdn'], node['status'])
-
     def _prepare_nodes(self):
         cluster_id = GET(self.config, 'cluster_id', 'fuel', convert=int)
-        fuel = Clients.get_fuel_client({})
+        fuel = self.ctx.access.fuel
         all_nodes = fuel.node.get_all(environment_id=cluster_id)
+        all_nodes = list(fuel.filter_nodes_by_status(all_nodes))
         LOG.debug('Discovered %s nodes', len(all_nodes))
 
-        mgmt_net = app_conf.FUEL_MANAGEMENT_NETWORK_NAME
         res = list()
-        for node in self._filter_nodes_by_status(all_nodes, 'ready'):
-            mgmt_ip = fuel.get_node_address(node, network=mgmt_net)
+        for node in all_nodes:
+            mgmt_ip = fuel.get_node_address(
+                node, network=app_conf.FUEL_MANAGEMENT_NETWORK_NAME)
             res.append(Node(node['fqdn'], mgmt_ip))
 
         limit = GET(self.config, 'nodes_limit', 'nwspeed', None, int)

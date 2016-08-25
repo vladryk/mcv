@@ -19,6 +19,7 @@ import re
 import socket
 import shutil
 import subprocess
+import tempfile
 import time
 import traceback
 
@@ -34,13 +35,11 @@ from mcv_consoler.common import ssh
 from mcv_consoler.common import config as mcv_config
 from mcv_consoler.common.config import DEBUG
 from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
-from mcv_consoler.common.config import MCV_LOCAL_PORT
-from mcv_consoler.common.config import RMT_CONTROLLER_PORT
-from mcv_consoler.common.config import RMT_CONTROLLER_USER
+from mcv_consoler.common import resource
+
 from mcv_consoler import utils
 from mcv_consoler.utils import GET
 from mcv_consoler.utils import run_cmd
-from mcv_consoler.common.procman import ProcessManager
 
 LOG = logging.getLogger(__name__)
 
@@ -169,11 +168,6 @@ class MRouter(Router):
 
 
 class CRouter(Router):
-    def __init__(self, ctx, **kwargs):
-        super(CRouter, self).__init__(ctx, **kwargs)
-
-        self.procman = ProcessManager()
-
     def get_rsa_key(self):
         fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
         proc = fuel.exec_cmd(
@@ -267,9 +261,9 @@ class CRouter(Router):
         # get openrc as dict from controller
         # using Fuel private key
 
-        key = paramiko.RSAKey.from_private_key_file(DEFAULT_RSA_KEY_PATH)
         client = ssh.SSHClient(
-            host=ctrl, username=RMT_CONTROLLER_USER, rsa_key=key)
+            host=ctrl, username=mcv_config.OS_NODE_SSH_USER,
+            rsa_key=DEFAULT_RSA_KEY_PATH)
         if not client.connect():
             LOG.debug('Fail to reach controller node at "{addr}" with '
                       'provided RSA key!'.format(addr=ctrl))
@@ -373,91 +367,6 @@ class CRouter(Router):
 
         return True
 
-    def _make_tunnel_to_controller(self):
-        """Make SSH tunnel to a controller node from MCV host."""
-
-        #!!! Perhaps, I do something wrong here.
-        # We need to make ssh tunnel to a controller.
-        # When I tried to do it separately, SSH said
-        # 'Cannot fork into background without a command
-        # to execute'.
-
-        for ctrl in self._get_controllers():
-            try:
-                cmd = ("sshpass -p {fuel_pwd} "
-                       "ssh -q -L {local_port}:{controller}:{rmt_port} "
-                       "{fuel_user}@{fuel_host} "
-                       "-o UserKnownHostsFile=/dev/null "
-                       "-o StrictHostKeyChecking=no "
-                       "-i {key_path}").format(
-                    fuel_pwd=self.os_data['fuel']['password'],
-                    local_port=MCV_LOCAL_PORT,
-                    controller=ctrl,
-                    rmt_port=RMT_CONTROLLER_PORT,
-                    fuel_user=self.os_data['fuel']['username'],
-                    fuel_host=self.os_data['fuel']['nailgun'],
-                    key_path=DEFAULT_RSA_KEY_PATH)
-
-                retcode = self.procman.run_standalone_process(cmd)
-                if retcode is None:
-                    break
-            except Exception:
-                LOG.debug('Controller {ctrl} is not ready for tunnelling...'.format(ctrl=ctrl))
-                continue
-        else:
-            LOG.debug('Cannot establish tunnel to any controller!')
-            return False
-
-        LOG.debug('SSH tunnel to controller has been established '
-                  'successfully.')
-        return True
-
-    def _encapsulate_networks_to_ssh_tunnel(self):
-        """Encapsulate cloud networks using Sshuttle."""
-
-        exclude = (self.os_data['fuel']['nailgun'], '127.0.0.1')
-        exclude = ('--exclude={}'.format(x) for x in exclude)
-        exclude = ' '.join(exclude)
-
-        ssh_command = (
-            'ssh -q -i {keyfile} '
-            '-o UserKnownHostsFile=/dev/null '
-            '-o StrictHostKeyChecking=no'
-        ).format(keyfile=DEFAULT_RSA_KEY_PATH)
-
-        dest = '127.0.0.1/26'
-
-        command = (
-            'sshpass -p {passwd} sshuttle '
-            '{exclude} '
-            '--ssh-cmd="{ssh}" '
-            '--dns --listen=0.0.0.0:0 -vNHr '
-            '{login}@localhost:{port} '
-            '{dest}'
-        ).format(
-            exclude=exclude, dest=dest, port=MCV_LOCAL_PORT,
-            ssh=ssh_command,
-            login=self.os_data['fuel']['username'],
-            passwd=self.os_data['fuel']['password'])
-
-        # FiXME(dbogun): MCV-815 - make proper port forwarding
-        # (self._make_tunnel_to_controller) and remove multiple attempts here
-        attempts = 5
-        for counter in xrange(0, attempts):
-            try:
-                retcode = self.procman.run_standalone_process(command)
-                if retcode is None:
-                    break
-            except Exception as e:
-                LOG.debug('An error while running Sshuttle: {msg}'.format(
-                    msg=str(e)))
-        else:
-            LOG.debug('Failed to run sshuttle! Exit.')
-            return False
-
-        LOG.debug('Cloud networks have been encapsulated successfully.')
-        return True
-
     def make_sure_controller_name_could_be_resolved(self):
         LOG.debug('Trying to update /etc/hosts file')
         a_fqdn = self.os_data['auth_fqdn']
@@ -471,27 +380,11 @@ class CRouter(Router):
         LOG.debug('Adding new record: %s \t%s' % (a_fqdn, public_ip))
         self.hosts.modify({a_fqdn: public_ip})
 
-    def setup_ssh_tunnels(self):
-        if not self._make_tunnel_to_controller():
-            LOG.debug('Cannot make an SSH tunnel to controller using '
-                      'Fuel Master Node!')
-            return False
-
-        if not self._encapsulate_networks_to_ssh_tunnel():
-            LOG.debug('Cannot encapsulate cloud networks to the created '
-                      'SSH tunnel!')
-            return False
-
-        LOG.debug('Tunnels have been set successfully.')
-        return True
-
     def setup_connections(self):
         self.get_fuelclient_credentials()
         self.get_rsa_key()
+        self.setup_sshuttle_tunnel()
 
-        if not self.setup_ssh_tunnels():
-            LOG.debug('Cannot set up SSH tunnels!')
-            return False
         if not self.get_and_store_credentials():
             LOG.debug('No credentials specified to access cloud!')
             return False
@@ -511,16 +404,134 @@ class CRouter(Router):
                 LOG.debug('Cannot remove file {fp}. Reason: {reason}'.format(
                     fp=name, reason=str(e)))
 
-        LOG.debug('Cleanup all started subprocesses.')
-        self.procman.cleanup()
-        LOG.debug('Finish cleanup of subprocesses.')
         LOG.debug('Restoring /etc/hosts')
         self.hosts.restore()
         self.stop_all_docker_containers()
 
+    def setup_sshuttle_tunnel(self):
+        fuel = clients.FuelClientProxy(self.os_data)
+        cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
+
+        node_set = fuel.node.get_all(environment_id=cluster)
+        node_set = fuel.filter_nodes_by_role(
+            node_set, mcv_config.FUEL_ROLE_CONTROLLER)
+        node_set = fuel.filter_nodes_by_status(node_set)
+
+        LOG.debug(
+            'Make SSH port forwarding on controller node on SSH port for '
+            'sshuttle')
+        node, forward = self._setup_port_forwarding_for_sshuttle(
+            fuel, node_set)
+        self.ctx.resources.add(resource.ClosableResource(forward), True)
+
+        net_info = fuel.get_node_network(
+            node, mcv_config.FUEL_PUBLIC_NETWORK_NAME)
+        dest = [net_info['cidr']]
+        LOG.debug('Setup sshuttle "tunnel"')
+        sshuttle = self._setup_sshuttle(forward, dest)
+        self.ctx.resources.add(
+            resource.SubprocessResource(sshuttle), True)
+
+    def _setup_port_forwarding_for_sshuttle(self, fuel, node_set):
+        fuel_access = self.os_data['fuel']
+
+        for node in node_set:
+            addr = fuel.get_node_address(node)
+            ssh_fuel_creds = ssh.Credentials(
+                fuel_access['nailgun'], fuel_access['username'],
+                password=fuel_access['password'])
+
+            try:
+                forward = ssh.LocalPortForwarder(
+                    addr, mcv_config.OS_NODE_SSH_PORT,
+                    via=ssh_fuel_creds)
+            except mcv_consoler.exceptions.PortForwardingError as e:
+                LOG.error(
+                    'Unable to setup SSH port forwarding to {dest}:{port} via '
+                    '{via}: {exc}'.format(
+                        dest=addr, port=mcv_config.OS_NODE_SSH_PORT,
+                        via=fuel_access['nailgun'], exc=e))
+                continue
+
+            LOG.debug(
+                'Test SSH port forwarding to {dest}:{port} via {via}'.format(
+                    dest=addr, port=mcv_config.OS_NODE_SSH_PORT,
+                    via=ssh_fuel_creds.identity))
+
+            try:
+                client = ssh.SSHClient(
+                    forward.local, mcv_config.OS_NODE_SSH_USER,
+                    rsa_key=mcv_config.DEFAULT_RSA_KEY_PATH, port=forward.port)
+                if not client.connect():
+                    raise mcv_consoler.exceptions.AccessError(
+                        'Unable to make SSH connection via SSH forwarded port')
+                try:
+                    hostname = client.exec_cmd('hostname -f', exc=True)
+                    if hostname.stdout.rstrip() != node['fqdn']:
+                        raise mcv_consoler.exceptions.AccessError(
+                            'Unexpected host fond. Expect hostname '
+                            '{} got {}'.format(hostname.stdout, node['fqdn']))
+                except mcv_consoler.exceptions.RemoteError as e:
+                    raise mcv_consoler.exceptions.AccessError(
+                        'Unusable controller host {}: {}'.format(addr, e))
+                finally:
+                    client.close()
+            except mcv_consoler.exceptions.AccessError as e:
+                LOG.error(e)
+                forward.close()
+                continue
+
+            break
+        else:
+            raise mcv_consoler.exceptions.AccessError(
+                'Unable to setup SSH port forwarding on any controller node.')
+
+        return node, forward
+
+    def _setup_sshuttle(self, forward, dest):
+        exclude = (self.os_data['fuel']['nailgun'], '127.0.0.1')
+        cmd = ['sshuttle'] + ['--exclude={}'.format(x) for x in exclude] + [
+            '-vv',
+            '--dns',
+            '--auto-nets',
+            '--remote={}@{}:{}'.format(
+                mcv_config.OS_NODE_SSH_USER,
+                forward.local, forward.port),
+            '--ssh-cmd={}'.format(
+                'ssh -q -i {} '
+                '-o UserKnownHostsFile=/dev/null '
+                '-o StrictHostKeyChecking=no'.format(
+                    mcv_config.DEFAULT_RSA_KEY_PATH))
+        ] + dest
+
+        shuttle_output = tempfile.TemporaryFile()
+
+        LOG.debug('Run sshuttle: %r', cmd)
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=shuttle_output, stderr=subprocess.STDOUT,
+                close_fds=True)
+        except OSError as e:
+            raise mcv_consoler.exceptions.FrameworkError(
+                'exec {!r}:'.format(cmd), e)
+
+        LOG.debug('Wait while shuttle setup tunnel.')
+        # We should "connect" some resource "behind" sshuttle tunnel to prove
+        # that sshutle is up and running, instead of this timeout.
+        now = time.time()
+        end_time = now + mcv_config.SHUTTLE_SETUP_TIME
+        while now < end_time:
+            if proc.poll() is not None:
+                shuttle_output.seek(0, os.SEEK_SET)
+                raise mcv_consoler.exceptions.AccessError(
+                    'Unable to setup shuttler tunnel.', shuttle_output.read())
+            time.sleep(max(int(now + 1) - now, 0))
+            now = time.time()
+
+        return proc
+
 
 class IRouter(Router):
-
     def __init__(self, ctx, **kwargs):
         super(IRouter, self).__init__(ctx, **kwargs)
         self.port_forwarding = kwargs.get('port_forwarding', False)

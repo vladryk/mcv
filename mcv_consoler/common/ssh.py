@@ -13,14 +13,18 @@
 #    under the License.
 
 import collections
+import itertools
 import logging
 import os
 import socket
+import subprocess
+import threading
+import time
 
 import paramiko
 
 from mcv_consoler import exceptions
-from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
+from mcv_consoler.common import config
 
 LOG = logging.getLogger(__name__)
 
@@ -30,34 +34,32 @@ ProcOutput = collections.namedtuple(
 
 class SSHClient(object):
     connected = False
-    show_password = False
 
     def __init__(self, host, username,
                  password=None,
                  rsa_key=None,
-                 timeout=DEFAULT_SSH_TIMEOUT):
+                 port=None,
+                 timeout=config.DEFAULT_SSH_TIMEOUT):
+
+        self.timeout = timeout
+        self.creds = Credentials(
+            host, username, password=password, auth_key=rsa_key, port=port)
 
         self.client = paramiko.client.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        self.connect_args = {
-            'hostname': host,
-            'username': username,
-            'timeout': timeout}
-        if password:
-            self.connect_args['password'] = password
-        if rsa_key:
-            self.connect_args['pkey'] = rsa_key
-
     def connect(self):
         self.connected = False
+
+        args = self.creds.paramiko_connect_args()
+        args['timeout'] = self.timeout
         try:
-            self.client.connect(**self.connect_args)
+            self.client.connect(**args)
         except (
                 paramiko.AuthenticationException,
                 paramiko.SSHException,
                 socket.error) as e:
-            LOG.error('SSH connect {}: {}'.format(self.identity, e))
+            LOG.error('SSH connect {}: {}'.format(self.creds.identity, e))
             LOG.debug('Error details', exc_info=True)
             return False
 
@@ -69,7 +71,8 @@ class SSHClient(object):
             raise exceptions.RemoteError(
                 'SSH {} is not connected'.format(self.identity))
 
-        LOG.debug('{} Running SSH command: {}'.format(self.identity, cmd))
+        LOG.debug('{} Running SSH command: {}'.format(
+            self.creds.identity, cmd))
         inp, out, err = self.client.exec_command(cmd)
 
         if stdin:
@@ -83,12 +86,12 @@ class SSHClient(object):
                   '\trcode: {0.rcode}\n'
                   '\tstdout: {0.stdout}\n'
                   '\tstderr: {0.stderr}'.format(
-            results, identity=self.identity))
+            results, identity=self.creds.identity))
 
         if results.rcode and exc:
             raise exceptions.RemoteError(
                 'Command {!r} failed on {}'.format(
-                    cmd, self.identity), results)
+                    cmd, self.creds.identity), results)
 
         return results
 
@@ -99,23 +102,171 @@ class SSHClient(object):
 
     @property
     def identity(self):
+        return self.creds.identity
+
+
+class Credentials(object):
+    show_password = False
+
+    def __init__(self, remote, login, password=None, auth_key=None, port=None):
+        self.remote = remote
+        self.login = login
+        self.password = password
+        self.auth_key = auth_key
+        self.port = port
+
+    def paramiko_connect_args(self):
+        args = {
+            'hostname': self.remote,
+            'username': self.login}
+        if self.password:
+            args['password'] = self.password
+        if self.auth_key:
+            args['pkey'] = paramiko.RSAKey.from_private_key_file(self.auth_key)
+        if self.port:
+            args['port'] = self.port
+
+        return args
+
+    @property
+    def host_with_login(self):
+        return '@'.join((self.login, self.remote))
+
+    @property
+    def identity(self):
         auth = []
-        try:
-            pwd = self.connect_args['password']
+        if self.password:
             if not self.show_password:
                 pwd = '*' * 5
+            else:
+                pwd = self.password
             auth.append(pwd)
-        except KeyError:
-            pass
-        if 'pkey' in self.connect_args:
+
+        if self.auth_key:
             auth.append('{private-key}')
         auth = '/'.join(auth)
         if auth:
             auth = ':' + auth
 
+        host = self.remote
+        if self.port:
+            host += ':{}'.format(self.port)
+
         return '{login}{auth}@{host}'.format(
-            login=self.connect_args['username'],
-            auth=auth, host=self.connect_args['hostname'])
+            login=self.login, auth=auth, host=host)
+
+
+class LocalPortForwarder(object):
+    is_closed = False
+
+    _busy_ports = set()
+    _lock = threading.Lock()
+
+    def __init__(
+            self, remote, remote_port, via,
+            local='localhost',
+            min_port=config.SSH_LOCAL_PORT_FORWARDING_MIN,
+            max_port=config.SSH_LOCAL_PORT_FORWARDING_MAX):
+        self.remote = remote
+        self.remote_port = remote_port
+        self.via = via
+        self.local = local
+        self.port = self._lookup_free_port(min_port, max_port)
+
+        cmd = []
+        if self.via.password:
+            cmd += ['sshpass', '-p', self.via.password]
+        cmd += [
+            'ssh', '-qnN',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            '-o', 'StrictHostKeyChecking=no',
+            '-L', '{}:{}:{}:{}'.format(
+                self.local, self.port, self.remote, self.remote_port)]
+        if self.via.auth_key:
+            cmd += [
+                '-i', self.via.auth_key]
+        cmd.append(self.via.host_with_login)
+
+        try:
+            self.proc = subprocess.Popen(
+                cmd,
+                stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT,
+                close_fds=True)
+        except OSError as e:
+            raise exceptions.PortForwardingError(
+                'Unable to execute {!r}: {}'.format(cmd, e))
+
+        try:
+            self._wait_for_connect()
+        except Exception:
+            self._release_port(self.port)
+            self.proc.terminate()
+            raise
+
+    def close(self):
+        if self.is_closed:
+            return
+
+        self.is_closed = True
+
+        self.proc.terminate()
+        self.proc.wait()
+        self._release_port(self.port)
+
+    @classmethod
+    def _lookup_free_port(cls, min_port, max_port):
+        if all((min_port, max_port)):
+            seq = range(min_port, max_port)
+        elif min_port:
+            seq = itertools.count(min_port)
+        else:
+            raise ValueError('You must define at least min_port')
+
+        cls._lock.acquire()
+        try:
+            for port in seq:
+                if port in cls._busy_ports:
+                    continue
+                break
+            else:
+                raise exceptions.PortForwardingError(
+                    'There is no free ports (min={}, max={})'.format(
+                        min_port, max_port))
+
+            cls._busy_ports.add(port)
+        finally:
+            cls._lock.release()
+
+        return port
+
+    @classmethod
+    def _release_port(cls, port):
+        cls._lock.acquire()
+        try:
+            cls._busy_ports.remove(port)
+        finally:
+            cls._lock.release()
+
+    def _wait_for_connect(self, tout=10):
+        now = time.time()
+        etime = now + tout
+
+        while now < etime and self.proc.poll() is None:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.connect((self.local, self.port))
+            except socket.error:
+                time.sleep(int(now + 1) - now)
+                now = time.time()
+                continue
+            finally:
+                s.close()
+
+            break
+        else:
+            raise exceptions.PortForwardingError(
+                'SSH forwarded port {}:{} is unaccesibble (ssh process '
+                'status: {})'.format(self.local, self.port, self.proc.poll()))
 
 
 def save_private_key(dest, payload):
@@ -134,16 +285,3 @@ def save_private_key(dest, payload):
             'Fail to store RSA key', e)
     finally:
         os.umask(umask)
-
-
-def get_rsa_obj(rsa_path):
-    try:
-        # re-save file, so it got correct permissions and ownership
-        with open(rsa_path) as f:
-            payload = f.read()
-        save_private_key(rsa_path, payload)
-    except IOError as e:
-        raise exceptions.FrameworkError(str(e))
-    return paramiko.RSAKey.from_private_key_file(rsa_path)
-
-

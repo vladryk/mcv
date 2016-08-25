@@ -98,22 +98,22 @@ DEFAULT_CREDS_PATH = "/home/mcv/toolbox/keys/openrc"
 
 FUELCLIENT_SETTINGS_ENV_VAR = 'FUELCLIENT_CUSTOM_SETTINGS'
 FUELCLIENT_CONFIG = '/home/mcv/toolbox/fuelclient-config.yaml'
-
+FUEL_ROLE_CONTROLLER = 'controller'
+FUEL_ROLE_COMPUTE = 'compute'
+FUEL_ADMIN_NETWORK_NAME = 'fuelweb_admin'
+FUEL_PUBLIC_NETWORK_NAME = 'public'
 FUEL_MANAGEMENT_NETWORK_NAME = 'management'
 
 #
 # Configuration for SSH tunneling
 #
+SSH_LOCAL_PORT_FORWARDING_MIN = 16384
+SSH_LOCAL_PORT_FORWARDING_MAX = None
 
-# Local port at MCV host to make a tunnel to controller node
-MCV_LOCAL_PORT = 2222
+SHUTTLE_SETUP_TIME = 5
 
-# Remote port at controller node to make a tunnel.
-# For now, we need an SSH standard port.
-RMT_CONTROLLER_PORT = 22
-
-# User on any controller to be used for reaching openrc
-RMT_CONTROLLER_USER = 'root'
+OS_NODE_SSH_PORT = 22
+OS_NODE_SSH_USER = 'root'
 
 # Path to times.json
 TIMES_DB_PATH = '/home/mcv/toolbox/times.json'

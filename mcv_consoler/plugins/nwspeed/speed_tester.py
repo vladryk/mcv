@@ -34,20 +34,19 @@ class Node2NodeSpeed(object):
         self.test_port = GET(self.config, 'test_port', 'nwspeed', 5903)
         # Data size for testing in megabytes
         self.data_size = GET(self.config, 'data_size', 'nwspeed', 100)
-        rsa_file = GET(self.config, 'ssh_key', 'auth')
-        self.rsa_obj = ssh.get_rsa_obj(rsa_file)
 
     def init_ssh_conns(self):
         if not self.nodes:
             return
-        root = app_conf.RMT_CONTROLLER_USER
+        login = app_conf.OS_NODE_SSH_USER
         for node in self.nodes:
-            conn = self._ssh_connect(root, node.ip, self.rsa_obj)
+            conn = self._ssh_connect(
+                login, node.ip, app_conf.DEFAULT_RSA_KEY_PATH)
             self.ssh_conns[node.fqdn] = conn
 
     @staticmethod
-    def _ssh_connect(username, ip, rsa_obj):
-        connect = ssh.SSHClient(ip, username, rsa_key=rsa_obj)
+    def _ssh_connect(username, ip, auth_key):
+        connect = ssh.SSHClient(ip, username, rsa_key=auth_key)
         if connect.connect():
             return connect
         raise exceptions.AccessError("Can't access node {} via SSH".format(ip))

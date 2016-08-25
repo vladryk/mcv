@@ -116,7 +116,7 @@ class Preparer(object):
 
     def _launch_instances(self, flavor_req, availability_zone):
         LOG.debug('Launch instances from %s' % config.tool_vm_image)
-        image = self.nova.images.findall(name=config.tool_vm_image)[0]
+        image = self.glance.images.findall(name=config.tool_vm_image)[0]
         flavor = self._get_flavor(flavor_req)
 
         try:

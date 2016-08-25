@@ -62,8 +62,6 @@ required_by_runner = {
     ),
     'nwspeed': (
         'nwspeed.runner',
-        'auth.controller_ip',
-        'auth.ssh_key',
     ),
     'resources': (
         'resources.runner',

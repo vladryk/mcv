@@ -233,6 +233,13 @@ class FuelClientProxy(utils.LazyAttributeMixin):
             setattr(fuelclient.client.APIClient, attr, None)
 
     @staticmethod
+    def filter_nodes_by_status(node_set, status='ready'):
+        for node in node_set:
+            if status != node['status']:
+                continue
+            yield node
+
+    @staticmethod
     def filter_nodes_by_role(node_set, role):
         for node in node_set:
             if role not in node['roles']:
@@ -240,22 +247,28 @@ class FuelClientProxy(utils.LazyAttributeMixin):
             yield node
 
     @staticmethod
-    def get_node_address(node, network='fuelweb_admin'):
-        for net in node['network_data']:
-            if net['name'] != network:
+    def get_node_network(node, network):
+        for net_info in node['network_data']:
+            if net_info['name'] != network:
                 continue
             break
         else:
             raise exceptions.FrameworkError(
                 'There is no network "{}" on node "{}"'.format(
                     network, node['fqdn']))
+        return net_info
+
+    @classmethod
+    def get_node_address(
+            cls, node, network=mcv_config.FUEL_ADMIN_NETWORK_NAME):
+        net_info = cls.get_node_network(node, network)
         try:
-            addr = net['ip']
+            addr = net_info['ip']
         except:
             raise exceptions.FrameworkError(
                 'There is no IP address on node {} in network {}'.format(
                     node['fqdn'], network))
-        return addr.split('/')[0]
+        return addr.rsplit('/', 1)[0]
 
     @classmethod
     def release_instance(cls):

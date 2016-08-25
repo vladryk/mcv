@@ -37,6 +37,10 @@ class AccessError(RemoteError):
     pass
 
 
+class PortForwardingError(AccessError):
+    pass
+
+
 class MissingDataError(MCVException):
     pass
 

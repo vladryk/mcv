@@ -70,6 +70,24 @@ class SubprocessResource(ResourceAbstract):
         super(SubprocessResource, self).kill()
 
 
+class ClosableResource(ResourceAbstract):
+    def __init__(self, target):
+        self.target = target
+
+    def terminate(self, is_last_request):
+        self._close()
+        super(ClosableResource, self).terminate(is_last_request)
+
+    def kill(self):
+        self._close()
+        super(ClosableResource, self).kill()
+
+    def _close(self):
+        if not self.is_alive:
+            return
+        self.target.close()
+
+
 class Pool(object):
     def __init__(self):
         self._space = []
