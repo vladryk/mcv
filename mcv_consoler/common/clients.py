@@ -28,7 +28,40 @@ from neutronclient.neutron import client as neutron
 import novaclient.client as nova
 import saharaclient.client as sahara
 
+from mcv_consoler import exceptions
 from mcv_consoler.common import config as mcv_config
+from mcv_consoler import utils
+
+
+class OSClientsProxy(utils.LazyAttributeMixin):
+    keystone = utils.LazyAttribute()
+    nova = utils.LazyAttribute()
+    cinder = utils.LazyAttribute()
+    glance = utils.LazyAttribute()
+    neutron = utils.LazyAttribute()
+    heat = utils.LazyAttribute()
+    sahara = utils.LazyAttribute()
+    fuel = utils.LazyAttribute()
+
+    def __init__(self, access_data):
+        self.access_data = access_data
+
+    def lazy_attribute_handler(self, target):
+        try:
+            handler = {
+                'keystone': get_keystone_client,
+                'nova': get_nova_client,
+                'cinder': get_cinder_client,
+                'glance': get_glance_client,
+                'neutron': get_neutron_client,
+                'heat': get_heat_client,
+                'sahara': get_sahara_client,
+                'fuel': FuelClientProxy}[target]
+        except KeyError:
+            raise exceptions.ProgramError(
+                'Invalid lazy attribute lookup on {!r} - missing handler '
+                '({!r})'.format(self, target))
+        return handler(self.access_data)
 
 
 keystone_keys = ('username',
@@ -143,53 +176,21 @@ def get_sahara_client(access_data):
     return client
 
 
-class _FuelClientLookup(object):
-    name = None
-
-    def __init__(self, target=None):
-        self.target = target
-
-    def __get__(self, instance, owner):
-        self._detect_name(owner)
-
-        handler = instance.get_resource_handler(self.target)
-        setattr(instance, self.name, handler)
-
-        return handler
-
-    def _detect_name(self, owner):
-        if self.name is not None:
-            return
-
-        for name, value in vars(owner).items():
-            if value is not self:
-                continue
-            break
-        else:
-            raise TypeError(
-                'Unable to detect descriptor name (class={!r} '
-                'descriptor={!r})'.format(owner, self))
-
-        self.name = name
-        if self.target is None:
-            self.target = self.name
-
-
-class FuelClientProxy(object):
-    cluster_settings = _FuelClientLookup('cluster-settings')
-    deployment_history = _FuelClientLookup()
-    deployment_info = _FuelClientLookup('deployment-info')
-    environment = _FuelClientLookup()
-    fuel_version = _FuelClientLookup('fuel-version')
-    graph = _FuelClientLookup()
-    network_configuration = _FuelClientLookup('network-configuration')
-    network_group = _FuelClientLookup('network-group')
-    node = _FuelClientLookup()
-    openstack_config = _FuelClientLookup('openstack-config')
-    plugins = _FuelClientLookup()
-    release = _FuelClientLookup()
-    task = _FuelClientLookup()
-    vip = _FuelClientLookup()
+class FuelClientProxy(utils.LazyAttributeMixin):
+    cluster_settings = utils.LazyAttribute('cluster-settings')
+    deployment_history = utils.LazyAttribute()
+    deployment_info = utils.LazyAttribute('deployment-info')
+    environment = utils.LazyAttribute()
+    fuel_version = utils.LazyAttribute('fuel-version')
+    graph = utils.LazyAttribute()
+    network_configuration = utils.LazyAttribute('network-configuration')
+    network_group = utils.LazyAttribute('network-group')
+    node = utils.LazyAttribute()
+    openstack_config = utils.LazyAttribute('openstack-config')
+    plugins = utils.LazyAttribute()
+    release = utils.LazyAttribute()
+    task = utils.LazyAttribute()
+    vip = utils.LazyAttribute()
 
     _instance_ref = None
 
@@ -231,12 +232,12 @@ class FuelClientProxy(object):
         for attr in '_keystone_client', '_auth_required', '_session':
             setattr(fuelclient.client.APIClient, attr, None)
 
-    def get_resource_handler(self, name):
-        return fuelclient.get_client(name)
-
     @classmethod
     def release_instance(cls):
         cls._instance_ref = None
+
+    def lazy_attribute_handler(self, target):
+        return fuelclient.get_client(target)
 
 
 get_fuel_client = FuelClientProxy

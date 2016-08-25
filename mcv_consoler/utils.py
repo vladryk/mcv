@@ -154,3 +154,49 @@ class TimeMetric(object):
     def __exit__(self, *exc_info):
         self.end = datetime.datetime.utcnow()
         self.value = self.end - self.start
+
+
+class LazyAttributeMixin(object):
+    def lazy_attribute_handler(self, target):
+        raise NotImplementedError
+
+
+class LazyAttribute(object):
+    name = None
+
+    def __init__(self, target=None):
+        self.target = target
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+        self._detect_name(owner)
+
+        target = self.target
+        if target is None:
+            target = self.name
+        handler = instance.lazy_attribute_handler(target)
+
+        setattr(instance, self.name, handler)
+
+        return handler
+
+    def _detect_name(self, owner):
+        if self.name is not None:
+            return
+
+        for name in dir(owner):
+            if getattr(owner, name) is not self:
+                continue
+            break
+        else:
+            raise TypeError(
+                'Unable to detect descriptor name (class={!r} '
+                'descriptor={!r})'.format(owner, self))
+
+        self.name = name
+
+    def __repr__(self):
+        return '<{}(name={}, target={})>'.format(
+            type(self), self.name, self.target)

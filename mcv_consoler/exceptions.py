@@ -21,6 +21,10 @@ class FrameworkError(MCVException):
     pass
 
 
+class ProgramError(FrameworkError):
+    pass
+
+
 class ConfigurationError(FrameworkError):
     pass
 
