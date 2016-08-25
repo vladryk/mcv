@@ -48,18 +48,19 @@ class BlockTable(Table):
 
 
 class SpeedTestRunner(run.Runner):
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.access_data = access_data
-        self.identity = "speed"
-        self.config_section = "speed"
-        self.config = kwargs.get('config')
-        self.test_failures = []
-        self.path = path
-        super(SpeedTestRunner, self).__init__()
-        self.failure_indicator = SpeedError.NO_RUNNER_ERROR
-        self.node_ids = []
-        self.home = '/mcv'
+    failure_indicator = SpeedError.NO_RUNNER_ERROR
+    identity = 'speed'
+    config_section = 'speed'
 
+    def __init__(self, ctx):
+        super(SpeedTestRunner, self).__init__(ctx)
+
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir
+        self.config = self.ctx.config
+
+        self.test_failures = []
+        self.node_ids = []
         # TODO(albartash): Make a single place for images!
         self.imagedir = '/home/mcv/toolbox/rally/images'
 

@@ -26,17 +26,18 @@ LOG = LOG.getLogger(__name__)
 
 
 class NWSpeedTestRunner(run.Runner):
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.access_data = access_data
-        self.identity = "nwspeed"
-        self.config_section = "nwspeed"
-        self.config = kwargs.get('config')
+    failure_indicator = NWSpeedError.NO_RUNNER_ERROR
+    identity = 'nwspeed'
+    config_section = 'nwspeed'
+
+    def __init__(self, ctx):
+        super(NWSpeedTestRunner, self).__init__(ctx)
+
+        self.access_data = self.ctx.access_data
+        self.config = self.ctx.config
+        self.path = self.ctx.work_dir
         self.test_failures = []
-        self.path = path
-        super(NWSpeedTestRunner, self).__init__()
-        self.failure_indicator = NWSpeedError.NO_RUNNER_ERROR
         self.hw_nodes = []
-        self.home = '/mcv'
         self.av_speed = 0
 
     def _evaluate_task_results(self, task_results):

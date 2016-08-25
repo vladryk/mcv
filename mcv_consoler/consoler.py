@@ -26,10 +26,13 @@ from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.config import PLUGINS_DIR_NAME
 from mcv_consoler.common.config import TIMES_DB_PATH
+from mcv_consoler.common import context
+from mcv_consoler.common import clients
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler.logger import LOG
+from mcv_consoler import exceptions
 from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section
 from mcv_consoler import utils
@@ -42,9 +45,9 @@ TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
 
 
 class Consoler(object):
-    def __init__(self, config, args):
-        self.config = config
-        self.args = args
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.config = ctx.config
         self.all_time = 0
         self.plugin_dir = PLUGINS_DIR_NAME
         self.failure_indicator = CAError.NO_ERROR
@@ -144,7 +147,7 @@ class Consoler(object):
 
         return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
 
-    def dispatch_tests_to_runners(self, test_dict, *args, **kwargs):
+    def dispatch_tests_to_runners(self, test_dict, **kwargs):
         dispatch_result = {}
         self.results_dir = self.get_results_dir('/tmp')
         os.mkdir(self.results_dir)
@@ -175,7 +178,7 @@ class Consoler(object):
                 LOG.info(msg)
 
         for key in test_dict.keys():
-            if self.event.is_set():
+            if self.ctx.terminate_event.is_set():
                 LOG.info("Catch Keyboard interrupt. "
                          "No more tests will be launched")
                 break
@@ -206,12 +209,15 @@ class Consoler(object):
             else:
                 path = os.path.join(self.results_dir, key)
                 os.mkdir(path)
-                runner = getattr(
-                    module,
-                    self.config.get(key, 'runner'))(self.access_helper.router
-                                                    .os_data,
-                                                    path,
-                                                    config=self.config)
+
+                factory = getattr(module, self.config.get(key, 'runner'))
+                access_data = self.access_helper.access_data()
+                runner = factory(context.Context(
+                    self.ctx,
+                    work_dir=path,
+                    work_dir_global=self.results_dir,
+                    access_data=access_data,
+                    access=clients.OSClientsProxy(access_data)))
 
                 batch = test_dict[key]
                 if isinstance(batch, basestring):
@@ -225,7 +231,7 @@ class Consoler(object):
                     run_failures = runner.run_batch(
                         batch,
                         compute=1,
-                        event=self.event,
+                        event=self.ctx.terminate_event,
                         config=self.config,
                         tool_name=key,
                         db=db,
@@ -399,41 +405,43 @@ class Consoler(object):
         LOG.debug("Finished creating a report.")
         LOG.info("One page report could be found in %s\n" % archive_file)
 
-    def console_user(self, event):
-        self.event = event
+    def __call__(self):
+        params = self.ctx.args.run[:]
+        method = params.pop(0)
 
-        runner = getattr(self, "do_" + self.args.run[0], None)
-        params = self.args.run[1:]
-        if not runner:
-            LOG.error('\nError: No such runner: %s\n' % self.args.run[0])
+        try:
+            handler = getattr(self, "do_" + method)
+        except AttributeError:
+            LOG.error('\nError: No such runner: %s\n', method)
             return CAError.WRONG_RUNNER
-        self._name_parts.append(self.args.run[0])
 
-        run_mode = self.args.run_mode
-        try:
-            kwargs = {'port_forwarding': not self.args.no_tunneling}
-            self.access_helper = AccessSteward(self.config, event, run_mode,
-                                               **kwargs)
-            env_ready = self.access_helper.check_and_fix_environment()
-        except Exception as e:
-            LOG.info("Something went wrong with checking credentials "
-                     "and preparing environment")
-            LOG.error("The following error has terminated "
-                      "the consoler: %s", repr(e))
-            LOG.debug(traceback.format_exc())
-            return CAError.WRONG_CREDENTIALS
-        if not env_ready:
-            self.access_helper.cleanup()
-            return CAError.WRONG_CREDENTIALS
+        self._name_parts.append(method)
+
+        self.access_helper = AccessSteward(
+            self.ctx, self.ctx.args.run_mode,
+            port_forwarding=not self.ctx.args.no_tunneling)
 
         try:
-            run_results = runner(*params)
-            self._do_finalization(run_results)
-        except Exception:
-            LOG.error("Something went wrong with the command, "
-                      "please refer to logs to discover the problem.")
-            LOG.debug(traceback.format_exc())
-            self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
+            try:
+                if not self.access_helper.check_and_fix_environment():
+                    raise exceptions.AccessError(
+                        'Unable to setup access to OS cloud.')
+            except Exception as e:
+                LOG.info("Something went wrong with checking credentials "
+                         "and preparing environment")
+                LOG.error("The following error has terminated "
+                          "the consoler: %s", repr(e))
+                LOG.debug('Error details', exc_info=True)
+                return CAError.WRONG_CREDENTIALS
+
+            try:
+                run_results = handler(*params)
+                self._do_finalization(run_results)
+            except Exception:
+                LOG.error("Something went wrong with the command, "
+                          "please refer to logs to discover the problem.")
+                LOG.debug('Error details', exc_info=True)
+                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
         finally:
             self.access_helper.cleanup()
 

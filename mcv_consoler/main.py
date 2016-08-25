@@ -26,6 +26,7 @@ from requests.packages.urllib3.exceptions import SNIMissingWarning
 
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE, RUN_MODES
+from mcv_consoler.common import context
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
@@ -86,12 +87,15 @@ def main():
         LOG.error("There is another instance of MCVConsoler! Stop.")
         return CAError.TOO_MANY_INSTANCES
 
-    consoler = mcv_consoler.consoler.Consoler(config=conf, args=args)
+    ctx = context.Context(
+        None,
+        args=args,
+        config=conf,
+        terminate_event=threading.Event())
+    consoler = mcv_consoler.consoler.Consoler(ctx)
 
-    e = threading.Event()
     rcode = [None]
-    t = threading.Thread(target=thread_wrapper, args=[consoler.console_user,
-                                                      rcode, e])
+    t = threading.Thread(target=thread_wrapper, args=[consoler, rcode])
     try:
         t.start()
         while t.isAlive():
@@ -100,7 +104,7 @@ def main():
     except KeyboardInterrupt:
         LOG.info("Consoler will be interrupted after finish of current task. "
                  "Results of it will be lost")
-        e.set()
+        ctx.terminate_event.set()
         result = CAError.KEYBOARD_INTERRUPT
     except Exception:
         LOG.error("Something unforeseen has just happened."
@@ -113,10 +117,10 @@ def main():
     return result
 
 
-def thread_wrapper(worker, rcode_holder, *args):
+def thread_wrapper(worker, rcode_holder):
     rcode = CAError.UNKNOWN_EXCEPTION
     try:
-        rcode = worker(*args)
+        rcode = worker()
     except Exception as e:
         LOG.error('Unhandled exception in worker thread: %s', e)
         LOG.debug('Error details', exc_info=True)

@@ -22,16 +22,16 @@ LOG = LOG.getLogger(__name__)
 
 
 class ResourceReportRunner(run.Runner):
+    failure_indicator = ResourceError.NO_RUNNER_ERROR
+    identity = 'resources'
+    config_section = 'resources'
 
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.config = kwargs.get("config")
-        self.access_data = access_data
-        self.identity = "resources"
-        self.config_section = "resources"
-        self.path = path
+    def __init__(self, ctx):
+        super(ResourceReportRunner, self).__init__(ctx)
+        self.config = self.ctx.config
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir
         self.test_failures = []
-        super(ResourceReportRunner, self).__init__()
-        self.failure_indicator = ResourceError.NO_RUNNER_ERROR
 
     def _evaluate_task_results(self, task_results):
         return True

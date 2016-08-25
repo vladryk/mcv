@@ -32,20 +32,18 @@ LOG = LOG.getLogger(__name__)
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
-    def __init__(self, access_data, path, *args, **kwargs):
-        super(TempestOnDockerRunner, self).__init__(access_data,
-                                                    path,
-                                                    *args,
-                                                    **kwargs)
+    failure_indicator = TempestError.NO_RUNNER_ERROR
+    identity = 'tempest'
 
-        self.config = kwargs["config"]
-        self.path = path
+    def __init__(self, ctx):
+        super(TempestOnDockerRunner, self).__init__(ctx)
+
+        self.config = self.ctx.config
+        self.path = self.ctx.work_dir
         self.container = None
-        self.identity = 'tempest'
         self.failed_cases = 0
         self.home = '/mcv'
         self.homedir = '/home/mcv/toolbox/tempest'
-        self.failure_indicator = TempestError.NO_RUNNER_ERROR
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("tempest")

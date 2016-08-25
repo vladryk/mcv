@@ -34,18 +34,18 @@ LOG = LOG.getLogger(__name__)
 
 
 class ShakerRunner(runner.Runner):
+    failure_indicator = ShakerError.NO_RUNNER_ERROR
+    identity = 'shaker'
+    config_section = 'shaker'
 
-    def __init__(self, access_data=None, config_location=None, *args, **kwargs):
-        super(ShakerRunner, self).__init__()
-        self.config = kwargs["config"]
-        self.identity = "shaker"
-        self.config_section = "shaker"
+    def __init__(self, ctx):
+        super(ShakerRunner, self).__init__(ctx)
+        self.config = self.ctx.config
 
         # this object is supposed to live for one run
         # so let's leave it as is for now.
         self.test_failures = []
 
-        self.failure_indicator = ShakerError.NO_RUNNER_ERROR
         self.homedir = '/home/mcv/toolbox/shaker'
         self.home = '/mcv'
 
@@ -112,12 +112,12 @@ class ShakerRunner(runner.Runner):
 
 
 class ShakerOnDockerRunner(ShakerRunner):
+    def __init__(self, ctx):
+        super(ShakerOnDockerRunner, self).__init__(ctx)
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir
 
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.config = kwargs["config"]
         self.container_id = None
-        self.access_data = access_data
-        self.path = path
         self.image_name = utils.GET(
             self.config, 'image_name', 'shaker') or 'shaker-image'
         self.flavor_name = utils.GET(
@@ -128,9 +128,6 @@ class ShakerOnDockerRunner(ShakerRunner):
              self.config,
              'threshold',
              'network_speed', str(app_conf.DEFAULT_SHAKER_THRESHOLD))
-
-        super(ShakerOnDockerRunner, self).__init__(access_data, path, *args,
-                                                   **kwargs)
 
         self.heat = Clients.get_heat_client(self.access_data)
 

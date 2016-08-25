@@ -77,8 +77,9 @@ class Router(object):
     SSH_DEST_FUELMASTER = next(_idx)
     del _idx
 
-    def __init__(self, **kwargs):
-        self.config = kwargs["config"]
+    def __init__(self, ctx, **kwargs):
+        self.ctx = ctx
+        self.config = self.ctx.config
         self.hosts = EtcHosts()
 
         self.os_data = self.get_os_data()
@@ -173,9 +174,8 @@ class MRouter(Router):
 
 
 class CRouter(Router):
-
-    def __init__(self, **kwargs):
-        super(CRouter, self).__init__(**kwargs)
+    def __init__(self, ctx, **kwargs):
+        super(CRouter, self).__init__(ctx, **kwargs)
 
         self.procman = ProcessManager()
 
@@ -522,8 +522,8 @@ class CRouter(Router):
 
 class IRouter(Router):
 
-    def __init__(self, **kwargs):
-        super(IRouter, self).__init__(**kwargs)
+    def __init__(self, ctx, **kwargs):
+        super(IRouter, self).__init__(ctx, **kwargs)
         self.port_forwarding = kwargs.get('port_forwarding', False)
 
         self.fresh_floating_ips = []

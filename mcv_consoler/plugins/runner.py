@@ -41,15 +41,16 @@ LOG = LOG.getLogger(__name__)
 
 
 class Runner(object):
+    failure_indicator = CAError.NO_RUNNER_ERROR
 
-    def __init__(self):
+    def __init__(self, ctx):
+        super(Runner, self).__init__()
+        self.ctx = ctx
         self.current_task = 1
         self.test_without_report = []
         self.test_success = []
         self.test_not_found = []
         self.time_of_tests = {}
-        self.failure_indicator = CAError.NO_RUNNER_ERROR
-        super(Runner, self).__init__()
 
     @property
     def discovery(self):

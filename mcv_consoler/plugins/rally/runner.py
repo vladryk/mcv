@@ -55,12 +55,12 @@ rally_json_template = """{
 
 
 class RallyRunner(runner.Runner):
+    identity = 'rally'
+    config_section = 'rally'
 
-    def __init__(self, config_location=None, *args, **kwargs):
-        super(RallyRunner, self).__init__()
-        self.config = kwargs["config"]
-        self.identity = "rally"
-        self.config_section = "rally"
+    def __init__(self, ctx):
+        super(RallyRunner, self).__init__(ctx)
+        self.config = self.ctx.config
         # this object is supposed to live for one run
         # so let's leave it as is for now.
         # TODO(albartash): todo smth with this property
@@ -175,18 +175,17 @@ class RallyRunner(runner.Runner):
 
 
 class RallyOnDockerRunner(RallyRunner):
+    failure_indicator = RallyError.NO_RUNNER_ERROR
 
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.config = kwargs["config"]
-        self.path = path
+    def __init__(self, ctx):
+        super(RallyOnDockerRunner, self).__init__(ctx)
+
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir
         self.container = None
-        self.access_data = access_data
         self.skip = False
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
-
-        super(RallyOnDockerRunner, self).__init__(*args, **kwargs)
-        self.failure_indicator = RallyError.NO_RUNNER_ERROR
 
         self.glanceclient = Clients.get_glance_client(self.access_data)
         self.neutronclient = Clients.get_neutron_client(self.access_data)

@@ -38,13 +38,16 @@ LOG = LOG.getLogger(__name__)
 
 
 class OSTFOnDockerRunner(runner.Runner):
+    failure_indicator = OSTFError.NO_RUNNER_ERROR
+    identity = 'ostf'
+    config_section = 'ostf'
 
-    def __init__(self, access_data, path, *args, **kwargs):
-        self.config = kwargs["config"]
-        self.access_data = access_data
-        self.path = path
-        self.identity = "ostf"
-        self.config_section = "ostf"
+    def __init__(self, ctx):
+        super(OSTFOnDockerRunner, self).__init__(ctx)
+
+        self.config = self.ctx.config
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir
 
         try:
             self.mos_version = self.config.get('basic', "mos_version")
@@ -69,9 +72,6 @@ class OSTFOnDockerRunner(runner.Runner):
         self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
         self.config_filename = 'ostfcfg.conf'
-
-        super(OSTFOnDockerRunner, self).__init__()
-        self.failure_indicator = OSTFError.NO_RUNNER_ERROR
 
         try:
             max_failed = utils.GET(self.config, 'max_failed_tests', 'ostf')

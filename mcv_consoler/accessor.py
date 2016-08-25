@@ -27,20 +27,18 @@ LOG = LOG.getLogger(__name__)
 
 
 class AccessSteward(object):
-    def __init__(self, config, event, run_mode, **kwargs):
-        self.config = config
-        self.event = event
-        self.router = self.get_router(config, run_mode, **kwargs)
+    def __init__(self, ctx, mode, **kwargs):
+        self.ctx = ctx
 
-    def get_router(self, config, mode, **kwargs):
-        """Discovers which router to create and returns the possible one."""
+        router_class = {
+            app_conf.RUN_MODES[0]: IRouter,
+            app_conf.RUN_MODES[1]: CRouter,
+            # monkey fix until MRouter created
+            app_conf.RUN_MODES[2]: CRouter}.get(mode, Router)
+        self.router = router_class(self.ctx, **kwargs)
 
-        router_classes = {app_conf.RUN_MODES[0]: IRouter,
-                          app_conf.RUN_MODES[1]: CRouter,  # monkey fix until
-                                                           # MRouter created
-                          app_conf.RUN_MODES[2]: CRouter}
-
-        return router_classes.get(mode, Router)(config=config, **kwargs)
+    def access_data(self):
+        return self.router.os_data
 
     def check_docker_images(self):
         LOG.debug('Validating that all docker images required by '
@@ -51,7 +49,7 @@ class AccessSteward(object):
         timeout = app_conf.DOCKER_LOADING_IMAGE_TIMEOUT
 
         while True:
-            if self.event.is_set():
+            if self.ctx.terminate_event.is_set():
                 LOG.warning('Caught Keyboard Interrupt, exiting')
                 return False
 

@@ -21,11 +21,12 @@ LOG = LOG.getLogger(__name__)
 
 
 class SelfCheckRunner(run.Runner):
-    def __init__(self, access_data, path, *args, **kwargs):
+    failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
+    identity = 'selfcheck'
+
+    def __init__(self, ctx):
+        super(SelfCheckRunner, self).__init__(ctx)
         self.test_failures = []
-        super(SelfCheckRunner, self).__init__()
-        self.failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
-        self.identity = "selfcheck"
 
     def _evaluate_task_results(self, task_results):
         for task_result in task_results:
