@@ -477,24 +477,6 @@ class ObjectStorageSpeed(BaseStorageSpeed):
                 'Unable to locate compute node, that host VM {}'.format(idnr))
         return node
 
-    @staticmethod
-    def get_node_address(node, network='fuelweb_admin'):
-        for net in node['network_data']:
-            if net['name'] != network:
-                continue
-            break
-        else:
-            raise exceptions.FrameworkError(
-                'Unable to network {} in node {}'.format(
-                    network, node['fqdn']))
-        try:
-            addr = net['ip']
-        except:
-            raise exceptions.FrameworkError(
-                'There is no IP address on node {} in network {}'.format(
-                    node['fqdn'], network))
-        return addr.split('/')[0]
-
 
 class _MetricAbstract(object):
     def __init__(self, context):
@@ -531,7 +513,7 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             time_track.query('download'))
 
     def _open_ssh_connect(self, node):
-        addr = self.context.get_node_address(node)
+        addr = self.context.fuel.get_node_address(node)
         pkey = paramiko.RSAKey.from_private_key_file(
             app_conf.DEFAULT_RSA_KEY_PATH)
         connect = ssh.SSHClient(

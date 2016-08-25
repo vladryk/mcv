@@ -232,6 +232,31 @@ class FuelClientProxy(utils.LazyAttributeMixin):
         for attr in '_keystone_client', '_auth_required', '_session':
             setattr(fuelclient.client.APIClient, attr, None)
 
+    @staticmethod
+    def filter_nodes_by_role(node_set, role):
+        for node in node_set:
+            if role not in node['roles']:
+                continue
+            yield node
+
+    @staticmethod
+    def get_node_address(node, network='fuelweb_admin'):
+        for net in node['network_data']:
+            if net['name'] != network:
+                continue
+            break
+        else:
+            raise exceptions.FrameworkError(
+                'There is no network "{}" on node "{}"'.format(
+                    network, node['fqdn']))
+        try:
+            addr = net['ip']
+        except:
+            raise exceptions.FrameworkError(
+                'There is no IP address on node {} in network {}'.format(
+                    node['fqdn'], network))
+        return addr.split('/')[0]
+
     @classmethod
     def release_instance(cls):
         cls._instance_ref = None
