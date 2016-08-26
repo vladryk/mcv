@@ -138,7 +138,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         out = utils.run_cmd(cmd, quiet=True)
 
         cmd = 'docker exec -t {cid} test -e {out_file} ' \
-              '&& echo yes || echo no'.format(
+              '&& echo -n yes || echo -n no'.format(
             cid=self.container_id, out_file=details_file)
         exists = utils.run_cmd(cmd)
         if exists == 'no':
