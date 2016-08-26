@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {{ title }}
+{% endblock %}
+
+{% block table %}
+
+<div class="container-fluid">
+
+
+    <div class="row-md-12"><h1 align="center">Network speed statistic</h1></div>
+    <div class="row-md-12"><h3 align="center">Treshold is {{ treshold_str }}, {{ treshold_prc }}%</h3></div>
+
+
+
+
+ <div class="col-md-12">
+
+    <table class="table table-bordered">
+
+        <thead>
+             <tr><td class="text-center panel-title"><strong>AVG Speed NodeToNode: MB/s(Gb/s)</strong></td>
+                 {% for node in nodes %}
+                    <td class="text-center panel-title"><strong>{{ node }}, {{ nodes[node]['role'] }}</strong></td>
+                 {% endfor %}
+             </tr>
+        </thead>
+
+        <tbody>
+        {% for node in nodes %}
+        <tr>
+            <td class="text-center panel-title"><strong>{{ node }} ( {{ nodes[node]['role'] }} )</strong></td>
+            {% for name in nodes %}
+                    {% set loop_index = loop.index %}
+                    {% if not nodes[node][name] %}
+                        <td class="text-center active"> </td>
+                    {% elif (nodes[node][name]|sum) / (nodes[node][name]|length) >= treshold %}
+                        <td class="text-center success">
+                            {% include "_nwspeed_collapse_panel.html" %}
+                        </td>
+                    {% else %}
+                        <td class="text-center danger">
+                            {% include "_nwspeed_collapse_panel.html" %}
+                        </td>
+                    {% endif %}
+            {% endfor %}
+
+        </tr>
+        {% endfor %}
+        </tbody>
+
+    </table>
+
+ </div>
+
+
+</div>
+
+{% endblock %}
