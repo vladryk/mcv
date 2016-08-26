@@ -103,9 +103,7 @@ class ConfigValidator(object):
     """ Validate options needed to run a particular test scenario. Also
     checks a lis of scenario tests for the wrong syntax and missing commas
     """
-    _scenarios = 'single', 'custom', 'group', 'full', 'name'
-    _scenarios_info = 'single', 'custom (deprecated)', 'group', 'full', 'name'
-
+    _scenarios = 'single', 'group', 'full', 'name'
     _runners = required_by_runner.keys()
 
     t_missing = " - [{opt}] is required"
@@ -177,7 +175,7 @@ class ConfigValidator(object):
             return self.status
         if scenario == 'single':
             self.check_runner(runner)
-        elif scenario in ('custom', 'group'):
+        elif scenario == 'group':
             self.check_config_strusture(group)
             self.check_custom_group(group)
         elif scenario == 'full':
@@ -236,12 +234,12 @@ class ConfigValidator(object):
         scenario = self.args[0]
 
         if scenario not in self._scenarios:
-            expected = ', '.join(self._scenarios_info)
+            expected = ', '.join(self._scenarios)
             self.errors.append("Error: incorrect test scenario '%s'. "
                                "Expected one of: %s" % (scenario, expected))
         elif scenario == 'single':
             runner = self.args[1]
-        elif scenario in ('custom', 'group'):
+        elif scenario == 'group':
             group = self.args[1]
         return scenario, group, runner
 

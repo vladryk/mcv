@@ -85,12 +85,6 @@ class Consoler(object):
             return dirname
         return os.path.join(dst_dir, dirname)
 
-    def do_custom(self, test_group):
-        LOG.warning('Deprecation Warning: Tests is running, but the command '
-                    'is obsolete. Please use command "... --run group ..." '
-                    'instead.')
-        return self.do_group(test_group)
-
     def do_group(self, test_group):
         self.group_name = test_group
         self._name_parts.append(test_group)
