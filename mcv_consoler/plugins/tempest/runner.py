@@ -86,8 +86,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         # rally user gets its permissions to start docker containers
         cmd = 'docker exec -t {cid} sudo chown rally:rally /home/rally/.rally'
         utils.run_cmd(cmd.format(cid=self.container_id))
-
         self.copy_config()
+        self.install_tempest()
 
     def _patch_rally(self):
         dist = '/tempest/requirements.txt'
@@ -175,28 +175,29 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "File: {details_file}".format(task=task, details_file=details_file)
         )
 
-    def _run_tempest_on_docker(self, task, *args, **kwargs):
+    def install_tempest(self):
         LOG.debug("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
-        install = glob.glob(self.homedir + '/for-deployment-*')
-        run_by_name = kwargs.get('run_by_name')
-        if not install:
-            LOG.debug("No Tempest installation found. Installing tempest...")
-            cmd = ("docker exec -t {cid} "
-                   "rally verify install "
-                   "--deployment existing --source /tempest").format(
-                cid=self.container_id)
 
-            p = utils.run_cmd(cmd, quiet=True)
-            cmd = "docker exec -t %(container)s rally verify genconfig" % \
-                  {"container": self.container_id}
+        LOG.debug("Installing tempest...")
+        cmd = ("docker exec -t {cid} "
+               "rally verify install "
+               "--deployment existing --source /tempest").format(
+            cid=self.container_id)
 
-            p = utils.run_cmd(cmd, quiet=True)
-            cirros = glob.glob(self.homedir + '/data/cirros-*')
-            if not cirros:
-                self.copy_tempest_image()
+        utils.run_cmd(cmd, quiet=True)
+        cmd = "docker exec -t %(container)s rally verify genconfig" % \
+              {"container": self.container_id}
+
+        utils.run_cmd(cmd, quiet=True)
+        cirros = glob.glob(self.homedir + '/data/cirros-*')
+        if not cirros:
+            self.copy_tempest_image()
+
+    def _run_tempest_on_docker(self, task, *args, **kwargs):
+
         LOG.debug("Starting verification")
-
+        run_by_name = kwargs.get('run_by_name')
         if run_by_name:
             cmd = ("docker exec -t {cid} rally "
                    "--log-file {home}/log/tempest.log --rally-debug"
@@ -209,7 +210,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                    " verify start --set {_set}").format(cid=self.container_id,
                                                         home=self.home,
                                                         _set=task)
-        p = utils.run_cmd(cmd, quiet=True)
+        utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify list".format(
             cid=self.container_id)
@@ -299,6 +300,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             self.failure_indicator = TempestError.TESTS_FAILED
             LOG.info(" * FAILED")
             return False
+
+    def cleanup_toolbox(self):
+        LOG.info('Uninstalling tempest ...')
+        cmd = 'docker exec -t {cid} ' \
+              'rally verify uninstall --deployment existing'.format(cid=self.container_id)
+        utils.run_cmd(cmd, quiet=True)
 
     def run_batch(self, tasks, *args, **kwargs):
         tool_name = kwargs["tool_name"]
@@ -411,6 +418,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         self.total_checks = len(t)
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+        self.cleanup_toolbox()
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found,
