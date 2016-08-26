@@ -14,7 +14,7 @@
 
 import argparse
 
-from mcv_consoler.common.config import MODES
+from mcv_consoler.common.config import MODES, RUN_MODES
 from mcv_consoler.common.config import PROJECT_DESCRIPTION
 from mcv_consoler.common.config import PROJECT_NAME
 from mcv_consoler.common.config import RUN_DESCRIPTION
@@ -47,25 +47,29 @@ def _get_parser():
 
     parser.add_argument(
         "--no-tunneling", action="store_true", default=False,
-        help="""Forbids setting up automatic tunnels. Used for L2
-        only.""")
-
-    parser.add_argument(
-        "--mode", type=int, choices=MODES, required=True,
-        help="""Choose mode in which Consoler is going to work.
-
-        Possible values:
-
-        1 - Run MCV inside the cloud as an instance (L1)
-        2 - Run MCV as a separate node with direct access to admin network (L2)
-        3 - Run MCV as a separate node in external network (L3)
-        """)
+        help="""Forbids setting up automatic tunnels. Used for L2 only.""")
 
     parser.add_argument(
         "--version",
         action="version",
         version=version,
         help="""Print out version of MCV Consoler and exit.""")
+
+    mode_is_required = parser.add_mutually_exclusive_group(required=True)
+
+    mode_is_required.add_argument(
+        "--run-mode", choices=RUN_MODES, required=False,  # remember to set this to 'True' when we remove '--mode' from options
+        help="""Choose mode in which Consoler is going to work.
+
+Possible values:
+
+instance -  Run MCV inside the cloud as an instance (L1)
+node -      Run MCV as a separate node with direct access to admin network (L2)
+external -  Run MCV as a separate node in external network (L3)""")
+
+    mode_is_required.add_argument(
+        "--mode", type=int, choices=MODES,
+        help="""WARNING: This option is deprecated. Use '--run-mode' instead""")
 
     return parser
 

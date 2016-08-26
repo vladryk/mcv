@@ -442,10 +442,10 @@ class Consoler(object):
             return result.append(CAError.WRONG_RUNNER)
         self._name_parts.append(self.args.run[0])
 
-        mode = self.args.mode
+        run_mode = self.args.run_mode
         try:
             kwargs = {'port_forwarding': not self.args.no_tunneling}
-            self.access_helper = AccessSteward(self.config, event, mode,
+            self.access_helper = AccessSteward(self.config, event, run_mode,
                                                **kwargs)
             env_ready = self.access_helper.check_and_fix_environment()
         except Exception as e:

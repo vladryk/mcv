@@ -25,7 +25,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from requests.packages.urllib3.exceptions import SNIMissingWarning
 
 from mcv_consoler.common.cfgparser import config_parser
-from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
+from mcv_consoler.common.config import DEFAULT_CONFIG_FILE, RUN_MODES
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
@@ -68,6 +68,15 @@ def main():
     LOG.debug('Consoler started by command: %s' % ' '.join(sys.argv))
 
     conf = load_config()
+
+    # show deprecation warning. Replace 'mode' with 'run_mode' if needed
+    if args.mode is not None:
+        warn_msg = "\nDeprecation warning: option '--mode' is deprecated " \
+                   "and might be removed in the nearest future. " \
+                   "Use '--run-mode' instead\n"
+        LOG.warning(warn_msg)
+        if args.run_mode is None:
+            args.run_mode = RUN_MODES[args.mode - 1]
 
     if args.run is not None:
         if not validate_conf(conf, args.run):

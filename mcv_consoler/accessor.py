@@ -28,18 +28,18 @@ LOG = LOG.getLogger(__name__)
 
 
 class AccessSteward(object):
-    def __init__(self, config, event, mode, **kwargs):
+    def __init__(self, config, event, run_mode, **kwargs):
         self.config = config
         self.event = event
-        self.router = self.get_router(config, mode, **kwargs)
+        self.router = self.get_router(config, run_mode, **kwargs)
 
     def get_router(self, config, mode, **kwargs):
         """Discovers which router to create and returns the possible one."""
 
-        router_classes = {app_conf.MODES[0]: IRouter,
-                          app_conf.MODES[1]: CRouter, # monkey fix until
-                                                      # MRouter created
-                          app_conf.MODES[2]: CRouter}
+        router_classes = {app_conf.RUN_MODES[0]: IRouter,
+                          app_conf.RUN_MODES[1]: CRouter,  # monkey fix until
+                                                           # MRouter created
+                          app_conf.RUN_MODES[2]: CRouter}
 
         return router_classes.get(mode, Router)(config=config, **kwargs)
 
