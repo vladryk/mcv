@@ -16,7 +16,7 @@ import shlex
 import subprocess
 import time
 
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 from mcv_consoler import utils
 
 

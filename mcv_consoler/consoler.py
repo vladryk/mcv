@@ -31,7 +31,8 @@ from mcv_consoler.common import clients
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.common.test_discovery import discovery
-from mcv_consoler.logger import LOG
+
+from mcv_consoler.log import LOG
 from mcv_consoler import exceptions
 from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section

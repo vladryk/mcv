@@ -40,7 +40,7 @@ from mcv_consoler.utils import GET
 from novaclient import exceptions as nexc
 
 import traceback
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 from mcv_consoler.utils import run_cmd
 

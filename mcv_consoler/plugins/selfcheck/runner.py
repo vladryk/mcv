@@ -13,7 +13,7 @@
 #    under the License.
 
 from mcv_consoler.common.errors import BaseSelfCheckError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.selfcheck import selfcheck_tester as st
 

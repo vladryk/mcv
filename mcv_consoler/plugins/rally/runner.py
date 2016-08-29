@@ -31,7 +31,7 @@ from mcv_consoler.common.config import SAHARA_IMAGE_PATH80
 from mcv_consoler.common.config import SAHARA_IMAGE_PATH70
 from mcv_consoler.common.config import TERASORT_JAR_PATH
 from mcv_consoler.common.errors import RallyError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 

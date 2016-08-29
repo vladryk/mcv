@@ -14,7 +14,7 @@
 
 from mcv_consoler.common.errors import ResourceError
 import datetime
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 from mcv_consoler.plugins.resources import resource_reporter as resources
 import mcv_consoler.plugins.runner as run
 

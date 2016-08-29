@@ -15,14 +15,21 @@
 import logging
 import logging.config
 
+import yaml
+
 
 def _get_logger():
-    lc = '/etc/mcv/logging.conf'
-    logging.config.fileConfig(lc)
+    """Get the configured logger
 
-    # This is somewhat radical way to shut up paramiko
-    logging.getLogger("paramiko").setLevel(logging.WARNING)
-
+    Load the logging configuration file and
+    configure the logging system.
+    """
+    # TODO(abochkarev): it is required to get rid of using
+    # the hardcoded logging config path. The best place for
+    # this param is /etc/mcv.conf
+    log_config = '/etc/mcv/logging.yaml'
+    with open(log_config, 'r') as f:
+        logging.config.dictConfig(yaml.load(f))
     return logging
 
 LOG = _get_logger()

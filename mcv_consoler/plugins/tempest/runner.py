@@ -24,7 +24,7 @@ import traceback
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import TempestError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler import utils
 

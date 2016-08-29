@@ -31,7 +31,7 @@ from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
 import mcv_consoler.consoler
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 
 urllib3.disable_warnings(InsecurePlatformWarning)

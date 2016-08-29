@@ -21,7 +21,7 @@ import signal
 import subprocess
 
 from mcv_consoler import exceptions
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 warnings = ('SNIMissingWarning',
             'InsecurePlatformWarning',

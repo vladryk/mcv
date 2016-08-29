@@ -18,7 +18,7 @@ import subprocess
 import time
 
 from mcv_consoler.common import clients as Clients
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 from mcv_consoler.utils import GET
 
 LOG = LOG.getLogger(__name__)

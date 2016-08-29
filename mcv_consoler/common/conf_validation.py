@@ -14,7 +14,7 @@
 
 import re
 from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 
 LOG = LOG.getLogger(__name__)

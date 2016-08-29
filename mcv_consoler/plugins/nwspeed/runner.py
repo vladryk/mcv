@@ -17,7 +17,7 @@ import traceback
 
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import NWSpeedError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.nwspeed import speed_tester as st
 from mcv_consoler.utils import GET

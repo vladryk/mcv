@@ -26,7 +26,7 @@ from mcv_consoler.common.config import MOS_VERSIONS
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
 
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 from mcv_consoler.plugins.ostf.reporter import Reporter
 from mcv_consoler.plugins import runner

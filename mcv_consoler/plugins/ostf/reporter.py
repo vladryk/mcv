@@ -18,7 +18,7 @@ from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
 from mcv_consoler.common.config import DEBUG
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 
 LOG = LOG.getLogger(__name__)

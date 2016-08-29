@@ -21,7 +21,7 @@ from flask_table import Table, Col
 from jinja2 import Template
 
 from mcv_consoler.common.errors import SpeedError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
 from mcv_consoler.plugins.speed import speed_tester as st

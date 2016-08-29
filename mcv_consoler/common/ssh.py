@@ -20,7 +20,7 @@ import paramiko
 
 import mcv_consoler.exceptions
 from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 
 LOG = LOG.getLogger(__name__)

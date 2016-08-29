@@ -16,7 +16,7 @@ import os
 
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.errors import BaseSelfCheckError
-from mcv_consoler.logger import LOG
+from mcv_consoler.log import LOG
 
 LOG = LOG.getLogger(__name__)
 
