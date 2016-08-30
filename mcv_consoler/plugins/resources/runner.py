@@ -67,10 +67,14 @@ class ResourceReportRunner(run.Runner):
             LOG.info(" * FAILED")
             return False
         reporter = reporter_class(self.access_data, config=self.config)
-        res = reporter.search_resources()
+        html, res = reporter.search_resources()
+
+        # store raw results
+        self.dump_raw_results(task, res)
+
         time_end = datetime.datetime.utcnow()
         time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
         self.time_of_tests[task] = {'duration': time_of_tests}
-        self.generate_report(res, task)
+        self.generate_report(html, task)
         LOG.info(" * PASSED")
         return True

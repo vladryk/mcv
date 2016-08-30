@@ -264,10 +264,13 @@ class ShakerOnDockerRunner(ShakerRunner):
             LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
             return "Not-JSON object"
 
+        # store raw results
+        self.dump_raw_results(task, result)
+
         cmd = "sudo cp {homedir}/{task}.html {path}".format(
             homedir=self.homedir, task=task, path=self.path)
 
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         return result
 

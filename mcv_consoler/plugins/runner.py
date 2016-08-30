@@ -55,6 +55,29 @@ class Runner(object):
     def discovery(self):
         return discovery.use(self.identity)
 
+    def dump_raw_results(self, task, raw_results):
+        path_to_store = os.path.join(self.ctx.work_dir_global,
+                                     "raw_data",
+                                     self.identity)
+
+        if not os.path.exists(path_to_store):
+            os.makedirs(path_to_store)
+
+        task = task.replace('.yaml', '').replace(':', '.')
+        path_to_store = os.path.join(path_to_store, "{}.json".format(task))
+        try:
+            with open(path_to_store, "w") as out_f:
+                json.dump(raw_results, out_f, indent=2)
+        except (TypeError, ValueError):
+            LOG.error("Raw results for task `{task}` are not JSON "
+                      "serializable and will not appear in the results "
+                      "archive for {identity}."
+                      .format(task=task, identity=self.identity))
+            LOG.debug(traceback.format_exc())
+
+        LOG.debug("Raw results for task `{task}` were dumped into file:"
+                  " {path}".format(task=task, path=path_to_store))
+
     def run_individual_task(self, task, *args, **kwargs):
         raise NotImplementedError
 

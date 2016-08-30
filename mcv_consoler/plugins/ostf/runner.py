@@ -188,9 +188,10 @@ class OSTFOnDockerRunner(runner.Runner):
             try:
                 fpath = os.path.join(self.homedir, 'ostf_report.json')
                 fp = open(fpath, 'r')
-                results = json.loads(fp.read())
+                results = json.load(fp.read())
                 fp.close()
                 os.remove(fpath)
+                # TODO(albartash): check if we need LOG.error here
             except IOError as e:
                 LOG.error(('Error while extracting report '
                            'from OSTF container: {err_msg}').format(
@@ -208,6 +209,9 @@ class OSTFOnDockerRunner(runner.Runner):
                 return result
 
             map(fix_suite, results)
+
+            # store raw results
+            self.dump_raw_results(task, results)
 
             for result in results:
                 if result['result'] == 'Passed':

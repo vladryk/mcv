@@ -50,6 +50,9 @@ class SelfCheckRunner(run.Runner):
         scheck = selfcheck_class()
         res = scheck.run()
 
+        # store raw results
+        self.dump_raw_results(task, res)
+
         if self._evaluate_task_results(res):
             return True
         else:

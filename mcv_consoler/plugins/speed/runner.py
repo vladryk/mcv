@@ -181,6 +181,9 @@ class SpeedTestRunner(run.Runner):
                         'Unhandled exception in %r.cleanup(): %s', reporter, e)
                     LOG.debug('Error details: ', exc_info=True)
 
+        # store raw results
+        self.dump_raw_results(task, res_all)
+
         time_end = datetime.datetime.utcnow()
         time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
         self.time_of_tests[task] = {'duration': time_of_tests}

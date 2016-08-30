@@ -424,5 +424,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
+
+        # store raw results
+        self.dump_raw_results(task, results)
+
         self.parse_results(results, task)
         return True

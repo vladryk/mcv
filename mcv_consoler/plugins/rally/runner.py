@@ -675,51 +675,48 @@ class RallyOnDockerRunner(RallyRunner):
 
         return failed
 
-    def _get_task_result_from_docker(self):
+    def _get_task_result_from_docker(self, task):
         cmd = 'docker exec -t {cid} /bin/sh -c ' \
               '"rally task results 2>/dev/null"'.format(cid=self.container_id)
         p = utils.run_cmd(cmd, quiet=True)
 
+        result = {}
+
         try:
-            return json.loads(p)[0]  # actual test result as a dictionary
+            result = json.loads(p)[0]  # actual test result as a dictionary
         except ValueError:
             LOG.error("Gotten not-JSON object. Please see mcv-log")
             LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
+
+        # store raw results
+        self.dump_raw_results(task, result)
+
+        return result
 
     def proceed_workload_result(self, task):
         failed = False
-        cmd = 'docker exec -t {cid} /bin/sh -c ' \
-              '"rally task results 2>/dev/null"'.format(cid=self.container_id)
-
-        p = utils.run_cmd(cmd, quiet=True)
-
-        try:
-            res = json.loads(p)
-        except ValueError:
-            LOG.error("Gotten not-JSON object. Please see mcv-log")
-            LOG.debug("Not-JSON object: %s, After command: %s", p, cmd)
-            res = False
+        res = self._get_task_result_from_docker(task)
         if not res:
             LOG.info('Workload test failed')
             return True
 
         if task == 'big-data-workload.yaml':
             # TODO(ekudryashova): Proceed failures correctly
-            if res[0]['sla']:
+            if res['sla']:
                 failed = True
                 LOG.info('Workload test failed with reason %s'
-                         % res[0]['sla'][0]['detail'])
+                         % res['sla'][0]['detail'])
                 return failed
 
-            a = res[0]['result'][0]['atomic_actions']
-            total = res[0]['result'][0]['duration']
+            a = res['result'][0]['atomic_actions']
+            total = res['result'][0]['duration']
             LOG.info('Big Data Workload results:')
             for (k, v) in a.iteritems():
                 LOG.info("%s: %s" % (k, v))
             LOG.info("Total duration: %s" % total)
         else:
-            if res[0]['result'][0]['output']['complete']:
-                a = res[0]['result'][0]['output']
+            if res['result'][0]['output']['complete']:
+                a = res['result'][0]['output']
                 a = a['complete'][0]['data']['rows']
                 LOG.info('Workload results:')
                 for row in a:
@@ -763,7 +760,7 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info(" * SKIPPED")
             return False
         LOG.debug("Retrieving task results for %s" % task)
-        task_result = self._get_task_result_from_docker()
+        task_result = self._get_task_result_from_docker(task)
         if task_result is None:
             self.test_failures.append(task)
             LOG.info(" * FAILED")

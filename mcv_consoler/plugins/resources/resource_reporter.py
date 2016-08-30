@@ -234,7 +234,7 @@ class ErrorResourceSearch(ResourceSearch):
         self.search_error_volumes()
         self.search_error_images()
         self.search_down_ports()
-        return self.fill_the_template()
+        return self.fill_the_template(), self.resources
 
     def fill_the_template(self):
         path = os.path.join(os.path.dirname(__file__), 'erred_template.html')
@@ -459,7 +459,7 @@ class GeneralResourceSearch(ResourceSearch):
         self.get_image_data()
         self.get_network_data()
         html = self.fill_the_template()
-        return html
+        return html, self.resources
 
     def fill_the_template(self):
         path = os.path.join(os.path.dirname(__file__),
