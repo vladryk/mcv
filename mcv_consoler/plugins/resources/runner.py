@@ -31,7 +31,7 @@ class ResourceReportRunner(run.Runner):
         super(ResourceReportRunner, self).__init__(ctx)
         self.config = self.ctx.config
         self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
         self.test_failures = []
 
     def _evaluate_task_results(self, task_results):

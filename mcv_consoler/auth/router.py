@@ -30,11 +30,10 @@ from requests.exceptions import Timeout
 from novaclient import exceptions as nexc
 
 import mcv_consoler.exceptions
+from mcv_consoler.common import context
 from mcv_consoler.common import clients
 from mcv_consoler.common import ssh
 from mcv_consoler.common import config as mcv_config
-from mcv_consoler.common.config import DEBUG
-from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
 from mcv_consoler.common import resource
 
 from mcv_consoler import utils
@@ -116,7 +115,7 @@ class Router(object):
                        'ca_cert': "",
                        'cert': GET(self.config, 'ssh_cert', 'fuel'),
                    },
-                  'debug': DEBUG,
+                  'debug': mcv_config.DEBUG,
                   'insecure': insecure,
                   'mos_version': GET(self.config, 'mos_version', 'basic'),
                   'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
@@ -168,205 +167,6 @@ class MRouter(Router):
 
 
 class CRouter(Router):
-    def get_rsa_key(self):
-        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
-        proc = fuel.exec_cmd(
-            "cat {}".format(self.os_data['fuel']['cert']),
-            exc=True)
-
-        ssh.save_private_key(DEFAULT_RSA_KEY_PATH, proc.stdout)
-        LOG.debug('Saving RSA key to file %s...', DEFAULT_RSA_KEY_PATH)
-
-    def get_fuelclient_credentials(self):
-        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
-
-        proc = fuel.exec_cmd(
-            'python', stdin=REMOTE_GRAB_FUEL_CREDENTIALS, exc=True)
-
-        # overwrite fuelmaster host address, because we can receive address
-        # from different interface
-        settings = yaml.load(proc.stdout)
-        settings['SERVER_ADDRESS'] = self.os_data['fuel']['nailgun']
-
-        with open(mcv_config.FUELCLIENT_CONFIG, 'wt') as fd:
-            yaml.dump(settings, fd)
-
-    def _get_controllers(self):
-        client = self._ssh_connect(self.SSH_DEST_FUELMASTER)
-
-        if not client.connect():
-            LOG.debug('Cannot access Fuel Master Node with provided '
-                      'credentials!')
-            return []
-
-        cmd = 'fuel node --list 2>/dev/null'
-        controllers = []
-        try:
-            result = client.exec_cmd(cmd)[0]
-
-            re_ip = re.compile('\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)')
-
-            for line in result.splitlines():
-                if 'controller' not in line:
-                    continue
-                ip = re_ip.search(line)
-                if not ip:
-                    LOG.debug('Fail to get controller IP from line: {line}'.format(
-                        line=line))
-                    continue
-                controllers.append(ip.groups()[0])
-        except paramiko.SSHException:
-            return []
-        finally:
-            client.close()
-
-        return controllers
-
-    def _get_mos_version(self):
-        client = ssh.SSHClient(
-            host=self.os_data['fuel']['nailgun'],
-            username=self.os_data['fuel']['username'],
-            password=self.os_data['fuel']['password'])
-
-        if not client.connect():
-            LOG.debug('Cannot access Fuel Master Node with provided '
-                      'credentials!')
-            return []
-
-        # NOTE(albartash): If we switch to Python3.4+ once,
-        # please use stdout to get Fuel version. Otherwise,
-        # this data must be extracted from stderr!
-        cmd = 'fuel --version'
-        v = ''
-        try:
-            result = client.exec_cmd(cmd)[1]
-
-            re_version = re.compile('^([0-9]+\.[0-9]+)')
-
-            version = re_version.search(result)
-            if not version:
-                LOG.debug('Fail to get version from Fuel Master Node!')
-                v = ''
-            else:
-                v = version.groups()[0]
-        except subprocess.CalledProcessError:
-                LOG.debug('Fail to get version from Fuel Master Node!')
-                v = ''
-        finally:
-            client.close()
-
-        return v
-
-    def _get_credentials(self, ctrl):
-        # get openrc as dict from controller
-        # using Fuel private key
-
-        client = ssh.SSHClient(
-            host=ctrl, username=mcv_config.OS_NODE_SSH_USER,
-            rsa_key=DEFAULT_RSA_KEY_PATH)
-        if not client.connect():
-            LOG.debug('Fail to reach controller node at "{addr}" with '
-                      'provided RSA key!'.format(addr=ctrl))
-            return {}
-
-        openrc = {}
-
-        cmd = 'cat /root/openrc'
-        lines = client.exec_cmd(cmd)[0]
-
-        re_var = re.compile(
-            '^\s*export\s+([a-zA-Z_0-9]+)\s*=\s*[\']*([^\']+)[\']*\s*$')
-
-        for line in lines.splitlines():
-            result = re_var.search(line)
-            if not result or len(result.groups()) != 2:
-                continue
-
-            name, value = result.groups()
-            openrc[name] = value
-
-        openrc['AUTH_ENDPOINT_IP'] = openrc['OS_AUTH_URL'].split(':')[1].strip('/')
-
-        # NOTE(albartash): A very important moment. As we use Keystone v2.0,
-        # here we must specify a concrete version for OS_AUTH_URL in case
-        # when MOS>=8.0, as this information is not presented in openrc!
-        ks_version = 'v2.0'
-        if not openrc['OS_AUTH_URL'].rstrip('/').endswith(ks_version):
-            openrc['OS_AUTH_URL'] = openrc['OS_AUTH_URL'].rstrip('/') + '/v2.0/'
-
-        data = {'username': openrc['OS_USERNAME'],
-                'password': openrc['OS_PASSWORD'],
-                'tenant_name': openrc['OS_TENANT_NAME'],
-                'auth_url': openrc['OS_AUTH_URL'],
-               }
-        self.keystoneclient = clients.get_keystone_client(data)
-        public_url = self.keystoneclient.service_catalog.get_endpoints(
-            'identity')['identity'][0]['publicURL']
-        openrc['INSECURE'] = ("https" == re.findall(r'https|http', public_url)[0])
-
-        ip = re.findall('[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', public_url)
-        if ip:
-            openrc['AUTH_FQDN'] = ''
-            openrc['PUBLIC_ENDPOINT_IP'] = ip[0]
-        else:
-            fqdn = re.sub(r'http.*://', '', re.sub(r':5000.*', '', public_url))
-            openrc['AUTH_FQDN'] = fqdn
-            cmd = "cat /etc/hosts | grep %s| awk '{print $1}'" % fqdn
-            host_resolve = client.exec_cmd(cmd)[0]
-            openrc['PUBLIC_ENDPOINT_IP'] = host_resolve.rstrip()
-
-        # NOTE(albartash): In some cases we need public endpoint URL, so better
-        # to make it here and use in other places as-is.
-        protocol = 'https' if openrc['INSECURE'] else 'http'
-        openrc['PUBLIC_AUTH_URL'] = '{prot}://{ip}:{port}/{version}/'.format(
-            prot=protocol,
-            ip=openrc['PUBLIC_ENDPOINT_IP'],
-            port=5000,
-            version='v2.0')
-
-        client.close()
-
-        return openrc
-
-    def get_and_store_credentials(self):
-        # Extract credentials from openrc files
-        # 0. Get list of controllers from Fuel
-        # 1. SSH to controller using ssh_cert from Fuel
-        # 2. Get credentials from openrc
-        # 3. Store credentials in file on MCV host
-
-
-        mos_version = self._get_mos_version()
-        controllers = self._get_controllers()
-
-        for ctrl in controllers:
-            try:
-                LOG.debug('Trying to extract openrc from controller '
-                          '{ctrl}'.format(ctrl=ctrl))
-
-                openrc = self._get_credentials(ctrl)
-                if openrc:
-                    break
-            except Exception:
-                LOG.debug('Cannot extract openrc from controller '
-                          '{ctrl}'.format(ctrl=ctrl))
-        else:
-            LOG.debug('Cannot get credentials from controllers!')
-            return False
-
-        for src in openrc:
-            dst = src.lower()
-            if dst.startswith('os_'):
-                dst = dst[3:]
-            self.os_data[dst] = openrc[src]
-
-        self.os_data['mos_version'] = mos_version
-        # FIXME(dbogun): remove "duplicated" records from os_data
-        self.os_data['api_key'] = self.os_data['password']
-        self.os_data['project_id'] = self.os_data['tenant_name']
-
-        return True
-
     def make_sure_controller_name_could_be_resolved(self):
         LOG.debug('Trying to update /etc/hosts file')
         a_fqdn = self.os_data['auth_fqdn']
@@ -382,49 +182,107 @@ class CRouter(Router):
 
     def setup_connections(self):
         self.get_fuelclient_credentials()
-        self.get_rsa_key()
-        self.setup_sshuttle_tunnel()
+        context.add(
+            self.ctx, 'fuel', clients.FuelClientProxy(self.ctx, self.os_data))
 
-        if not self.get_and_store_credentials():
-            LOG.debug('No credentials specified to access cloud!')
-            return False
-
-        self.make_sure_controller_name_could_be_resolved()
+        try:
+            self.populate_cluster_nodes_info()
+            self.get_os_ssh_key()
+            self.setup_sshuttle_tunnel()
+            self.get_openrc()
+            self.populate_etc_hosts()
+            self.make_sure_controller_name_could_be_resolved()
+        finally:
+            self.ctx.fuel.release_instance()
 
         LOG.debug('Connections have been set successfully.')
+        # TODO(dbogun): remove return value
         return True
 
     def cleanup(self):
-
         LOG.debug('Removing files with credentials to cloud.')
-        for name in (DEFAULT_RSA_KEY_PATH, ):
+        work_dir = self.ctx.work_dir_global
+        for res in (work_dir.RES_OS_OPENRC, work_dir.RES_OS_SSH_KEY):
             try:
-                os.remove(name)
+                path = work_dir.resource(res)
+                os.remove(path)
+            except mcv_consoler.exceptions.FileResourceNotFoundError:
+                pass
             except OSError as e:
                 LOG.debug('Cannot remove file {fp}. Reason: {reason}'.format(
-                    fp=name, reason=str(e)))
+                    fp=e.filename, reason=e.message))
 
         LOG.debug('Restoring /etc/hosts')
         self.hosts.restore()
         self.stop_all_docker_containers()
 
-    def setup_sshuttle_tunnel(self):
-        fuel = clients.FuelClientProxy(self.os_data)
+    def get_fuelclient_credentials(self):
+        work_dir = self.ctx.work_dir_global
+        try:
+            work_dir.resource(work_dir.RES_FUELCLIENT_SETTINGS)
+            LOG.debug('Use fuelclient settings provided by user.')
+            return
+        except mcv_consoler.exceptions.FileResourceNotFoundError:
+            pass
+
+        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
+
+        proc = fuel.exec_cmd(
+            'python', stdin=REMOTE_GRAB_FUEL_CREDENTIALS, exc=True)
+
+        # overwrite fuelmaster host address, because we can receive address
+        # from different interface
+        settings = yaml.load(proc.stdout)
+        settings['SERVER_ADDRESS'] = self.os_data['fuel']['nailgun']
+
+        path = work_dir.resource(
+            work_dir.RES_FUELCLIENT_SETTINGS, lookup=False)
+        with open(path, 'wt') as fd:
+            yaml.dump(settings, fd)
+
+    def populate_cluster_nodes_info(self):
         cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
 
-        node_set = fuel.node.get_all(environment_id=cluster)
-        node_set = fuel.filter_nodes_by_role(
-            node_set, mcv_config.FUEL_ROLE_CONTROLLER)
-        node_set = fuel.filter_nodes_by_status(node_set)
+        node_set = self.ctx.fuel.node.get_all(environment_id=cluster)
+        node_set = self.ctx.fuel.filter_nodes_by_status(node_set)
 
+        context.add(self.ctx, 'nodes', node_set)
+
+        nodes_by_role = {}
+        for node in node_set:
+            for role in node['roles']:
+                nodes_by_role.setdefault(role, []).append(node)
+        if not nodes_by_role.get(mcv_config.FUEL_ROLE_CONTROLLER):
+            raise mcv_consoler.exceptions.AccessError(
+                'There is no any controller node')
+        context.add(self.ctx, 'nodes_by_role', nodes_by_role)
+
+    def get_os_ssh_key(self):
+        work_dir = self.ctx.work_dir_global
+        try:
+            work_dir.resource(work_dir.RES_OS_SSH_KEY)
+            LOG.debug('Use OS ssh key provide by user.')
+            return
+        except mcv_consoler.exceptions.FileResourceNotFoundError:
+            pass
+
+        fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
+        proc = fuel.exec_cmd(
+            "cat {}".format(self.os_data['fuel']['cert']),
+            exc=True)
+
+        path = work_dir.resource(work_dir.RES_OS_SSH_KEY, lookup=False)
+        ssh.save_private_key(path, proc.stdout)
+        LOG.debug('Saving RSA key to file %s...', path)
+
+    def setup_sshuttle_tunnel(self):
         LOG.debug(
             'Make SSH port forwarding on controller node on SSH port for '
             'sshuttle')
-        node, forward = self._setup_port_forwarding_for_sshuttle(
-            fuel, node_set)
+        node, forward = self._setup_port_forwarding_for_sshuttle()
         self.ctx.resources.add(resource.ClosableResource(forward), True)
 
-        net_info = fuel.get_node_network(
+        net_info = self.ctx.fuel.get_node_network(
             node, mcv_config.FUEL_PUBLIC_NETWORK_NAME)
         dest = [net_info['cidr']]
         LOG.debug('Setup sshuttle "tunnel"')
@@ -432,11 +290,13 @@ class CRouter(Router):
         self.ctx.resources.add(
             resource.SubprocessResource(sshuttle), True)
 
-    def _setup_port_forwarding_for_sshuttle(self, fuel, node_set):
+    def _setup_port_forwarding_for_sshuttle(self):
         fuel_access = self.os_data['fuel']
+        os_ssh_key = self.ctx.work_dir_global.resource(
+            self.ctx.work_dir_global.RES_OS_SSH_KEY)
 
-        for node in node_set:
-            addr = fuel.get_node_address(node)
+        for node in self.ctx.nodes_by_role[mcv_config.FUEL_ROLE_CONTROLLER]:
+            addr = self.ctx.fuel.get_node_address(node)
             ssh_fuel_creds = ssh.Credentials(
                 fuel_access['nailgun'], fuel_access['username'],
                 password=fuel_access['password'])
@@ -461,7 +321,7 @@ class CRouter(Router):
             try:
                 client = ssh.SSHClient(
                     forward.local, mcv_config.OS_NODE_SSH_USER,
-                    rsa_key=mcv_config.DEFAULT_RSA_KEY_PATH, port=forward.port)
+                    rsa_key=os_ssh_key, port=forward.port)
                 if not client.connect():
                     raise mcv_consoler.exceptions.AccessError(
                         'Unable to make SSH connection via SSH forwarded port')
@@ -489,6 +349,9 @@ class CRouter(Router):
         return node, forward
 
     def _setup_sshuttle(self, forward, dest):
+        os_ssh_key = self.ctx.work_dir_global.resource(
+            self.ctx.work_dir_global.RES_OS_SSH_KEY)
+
         exclude = (self.os_data['fuel']['nailgun'], '127.0.0.1')
         cmd = ['sshuttle'] + ['--exclude={}'.format(x) for x in exclude] + [
             '-vv',
@@ -500,8 +363,7 @@ class CRouter(Router):
             '--ssh-cmd={}'.format(
                 'ssh -q -i {} '
                 '-o UserKnownHostsFile=/dev/null '
-                '-o StrictHostKeyChecking=no'.format(
-                    mcv_config.DEFAULT_RSA_KEY_PATH))
+                '-o StrictHostKeyChecking=no'.format(os_ssh_key))
         ] + dest
 
         shuttle_output = tempfile.TemporaryFile()
@@ -529,6 +391,122 @@ class CRouter(Router):
             now = time.time()
 
         return proc
+
+    def get_openrc(self):
+        work_dir = self.ctx.work_dir_global
+        try:
+            path = work_dir.resource(work_dir.RES_OS_OPENRC)
+            LOG.debug('Use openrc provided by user')
+            with open(path, 'rt') as fd:
+                payload = fd.read()
+            openrc = self._unpack_openrc(payload)
+        except mcv_consoler.exceptions.FileResourceNotFoundError:
+            node_set = self.ctx.nodes_by_role[mcv_config.FUEL_ROLE_CONTROLLER]
+            for node in node_set:
+                addr = self.ctx.fuel.get_node_address(node)
+                LOG.debug(
+                    'Trying to extract openrc from controller %s',
+                    node['fqdn'])
+                connect = ssh.SSHClient(
+                    host=addr, username=mcv_config.OS_NODE_SSH_USER,
+                    rsa_key=work_dir.resource(work_dir.RES_OS_SSH_KEY))
+                connect.connect(exc=True)
+
+                try:
+                    payload = connect.exec_cmd('cat /root/openrc',
+                                               exc=True).stdout
+                    openrc = self._unpack_openrc(payload)
+                except mcv_consoler.exceptions.RemoteError as e:
+                    LOG.debug(
+                        'Unable to fetch operc from %s: %s', node['fqdn'], e)
+                    continue
+                finally:
+                    connect.close()
+
+                break
+            else:
+                raise mcv_consoler.exceptions.AccessError(
+                    'Cannot get openrc from any controller node')
+
+        for src in openrc:
+            dst = src.lower()
+            if dst.startswith('os_'):
+                dst = dst[3:]
+            self.os_data[dst] = openrc[src]
+
+        # FIXME(dbogun): remove "duplicated" records from os_data
+        self.os_data['api_key'] = self.os_data['password']
+        self.os_data['project_id'] = self.os_data['tenant_name']
+
+        fuel_version_info = self.ctx.fuel.fuel_version.get_all()
+        self.os_data['mos_version'] = fuel_version_info['release']
+
+    def _unpack_openrc(self, payload):
+        # FIXME(dbogun): we must use shell to parse openrc script
+        re_var = re.compile(
+            '^\s*export\s+([a-zA-Z_0-9]+)\s*=\s*[\']*([^\']+)[\']*\s*$')
+
+        openrc = {}
+        for line in payload.splitlines():
+            m = re_var.search(line)
+            if m is None:
+                continue
+            name, value = m.groups()
+            openrc[name] = value
+
+        auth_ip = openrc['OS_AUTH_URL'].split(':')[1].strip('/')
+        openrc['AUTH_ENDPOINT_IP'] = auth_ip
+
+        # NOTE(albartash): A very important moment. As we use Keystone v2.0,
+        # here we must specify a concrete version for OS_AUTH_URL in case
+        # when MOS>=8.0, as this information is not presented in openrc!
+        ks_version = 'v2.0'
+        if not openrc['OS_AUTH_URL'].rstrip('/').endswith(ks_version):
+            openrc['OS_AUTH_URL'] = openrc['OS_AUTH_URL'].rstrip(
+                '/') + '/v2.0/'
+
+        return openrc
+
+    def populate_etc_hosts(self):
+        keystone = clients.get_keystone_client(self.os_data)
+        auth_url = keystone.service_catalog.get_endpoints('identity')
+        auth_url = auth_url['identity'][0]['publicURL']
+        self.os_data['insecure'] = auth_url.startswith('https')
+
+        ip = re.findall('[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',
+                        auth_url)
+        if ip:
+            self.os_data['auth_fqdn'] = ''
+            self.os_data['public_endpoint_ip'] = ip[0]
+        else:
+            fqdn = re.sub(r'http.*://', '', re.sub(r':5000.*', '', auth_url))
+            self.os_data['auth_fqdn'] = fqdn
+
+            node = self.ctx.nodes_by_role[mcv_config.FUEL_ROLE_CONTROLLER]
+            node = node[0]
+
+            addr = self.ctx.fuel.get_node_address(node)
+            LOG.debug(
+                'Trying to extract openrc from controller %s',
+                node['fqdn'])
+            work_dir = self.ctx.work_dir_global
+            connect = ssh.SSHClient(
+                host=addr, username=mcv_config.OS_NODE_SSH_USER,
+                rsa_key=work_dir.resource(work_dir.RES_OS_SSH_KEY))
+            connect.connect(exc=True)
+
+            cmd = "cat /etc/hosts | grep %s| awk '{print $1}'" % fqdn
+            proc = connect.exec_cmd(cmd)
+            self.os_data['public_endpoint_ip'] = proc.stdout.rstrip()
+
+        # NOTE(albartash): In some cases we need public endpoint URL, so better
+        # to make it here and use in other places as-is.
+        auth_url = '{prot}://{ip}:{port}/{version}/'.format(
+            prot='https' if self.os_data['insecure'] else 'http',
+            ip=self.os_data['public_endpoint_ip'],
+            port=5000,
+            version='v2.0')
+        self.os_data['public_auth_url'] = auth_url
 
 
 class IRouter(Router):

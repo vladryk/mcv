@@ -29,6 +29,14 @@ class ConfigurationError(FrameworkError):
     pass
 
 
+class UnknownFileResourceError(FrameworkError):
+    pass
+
+
+class FileResourceNotFoundError(FrameworkError):
+    pass
+
+
 class RemoteError(MCVException):
     pass
 

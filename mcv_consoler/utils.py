@@ -16,7 +16,9 @@ from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
 import datetime
 import json
+import itertools
 import logging
+import os
 import re
 import signal
 import subprocess
@@ -71,6 +73,56 @@ def GET(config, key, section="basic", default=None, convert=None):
                 opt=key, val=default))
         value = default
     return value
+
+
+class WorkDir(object):
+    _idx = itertools.count()
+    RES_OS_SSH_KEY = next(_idx)
+    RES_OS_OPENRC = next(_idx)
+    RES__LAST = RES_FUELCLIENT_SETTINGS = next(_idx)
+    del _idx
+
+    _resource_map = {
+        RES_OS_SSH_KEY: 'os-node.ssh.key',
+        RES_OS_OPENRC: 'operc.sh',
+        RES_FUELCLIENT_SETTINGS: 'fuelclient-settings.yaml'}
+
+    def __init__(self, path, parent=None):
+        self.base_dir = path
+        self.parent = parent
+
+        res_map, default = {}, {}
+        for cls in reversed(type(self).__mro__):
+            res_map.update(vars(cls).get('_resource_map', default))
+        self._resource_map = res_map
+
+    def resource(self, resource, lookup=True):
+        try:
+            suffix = self._resource_map[resource]
+        except KeyError:
+            raise exceptions.UnknownFileResourceError(
+                'There is no resource {!r} into {!r}'.format(resource, self))
+        return self.path(suffix, lookup)
+
+    def path(self, suffix, lookup=True):
+        path = os.path.join(self.base_dir, suffix)
+        if not lookup:
+            return path
+
+        try:
+            os.stat(path)
+        except OSError:
+            if not self.parent:
+                raise exceptions.FileResourceNotFoundError(
+                    'File lookup failed: {}'.format(suffix, [self.base_dir]))
+
+            try:
+                path = self.parent.path(suffix, lookup=lookup)
+            except exceptions.FileResourceNotFoundError as e:
+                e.args[1].insert(0, self.base_dir)
+                raise
+
+        return path
 
 
 class TokenFactory(object):

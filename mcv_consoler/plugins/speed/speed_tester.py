@@ -32,8 +32,9 @@ LOG = logging.getLogger(__name__)
 class BaseStorageSpeed(object):
     ssh_connect = None
 
-    def __init__(self, access_data, *args, **kwargs):
-        self.access_data = access_data
+    def __init__(self, ctx, *args, **kwargs):
+        self.ctx = ctx
+        self.access_data = self.ctx.access_data
         self.config = kwargs.get('config')
         self.work_dir = kwargs['work_dir']
 
@@ -79,43 +80,6 @@ class BaseStorageSpeed(object):
 
         LOG.debug('SSH connection to test VM successfully established')
 
-<<<<<<< HEAD
-    def run_ssh_cmd(self, cmd):
-        command = 'sudo ' + cmd
-        buff_size = 4096
-        stdout_data = []
-        stderr_data = []
-        session = self.client.open_channel(kind='session')
-        session.exec_command(command)
-        while True:
-            if session.recv_ready():
-                stdout_data.append(session.recv(buff_size))
-            if session.recv_stderr_ready():
-                stderr_data.append(session.recv_stderr(buff_size))
-            if session.exit_status_ready():
-                break
-
-        status = session.recv_exit_status()
-        while session.recv_ready():
-            stdout_data.append(session.recv(buff_size))
-        while session.recv_stderr_ready():
-            stderr_data.append(session.recv_stderr(buff_size))
-
-        out = ''.join(stdout_data)
-        err = ''.join(stderr_data)
-        session.close()
-        if status != 0:
-            LOG.debug('Command "%s" finished with exit code %d' % (cmd,
-                                                                  status))
-        else:
-            LOG.debug('Command "%s" finished with exit code %d' % (cmd,
-                                                                   status))
-        LOG.debug('Stdout: %s', out)
-        LOG.debug('Stderr: %s', err)
-        return {'ret': status, 'out': out, 'err': err}
-
-=======
->>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
     def prepare_size(self, str_size):
         size = str_size.lower().strip()
         if size.endswith('g'):
@@ -156,10 +120,10 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     _measure_kinds = ('general', 'throughput', 'IOPs')
 
-    def __init__(self, access_data, *args, **kwargs):
-        super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size = self.prepare_size(kwargs['volume_size'])
-        self.iterations = kwargs['iterations']
+    def __init__(self, ctx, *args, **kwargs):
+        super(BlockStorageSpeed, self).__init__(ctx, *args, **kwargs)
+        self.size_str = kwargs.get('volume_size')
+        self.size = 0
         self.device = None
         self.vol = None
         self.max_thr = 1
@@ -252,31 +216,19 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.info(
             "Measuring write speed: block size {0}, "
             "count {1}".format(bs, count))
-<<<<<<< HEAD
-        return self.run_ssh_cmd(
-            'LC_ALL=C dd if=/dev/zero of=%s bs=%s count=%d '
-            'conv=notrunc,fsync' % (self.image_name, bs, count))['ret']
-=======
         return self.ssh_connect.exec_cmd(
             'sudo dd if=/dev/zero of={} bs={} count={} '
             'conv=notrunc,fsync'.format(
                 self.image_name, bs, count), exc=True).rcode
->>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
 
     @block_measure_dec
     def measure_read(self, bs, count):
         LOG.info(
             "Measuring read speed: block size {0}, "
             "count {1}".format(bs, count))
-<<<<<<< HEAD
-        return self.run_ssh_cmd(
-            'LC_ALL=C dd if=%s of=/dev/null bs=%s count=%d' % (
-            self.image_name, bs, count))['ret']
-=======
         return self.ssh_connect.exec_cmd(
             'sudo dd if={} of=/dev/null bs={} count={}'.format(
                 self.image_name, bs, count)).rcode
->>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
 
     def measure_speed(self, node_id):
         target_vm, target_ip = self.get_test_vm(node_id)
@@ -398,14 +350,13 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
 
 class ObjectStorageSpeed(BaseStorageSpeed):
-    def __init__(self, access_data, *args, **kwargs):
-        super(ObjectStorageSpeed, self).__init__(access_data, *args, **kwargs)
+    def __init__(self, ctx, *args, **kwargs):
+        super(ObjectStorageSpeed, self).__init__(ctx, *args, **kwargs)
         self.size = self.prepare_size(kwargs['image_size'])
         self.iterations = kwargs['iterations']
 
-        self.fuel = clients.FuelClientProxy(self.access_data)
         cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
-        self.nodes = self.fuel.node.get_all(environment_id=cluster)
+        self.nodes = self.ctx.access.fuel.node.get_all(environment_id=cluster)
 
     def measure_speed(self, node_id):
         LOG.info('Running measuring object storage r/w speed...')
@@ -459,18 +410,18 @@ class ObjectStorageSpeed(BaseStorageSpeed):
 
 
 class _MetricAbstract(object):
-    def __init__(self, context):
-        self.context = context
+    def __init__(self, manager):
+        self.manager = manager
 
 
 class GlanceToComputeSpeedMetric(_MetricAbstract):
-    def __init__(self, context, node):
-        super(GlanceToComputeSpeedMetric, self).__init__(context)
+    def __init__(self, manager, node):
+        super(GlanceToComputeSpeedMetric, self).__init__(manager)
         self.node = node
 
         time_track = utils.TimeTrack()
         connect = self._open_ssh_connect(node)
-        token = utils.TokenFactory(self.context.access_data, connect)
+        token = utils.TokenFactory(self.manager.access_data, connect)
 
         glance_image_idnr = self._new_glace_image_request(connect, token)
 
@@ -493,9 +444,10 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             time_track.query('download'))
 
     def _open_ssh_connect(self, node):
-        addr = self.context.fuel.get_node_address(node)
+        ctx = self.manager.ctx
         connect = ssh.SSHClient(
-            addr, config.compute_login, rsa_key=app_conf.DEFAULT_RSA_KEY_PATH)
+            ctx.access.fuel.get_node_address(node), config.compute_login,
+            rsa_key=ctx.work_dir.resource(ctx.work_dir.RES_OS_SSH_KEY))
 
         if not connect.connect():
             raise exceptions.AccessError(
@@ -518,7 +470,7 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             '--data \'{payload}\' '
             '{url_base}/images'
         ).format(
-            token=token, payload=payload, url_base=self.context.glance_url)
+            token=token, payload=payload, url_base=self.manager.glance_url)
 
         try:
             proc = connect.exec_cmd(cmd, exc=True)
@@ -538,8 +490,8 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             '--upload-file - '
             '{url_base}/images/{idnr}/file'
         ).format(
-            count=int(self.context.size * 32), token=token,
-            url_base=self.context.glance_url, idnr=idnr)
+            count=int(self.manager.size * 32), token=token,
+            url_base=self.manager.glance_url, idnr=idnr)
 
         try:
             connect.exec_cmd(cmd, exc=True)
@@ -554,7 +506,7 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             '--output /dev/null '
             '{url_base}/images/{idnr}/file'
         ).format(
-            token=token, url_base=self.context.glance_url, idnr=idnr)
+            token=token, url_base=self.manager.glance_url, idnr=idnr)
 
         try:
             connect.exec_cmd(cmd, exc=True)
@@ -567,7 +519,7 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             'curl -X DELETE --insecure --silent '
             '--header "X-Auth-Token: {token}" '
             '{url_base}/images/{idnr}'
-        ).format(token=token, url_base=self.context.glance_url, idnr=idnr)
+        ).format(token=token, url_base=self.manager.glance_url, idnr=idnr)
         try:
             connect.exec_cmd(cmd, exc=True)
         except exceptions.RemoteError as e:

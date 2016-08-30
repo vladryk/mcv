@@ -41,7 +41,7 @@ class NWSpeedTestRunner(run.Runner):
 
         self.access_data = self.ctx.access_data
         self.config = self.ctx.config
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
         self.test_failures = []
         self.hw_nodes = []
         self.av_speed = 0

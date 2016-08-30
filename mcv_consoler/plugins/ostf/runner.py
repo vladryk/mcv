@@ -41,7 +41,7 @@ class OSTFOnDockerRunner(runner.Runner):
 
         self.config = self.ctx.config
         self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
 
         try:
             self.mos_version = self.config.get('basic', "mos_version")

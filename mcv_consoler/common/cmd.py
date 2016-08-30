@@ -48,6 +48,21 @@ def _get_parser():
         help="Forbids setting up automatic tunnels. Used for L2 only.")
 
     parser.add_argument(
+        '--os-ssh-key', type=argparse.FileType('rt'),
+        help='SSH key for OpenStack nodes. If not set fetched from FUEL '
+             'master.')
+
+    parser.add_argument(
+        '--os-openrc', type=argparse.FileType('rt'),
+        help='Shell script contain definition of environment variables used '
+             'by OpenStack CLI client for authentication. If not set etched '
+             'from FUEL controller node.')
+
+    parser.add_argument(
+        '--os-fuelclient-settings', type=argparse.FileType('rt'),
+        help='Settings for fuelclient. If not set fetched from FUEL master.')
+
+    parser.add_argument(
         "--version",
         action="version",
         version=version,

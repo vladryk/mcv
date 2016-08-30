@@ -33,7 +33,13 @@ from mcv_consoler.common import config as mcv_config
 from mcv_consoler import utils
 
 
-class OSClientsProxy(utils.LazyAttributeMixin):
+class _ClientProxyBase(utils.LazyAttributeMixin):
+    def __init__(self, ctx, access_data):
+        self.ctx = ctx
+        self.access_data = access_data
+
+
+class OSClientsProxy(_ClientProxyBase):
     keystone = utils.LazyAttribute()
     nova = utils.LazyAttribute()
     cinder = utils.LazyAttribute()
@@ -42,9 +48,6 @@ class OSClientsProxy(utils.LazyAttributeMixin):
     heat = utils.LazyAttribute()
     sahara = utils.LazyAttribute()
     fuel = utils.LazyAttribute()
-
-    def __init__(self, access_data):
-        self.access_data = access_data
 
     def lazy_attribute_handler(self, target):
         try:
@@ -55,13 +58,17 @@ class OSClientsProxy(utils.LazyAttributeMixin):
                 'glance': get_glance_client,
                 'neutron': get_neutron_client,
                 'heat': get_heat_client,
-                'sahara': get_sahara_client,
-                'fuel': FuelClientProxy}[target]
+                'sahara': get_sahara_client}[target]
         except KeyError:
-            raise exceptions.ProgramError(
-                'Invalid lazy attribute lookup on {!r} - missing handler '
-                '({!r})'.format(self, target))
-        return handler(self.access_data)
+            if target != 'fuel':
+                raise exceptions.ProgramError(
+                    'Invalid lazy attribute lookup on {!r} - missing handler '
+                    '({!r})'.format(self, target))
+            result = FuelClientProxy(self.ctx, self.access_data)
+        else:
+            result = handler(self.access_data)
+
+        return result
 
 
 keystone_keys = ('username',
@@ -176,7 +183,7 @@ def get_sahara_client(access_data):
     return client
 
 
-class FuelClientProxy(utils.LazyAttributeMixin):
+class FuelClientProxy(_ClientProxyBase):
     cluster_settings = utils.LazyAttribute('cluster-settings')
     deployment_history = utils.LazyAttribute()
     deployment_info = utils.LazyAttribute('deployment-info')
@@ -194,9 +201,8 @@ class FuelClientProxy(utils.LazyAttributeMixin):
 
     _instance_ref = None
 
-    def __init__(self, access_data):
-        # keep access_data argument to be similar with get_*_client call
-        del access_data
+    def __init__(self, ctx, access_data):
+        super(FuelClientProxy, self).__init__(ctx, access_data)
 
         # fuelclient <= 9.0.0 define settings as singleton. As result - we
         # can't connect only one fuel instance at a time. On 9.0.1 it was
@@ -210,7 +216,8 @@ class FuelClientProxy(utils.LazyAttributeMixin):
         type(self)._instance_ref = weakref.ref(self)
 
         env_var = mcv_config.FUELCLIENT_SETTINGS_ENV_VAR
-        os.environ[env_var] = mcv_config.FUELCLIENT_CONFIG
+        os.environ[env_var] = self.ctx.work_dir.resource(
+            self.ctx.work_dir.RES_FUELCLIENT_SETTINGS)
 
         # force settings reread
         setattr(fuelclient.fuelclient_settings, '_SETTINGS', None)

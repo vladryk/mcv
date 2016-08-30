@@ -48,7 +48,7 @@ class SSHClient(object):
         self.client = paramiko.client.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    def connect(self, quiet=False):
+    def connect(self, exc=False, quiet=False):
         self.connected = False
 
         args = self.creds.paramiko_connect_args()
@@ -59,6 +59,10 @@ class SSHClient(object):
                 paramiko.AuthenticationException,
                 paramiko.SSHException,
                 socket.error) as e:
+
+            if exc:
+                raise exceptions.AccessError(message)
+
             if not quiet:
                 LOG.error('SSH connect {}: {}'.format(self.identity, e))
                 LOG.debug('Error details', exc_info=True)

@@ -22,6 +22,7 @@ from flask_table import Table, Col
 from jinja2 import Template
 
 from mcv_consoler import exceptions
+from mcv_consoler.common import context
 from mcv_consoler.common.errors import SpeedError
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
@@ -57,7 +58,7 @@ class SpeedTestRunner(run.Runner):
         super(SpeedTestRunner, self).__init__(ctx)
 
         self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
         self.config = self.ctx.config
 
         self.test_failures = []
@@ -155,8 +156,15 @@ class SpeedTestRunner(run.Runner):
         except AttributeError:
             raise exceptions.FrameworkError(
                 'Invalid test "%s" name (speed plugin)'.format(task))
-
-        reporter = speed_class(self.access_data, *args, **kwargs)
+        try:
+            reporter = speed_class(
+                context.Context(self.ctx, runner=self), *args, **kwargs)
+        except Exception:
+            LOG.error('Error creating class %s. Please check mcvconsoler logs '
+                      'for more info' % task)
+            LOG.debug(traceback.format_exc())
+            self.test_failures.append(task)
+            return False
 
         res_all = []
         r_average_all = []

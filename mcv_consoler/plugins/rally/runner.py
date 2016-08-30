@@ -180,7 +180,7 @@ class RallyOnDockerRunner(RallyRunner):
         super(RallyOnDockerRunner, self).__init__(ctx)
 
         self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
         self.container = None
         self.skip = False
         self.homedir = "/home/mcv/toolbox/rally"

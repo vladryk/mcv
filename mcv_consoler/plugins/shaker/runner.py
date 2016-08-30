@@ -113,7 +113,7 @@ class ShakerOnDockerRunner(ShakerRunner):
     def __init__(self, ctx):
         super(ShakerOnDockerRunner, self).__init__(ctx)
         self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
 
         self.container_id = None
         self.image_name = utils.GET(

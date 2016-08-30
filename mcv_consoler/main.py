@@ -123,6 +123,7 @@ def thread_wrapper(worker, rcode_holder):
         rcode = worker()
     except Exception as e:
         LOG.error('Unhandled exception in worker thread: %s', e)
+        LOG.error('Check logs, for more details about this issue.')
         LOG.debug('Error details', exc_info=True)
     rcode_holder[:] = [rcode]
 

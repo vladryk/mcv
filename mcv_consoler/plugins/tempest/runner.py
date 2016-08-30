@@ -39,7 +39,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         super(TempestOnDockerRunner, self).__init__(ctx)
 
         self.config = self.ctx.config
-        self.path = self.ctx.work_dir
+        self.path = self.ctx.work_dir.base_dir
         self.container = None
         self.failed_cases = 0
         self.home = '/mcv'

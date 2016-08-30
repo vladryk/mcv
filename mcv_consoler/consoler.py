@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import traceback
 
@@ -34,6 +35,7 @@ from mcv_consoler.common import clients
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.common import resource
+from mcv_consoler.common import ssh
 from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler import exceptions
 from mcv_consoler import reporter
@@ -49,17 +51,19 @@ TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
 
 
 class Consoler(object):
+    all_time = 0
+    group_name = None
+    results_dir = None
+    failure_indicator = CAError.NO_ERROR
+    plugin_dir = PLUGINS_DIR_NAME
+
     def __init__(self, ctx):
         self.ctx = context.Context(ctx, resources=resource.Pool())
         self.config = ctx.config
-        self.all_time = 0
-        self.plugin_dir = PLUGINS_DIR_NAME
-        self.failure_indicator = CAError.NO_ERROR
-        self.timestamp_str = datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')
-        self.group_name = None
-        self.results_dir = None
-        self._name_parts = ['mcv', self.timestamp_str]
         self.cloud_cleanup = None
+        self._name_parts = [
+            'mcv',
+            datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')]
 
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
@@ -103,13 +107,13 @@ class Consoler(object):
                 test_list = test_list.strip(', ')
                 LOG.info(" %s : %s", group, len(test_list.split(',')))
 
-        tests_to_run = self.prepare_tests(test_group)
-        if tests_to_run is None:
+        test_plan = self.prepare_tests(test_group)
+        if test_plan is None:
             return None
 
-        pretty_print_tests(tests_to_run)
+        pretty_print_tests(test_plan)
 
-        return self.dispatch_tests_to_runners(tests_to_run)
+        return self._do_test_plan(test_plan)
 
     def do_single(self, test_group, test_name):
         """Run specific test.
@@ -117,25 +121,24 @@ class Consoler(object):
         The test must be specified as this: testool/tests/tesname
         """
         self.group_name = test_group
-        self._name_parts.extend((test_group, test_name))
-        the_one = dict(((test_group, test_name),))
-        return self.dispatch_tests_to_runners(the_one)
+        self._name_parts.append(test_group)
+        self._name_parts.append(test_name)
+        return self._do_test_plan({test_group: test_name})
 
     def do_name(self, test_group, test_name):
         """Run specific test by name.
         """
-        kwargs = {'run_by_name': True}
         self.group_name = test_group
-        self._name_parts.extend((test_group, test_name.split('.')[-1]))
-        the_one = dict(((test_group, test_name),))
-        return self.dispatch_tests_to_runners(the_one, **kwargs)
+        self._name_parts.append(test_group)
+        self._name_parts.append(test_name.rsplit('.', 1)[-1])
+        return self._do_test_plan({test_group: test_name})
 
     def do_full(self):
         self.group_name = "Full"
         LOG.info("Starting full check run.")
-        test_dict = discovery.get_all_tests()
-        return self.dispatch_tests_to_runners(test_dict)
+        return self._do_test_plan(discovery.get_all_tests())
 
+    # FIXME(dbogun): rewrite/move to utils
     def seconds_to_time(self, s):
         h = s // 3600
         m = (s // 60) % 60
@@ -152,19 +155,38 @@ class Consoler(object):
 
         return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
 
-    def dispatch_tests_to_runners(self, test_dict, **kwargs):
-        dispatch_result = {}
+    def _do_test_plan(self, test_plan):
         self.results_dir = self.get_results_dir('/tmp')
         os.mkdir(self.results_dir)
 
-        f = open(TIMES_DB_PATH, 'r')
-        db = json.loads(f.read())
+        context.add(
+            self.ctx, 'work_dir_global', utils.WorkDir(self.results_dir))
+        context.add(self.ctx, 'work_dir', self.ctx.work_dir_global)
+
+        self._collect_predefined_data()
+
+        access_helper = AccessSteward(
+            self.ctx, self.ctx.args.run_mode,
+            port_forwarding=not self.ctx.args.no_tunneling)
+
+        if not access_helper.check_and_fix_environment():
+            raise exceptions.AccessError(
+                'Unable to setup access to OS cloud.')
+        try:
+            self._exec_tests(test_plan, access_helper)
+        finally:
+            access_helper.cleanup()
+
+    def _exec_tests(self, test_plan, access_helper):
         elapsed_time_by_group = dict()
-        f.close()
+        dispatch_result = {}
+
+        with open(TIMES_DB_PATH, 'r') as fd:
+            db = json.load(fd)
 
         if self.config.get('times', 'update') == 'False':
-            for key in test_dict.keys():
-                batch = [x for x in (''.join(test_dict[key].split()
+            for key in test_plan.keys():
+                batch = [x for x in (''.join(test_plan[key].split()
                                              ).split(',')) if x]
                 elapsed_time_by_group[key] = self.all_time
                 for test in batch:
@@ -182,16 +204,19 @@ class Consoler(object):
             else:
                 LOG.info(msg)
 
-        for key in test_dict.keys():
+        for key in test_plan:
             if self.ctx.terminate_event.is_set():
                 LOG.info("Catch Keyboard interrupt. "
                          "No more tests will be launched")
                 break
             if self.config.get('times', 'update') == 'True':
+                # FIXME(dbogun): this value is always forced to 0, look
+                # like a bug
                 elapsed_time_by_group[key] = 0
-                f = open(TIMES_DB_PATH, 'r')
-                db = json.loads(f.read())
-                f.close()
+                # FIXME(dbogun): rewrite timesdb implementation
+                # We must reload timesdb because plugin (probably) update id
+                with open(TIMES_DB_PATH, 'rt') as fd:
+                    db = json.load(fd)
 
             dispatch_result[key] = {}
             try:
@@ -216,15 +241,15 @@ class Consoler(object):
                 os.mkdir(path)
 
                 factory = getattr(module, self.config.get(key, 'runner'))
-                access_data = self.access_helper.access_data()
+                access_data = access_helper.access_data()
                 runner = factory(context.Context(
                     self.ctx,
-                    work_dir=path,
-                    work_dir_global=self.results_dir,
+                    work_dir=utils.WorkDir(
+                        path, parent=self.ctx.work_dir_global),
                     access_data=access_data,
-                    access=clients.OSClientsProxy(access_data)))
+                    access=clients.OSClientsProxy(self.ctx, access_data)))
 
-                batch = test_dict[key]
+                batch = test_plan[key]
                 if isinstance(batch, basestring):
                     batch = self.split_tests(key, batch)
 
@@ -241,10 +266,7 @@ class Consoler(object):
                         tool_name=key,
                         db=db,
                         all_time=self.all_time,
-                        elapsed_time=elapsed_time_by_group[key],
-                        test_group=kwargs.get('testgroup'),
-                        run_by_name=kwargs.get('run_by_name', False)
-                    )
+                        elapsed_time=elapsed_time_by_group[key])
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == CAError.NO_ERROR:
@@ -430,25 +452,31 @@ class Consoler(object):
             if not self._check_fix_env():
                 return CAError.WRONG_CREDENTIALS
             cleanup_status = utils.GET(self.config, 'show_trash', 'cleanup')
+
             try:
                 if util.strtobool(cleanup_status):
                     self.cloud_cleanup = cleanup.Cleanup(
                         self.config, self.access_helper.access_data())
                     self.cloud_cleanup.get_started_resources()
-                run_results = handler(*params)
-                self._do_finalization(run_results)
             except Exception:
                 LOG.error("Something went wrong with the command, "
                           "please refer to logs to discover the problem.")
                 LOG.debug('Error details', exc_info=True)
                 self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
+            run_results = handler(*params)
+            self._do_finalization(run_results)
+
+        except exceptions.AccessError as e:
+            LOG.error('Have some issues with accessing cloud: %s', e)
+            LOG.debug('Error details', exc_info=True)
+            self.failure_indicator = CAError.WRONG_CREDENTIALS
         finally:
             try:
                 if self.cloud_cleanup:
                     self.cloud_cleanup.get_finished_resources()
-            except Exception:
+            except Exception as e:
                 LOG.debug(traceback.format_exc())
-                LOG.info("Cleanup failed")
+                LOG.debug('Cleanup failed.')
 
             for handler in (
                     self.access_helper.cleanup,
@@ -493,3 +521,22 @@ class Consoler(object):
                       "the consoler: %s", repr(e))
             LOG.debug('Error details', exc_info=True)
             return False
+
+    def _collect_predefined_data(self):
+        work_dir = self.ctx.work_dir_global
+        args = self.ctx.args
+
+        if args.os_ssh_key:
+            dest = work_dir.resource(work_dir.RES_OS_SSH_KEY, lookup=False)
+            ssh.save_private_key(dest, args.os_ssh_key.read())
+
+        for opt, res in (
+                ('os_openrc', work_dir.RES_OS_OPENRC),
+                ('os_fuelclient_settings', work_dir.RES_FUELCLIENT_SETTINGS)):
+            opt = getattr(args, opt)
+            if not opt:
+                continue
+
+            with open(
+                    work_dir.resource(res, lookup=False), 'wt') as dest:
+                shutil.copyfileobj(opt, dest)
