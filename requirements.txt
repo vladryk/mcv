@@ -11,7 +11,7 @@ python-saharaclient>=0.13.0
 # We need python-fuelclient>=9.0.1, because of bug #1585137.
 # when fuelclient >= 9.0.0 will be released, this link can be replaced with
 # generic pip package definition
-https://github.com/openstack/python-fuelclient/archive/9.0.1.zip
+git+https://github.com/openstack/python-fuelclient.git@9.0.1#egg=python-fuelclient
 pbr>=1.8
 requests>=2.9.1
 PyYAML>=3.1.0 # MIT
