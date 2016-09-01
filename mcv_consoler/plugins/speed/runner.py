@@ -21,6 +21,7 @@ import traceback
 from flask_table import Table, Col
 from jinja2 import Template
 
+from mcv_consoler import exceptions
 from mcv_consoler.common.errors import SpeedError
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
@@ -103,13 +104,9 @@ class SpeedTestRunner(run.Runner):
 
         try:
             self.node_ids = self._prepare_vms()
-            res = super(SpeedTestRunner, self).run_batch(tasks,
-                                                         *args,
-                                                         **kwargs)
+            res = super(SpeedTestRunner, self).run_batch(
+                tasks, *args, **kwargs)
             res['threshold'] = self.threshold + ' Mb/s'
-            return res
-        except RuntimeError:
-            LOG.error('Environment preparation error')
             return res
         except Exception:
             LOG.error('Caught unexpected error, exiting. '
@@ -117,15 +114,8 @@ class SpeedTestRunner(run.Runner):
             LOG.debug(traceback.format_exc())
             return res
         finally:
-            try:
-                LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
-                self.preparer.delete_instances()
-            except Exception:
-                LOG.error(
-                    'Something went wrong when removing VMs. '
-                    'Please check mcvconsoler logs')
-                LOG.debug(traceback.format_exc())
-                return res
+            LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+            self.preparer.delete_instances()
 
     def generate_report(self, result, task):
         # Append last run to existing file for now.
@@ -163,21 +153,12 @@ class SpeedTestRunner(run.Runner):
         try:
             speed_class = getattr(st, task)
         except AttributeError:
-            LOG.error('Incorrect task: %s' % task)
-            self.test_not_found.append(task)
-            return False
+            raise exceptions.FrameworkError(
+                'Invalid test "%s" name (speed plugin)'.format(task))
 
-        try:
-            reporter = speed_class(self.access_data, *args, **kwargs)
-        except Exception:
-            LOG.error('Error creating class %s. Please check mcvconsoler logs '
-                      'for more info' % task)
-            LOG.debug(traceback.format_exc())
-            self.test_failures.append(task)
-            return False
+        reporter = speed_class(self.access_data, *args, **kwargs)
 
         res_all = []
-
         r_average_all = []
         w_average_all = []
 
@@ -189,28 +170,16 @@ class SpeedTestRunner(run.Runner):
                 res_all += res
                 r_average_all.append(r_average)
                 w_average_all.append(w_average)
-            except RuntimeError:
-                LOG.error('Failed to measure speed')
-                try:
-                    reporter.cleanup(node_id)
-                except Exception:
-                    LOG.warning('Unexpected cleanup error. '
-                                'Please check mcvconsoler logs')
-                    LOG.debug(traceback.format_exc())
-                self.test_failures.append(task)
-                return False
             except Exception:
-                LOG.error('Failed to measure speed, caught unexpected error. '
-                          'Please check mcvconsoler logs')
-                LOG.debug(traceback.format_exc())
+                self.test_failures.append(task)
+                raise
+            finally:
                 try:
                     reporter.cleanup(node_id)
-                except Exception:
-                    LOG.warning('Unexpected cleanup error. '
-                                'Please check mcvconsoler logs')
-                    LOG.debug(traceback.format_exc())
-                self.test_failures.append(task)
-                return False
+                except Exception as e:
+                    LOG.warning(
+                        'Unhandled exception in %r.cleanup(): %s', reporter, e)
+                    LOG.debug('Error details: ', exc_info=True)
 
         time_end = datetime.datetime.utcnow()
         time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
@@ -220,8 +189,9 @@ class SpeedTestRunner(run.Runner):
         LOG.info('Average read speed for all nodes is %s Mb/s' % str(r_av))
         LOG.info('Average write speed for all nodes is %s Mb/s' % str(w_av))
         self.generate_report(res_all, task)
-        if self._evaluate_task_results([r_av, w_av]):
-            return True
-        else:
+
+        if not self._evaluate_task_results([r_av, w_av]):
             self.test_failures.append(task)
             return False
+
+        return True

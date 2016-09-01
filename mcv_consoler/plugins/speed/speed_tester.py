@@ -19,8 +19,6 @@ import json
 import math
 import time
 
-import paramiko
-
 from mcv_consoler.common import clients
 from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import ssh
@@ -32,6 +30,7 @@ LOG = logging.getLogger(__name__)
 
 
 class BaseStorageSpeed(object):
+    ssh_connect = None
 
     def __init__(self, access_data, *args, **kwargs):
         self.access_data = access_data
@@ -45,7 +44,6 @@ class BaseStorageSpeed(object):
             endpoint=self.access_data['public_endpoint_ip'])
 
         self.timeout = 0
-        self.test_vm = None
 
         self.cinderclient = clients.get_cinder_client(self.access_data)
         self.novaclient = clients.get_nova_client(self.access_data)
@@ -61,22 +59,27 @@ class BaseStorageSpeed(object):
         return vm, floating_ip
 
     def set_ssh_connection(self, hostname):
-        port = 22
-        pkey = paramiko.RSAKey.from_private_key_file(
-            config.tool_vm_keypair_path(self.work_dir))
-        for i in range(0, 100):
-            try:
-                self.client = paramiko.Transport((hostname, port))
-                self.client.connect(username=config.tool_vm_login, pkey=pkey)
+        self.ssh_connect = ssh.SSHClient(
+            hostname, config.tool_vm_login,
+            rsa_key=config.tool_vm_keypair_path(self.work_dir),
+            timeout=config.tool_vm_connect_tout)
+
+        now = time.time()
+        timeout = now + config.tool_vm_connect_tout
+        attempt = 0
+        while now < timeout:
+            attempt += 1
+            LOG.debug('Make SSH connect on "tool" VM (try #%d)', attempt)
+            if self.ssh_connect.connect(quiet=True):
                 break
-            except paramiko.SSHException as e:
-                LOG.debug('Waiting for test VM became available (%s)', e)
-            time.sleep(10)
+            time.sleep(4)
+            now = time.time()
         else:
             raise RuntimeError("Can't connect to test vm")
 
         LOG.debug('SSH connection to test VM successfully established')
 
+<<<<<<< HEAD
     def run_ssh_cmd(self, cmd):
         command = 'sudo ' + cmd
         buff_size = 4096
@@ -111,6 +114,8 @@ class BaseStorageSpeed(object):
         LOG.debug('Stderr: %s', err)
         return {'ret': status, 'out': out, 'err': err}
 
+=======
+>>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
     def prepare_size(self, str_size):
         size = str_size.lower().strip()
         if size.endswith('g'):
@@ -123,7 +128,7 @@ class BaseStorageSpeed(object):
             size = float(size[:-2])
         else:
             size = 1024
-        return int(round(size))
+        return int(size)
 
 
 def block_measure_dec(measure):
@@ -144,29 +149,31 @@ def block_measure_dec(measure):
     return wrapper
 
 
+# TODO(dbogun): rewrite to match "style" of ObjectStorageSpeed
 class BlockStorageSpeed(BaseStorageSpeed):
+    # FIXME(dbogun): should we use config option?
+    image_name = '/mnt/testvolume/testimage.ss.img'
+
+    _measure_kinds = ('general', 'throughput', 'IOPs')
 
     def __init__(self, access_data, *args, **kwargs):
         super(BlockStorageSpeed, self).__init__(access_data, *args, **kwargs)
-        self.size_str = kwargs.get('volume_size')
-        self.size = 0
+        self.size = self.prepare_size(kwargs['volume_size'])
+        self.iterations = kwargs['iterations']
         self.device = None
         self.vol = None
         self.max_thr = 1
         self.thr_size = 0
         self.thr_count = 0
-        self.image_name = '/mnt/testvolume/testimage.ss.img'
 
-    def create_test_volume(self, node_id):
+    def create_test_volume(self, target_vm):
         LOG.debug('Creating test volume')
-        self.test_vm, test_vm_ip = self.get_test_vm(node_id)
-        self.set_ssh_connection(test_vm_ip)
-        self.vol = self.cinderclient.volumes.create(
-            int(math.ceil((self.size + 100.0) / 1024.0)))
 
-        if not self.test_vm:
-            LOG.error('Creation of test vm failed')
-            raise RuntimeError
+        # We can to write up to self.size * 2, because of logic in
+        # "threshold" test
+        self.vol = self.cinderclient.volumes.create(
+            int(math.ceil((self.size * 2) / 1024.0)))
+
         for i in range(0, 20):
             vol = self.cinderclient.volumes.get(self.vol.id)
             if vol.status == 'available':
@@ -174,235 +181,145 @@ class BlockStorageSpeed(BaseStorageSpeed):
             time.sleep(3)
 
         attach = self.novaclient.volumes.create_server_volume(
-            self.test_vm.id,
+            target_vm.id,
             self.vol.id,
             device='/dev/vdb')
 
         LOG.debug('Result of creating volume: %s' % str(attach))
 
         path = '/dev/vdb'
-        cmd = "test -e %s && echo 1" % path
+        cmd = "test -e %s" % path
         for i in range(0, 20):
-            res = self.run_ssh_cmd(cmd)['out']
-            if res:
-                self.device = path
-                break
-
-            time.sleep(3)
+            try:
+                self.ssh_connect.exec_cmd(cmd, exc=True)
+            except exceptions.RemoteError:
+                time.sleep(3)
+                continue
+            self.device = path
+            break
 
         # NOTE: cirros or cinder work strange and sometimes attach volume
         # not to specified device, so additional check for it
         if not self.device:
-            cmd = "test -e %s && echo 1" % '/dev/vdc'
-            res = self.run_ssh_cmd(cmd)['out']
-            if res:
-                self.device = '/dev/vdc'
-
-        if not self.device:
-            LOG.error("Failed to attach test volume")
-            self.cleanup(node_id)
-            raise RuntimeError
+            path = '/dev/vdc'
+            cmd = "test -e %s" % path
+            try:
+                self.ssh_connect.exec_cmd(cmd, exc=True)
+                self.device = path
+            except exceptions.RemoteError:
+                raise exceptions.RemoteError(
+                    'Block device {} for volume {} on {} didn\'t '
+                    'appear'.format(path, self.vol.id, target_vm.id))
 
         LOG.debug('Mounting volume to test VM')
-        res = self.run_ssh_cmd('/usr/sbin/mkfs.ext4 %s' % self.device)
-        res = self.run_ssh_cmd('mkdir -p /mnt/testvolume')
-        res = self.run_ssh_cmd('mount %s /mnt/testvolume' % self.device)
+        self.ssh_connect.exec_cmd(
+            'sudo mkfs -t ext4 {}'.format(self.device), exc=True)
+        self.ssh_connect.exec_cmd('sudo mkdir -p /mnt/testvolume', exc=True)
+        self.ssh_connect.exec_cmd(
+            'sudo mount {} /mnt/testvolume'.format(self.device), exc=True)
 
         LOG.debug('Volume successfully created')
 
-    def generate_report(self, storage, compute_name, r_res, w_res, r_res_thr,
-                        w_res_thr, r_res_iop, w_res_iop):
-        # Default
-        r_res = [float(self.size) / i for i in r_res]
-        r_average = round(sum(r_res) / float(len(r_res)), 2)
-        read = ''
-        resulting_list = []
-        for i in range(len(r_res)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='read', result=r_res[i],
-                     type='general', size=self.size))
-        resulting_list.append(
-                dict(node=compute_name, attempt='general average',
-                     action='read', result=r_average,
-                     type='general', size=self.size))
-        w_res = [float(self.size) / i for i in w_res]
-        w_average = round(sum(w_res) / float(len(w_res)), 2)
-        write = ''
-        for i in range(len(w_res)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='write', result=w_res[i],
-                     type='general', size=self.size))
-        resulting_list.append(
-                dict(node=compute_name, attempt='general average',
-                     action='read', result=w_average,
-                     type='general', size=self.size))
-        # Throughput
-        r_res_thr = [float(self.thr_size) / i for i in r_res_thr]
-        r_average_thr = round(sum(r_res_thr) / float(len(r_res_thr)), 2)
-        read_thr = ''
-        for i in range(len(r_res_thr)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='read', result=r_res_thr[i],
-                     type='throughput', size=self.thr_size))
-        resulting_list.append(
-                dict(node=compute_name, attempt='average throughput',
-                     action='read', result=r_average_thr,
-                     type='throughput', size=self.thr_size))
-        w_res_thr = [float(self.thr_size) / i for i in w_res_thr]
-        w_average_thr = round(sum(w_res_thr) / float(len(w_res_thr)), 2)
-        write_thr = ''
-        for i in range(len(w_res_thr)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='write', result=w_res_thr[i],
-                     type='throughput', size=self.thr_size))
-        resulting_list.append(
-                dict(node=compute_name, attempt='average throughput',
-                     action='write', result=r_average_thr,
-                     type='throughput', size=self.thr_size))
-        # IOPs
-        r_res_iop = [float(self.size) / i for i in r_res_iop]
-        r_average_iop = round(sum(r_res_iop) / float(len(r_res_iop)), 2)
-        read_iop = ''
-        for i in range(len(r_res_iop)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='read', result=r_res_iop[i],
-                     type='IOPs', size='4Kb'))
-        resulting_list.append(
-                dict(node=compute_name, attempt='average IOPs',
-                     action='read', result=r_average_iop,
-                     type='IOPs', size='4Kb'))
-        w_res_iop = [float(self.size) / i for i in w_res_iop]
-        w_average_iop = round(sum(w_res_iop) / float(len(w_res_iop)), 2)
-        write_iop = ''
-        for i in range(len(w_res_iop)):
-            resulting_list.append(
-                dict(node=compute_name, attempt=i+1,
-                     action='write', result=w_res_iop[i],
-                     type='IOPs', size='4Kb'))
-        resulting_list.append(
-                dict(node=compute_name, attempt='average IOPs',
-                     action='write', result=w_average_iop,
-                     type='IOPs', size='4Kb'))
-        # Average
-        r_res_all = r_res + r_res_thr + r_res_iop
-        w_res_all = w_res + w_res_thr + w_res_iop
-        r_av_all = round(sum(r_res_all) / len(r_res_all), 2)
-        w_av_all = round(sum(w_res_all) / len(w_res_all), 2)
-        resulting_list.append(
-                dict(node=compute_name, attempt='average',
-                     action='write', result=w_av_all,
-                     type='All', size='All'))
-        resulting_list.append(
-                dict(node=compute_name, attempt='average',
-                     action='read', result=r_av_all,
-                     type='All', size='All'))
-
-        return resulting_list, r_av_all, w_av_all
-
     def drop_cache(self):
-        self.run_ssh_cmd('sync; sudo /sbin/sysctl -w vm.drop_caches=3')
+        self.ssh_connect.exec_cmd(
+            'sync; sudo /sbin/sysctl -w vm.drop_caches=3', exc=True)
 
     def get_max_throughput(self):
-        max_mem = int(
-            self.run_ssh_cmd("free -m | awk 'FNR == 3 {print $4}'")['out']) - 1
-        if max_mem < self.size:
-            self.max_thr = max_mem
-            self.thr_count = int(math.ceil(float(self.size) /
-                                           float(self.max_thr)))
-            self.thr_size = int(self.max_thr * self.thr_count)
-        else:
-            self.max_thr = self.size
-            self.thr_count = 1
-            self.thr_size = int(self.max_thr * self.thr_count)
-        if self.max_thr < 0 or self.thr_count < 0:
-            self.max_thr = abs(self.max_thr)
-            self.thr_count = abs(self.thr_count)
+        proc = self.ssh_connect.exec_cmd(
+            'free --mega | awk "\\$1 == \\"Mem:\\" {print \\$4, \\$6}"',
+            exc=True)
+
+        mem_free, mem_cache = map(int, proc.stdout.rstrip().split())
+        mem_free += mem_cache - int(mem_cache / 5)
+
+        block_size = mem_free
+        block_size = min(block_size, self.size)
+        block_size = max(block_size, 1)
+
+        block_count = float(self.size) / block_size
+        block_count = math.ceil(block_count)
+        block_count = int(block_count)
+
+        self.thr_count, self.thr_size = block_count, block_size
 
     def remove_file(self):
         LOG.debug('Removing file')
-        self.run_ssh_cmd('rm /mnt/testvolume/testimage.ss.img')
+        self.ssh_connect.exec_cmd(
+            'sudo rm {}'.format(self.image_name), exc=True)
 
     @block_measure_dec
     def measure_write(self, bs, count):
         LOG.info(
             "Measuring write speed: block size {0}, "
             "count {1}".format(bs, count))
+<<<<<<< HEAD
         return self.run_ssh_cmd(
             'LC_ALL=C dd if=/dev/zero of=%s bs=%s count=%d '
             'conv=notrunc,fsync' % (self.image_name, bs, count))['ret']
+=======
+        return self.ssh_connect.exec_cmd(
+            'sudo dd if=/dev/zero of={} bs={} count={} '
+            'conv=notrunc,fsync'.format(
+                self.image_name, bs, count), exc=True).rcode
+>>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
 
     @block_measure_dec
     def measure_read(self, bs, count):
         LOG.info(
             "Measuring read speed: block size {0}, "
             "count {1}".format(bs, count))
+<<<<<<< HEAD
         return self.run_ssh_cmd(
             'LC_ALL=C dd if=%s of=/dev/null bs=%s count=%d' % (
             self.image_name, bs, count))['ret']
+=======
+        return self.ssh_connect.exec_cmd(
+            'sudo dd if={} of=/dev/null bs={} count={}'.format(
+                self.image_name, bs, count)).rcode
+>>>>>>> 45741ea... FIX ZeroDivisionError into BlockStorageSpeed (speed)
 
     def measure_speed(self, node_id):
-        self.size = self.prepare_size(self.size_str)
-        self.create_test_volume(node_id)
+        target_vm, target_ip = self.get_test_vm(node_id)
+        self.set_ssh_connection(target_ip)
+
+        self.create_test_volume(target_vm)
         self.drop_cache()
         self.get_max_throughput()
-        compute_name = getattr(self.test_vm, 'OS-EXT-SRV-ATTR:host')
-        r_res = []
-        w_res = []
-        r_res_thr = []
-        w_res_thr = []
-        r_res_iop = []
-        w_res_iop = []
+
+        compute_host = getattr(target_vm, 'OS-EXT-SRV-ATTR:host')
+
         LOG.info('Starting measuring block storage r/w speed')
 
-        self.attempts = utils.GET(
-            self.config, 'attempts', 'speed',
-            app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT)
-        try:
-            self.attempts = int(self.attempts)
-        except ValueError:
-            LOG.error(
-                "Expected 'attempts' to be a number, "
-                "but got {} value instead!".format(
-                    self.attempts))
-            LOG.debug("Default value {} is used for 'attempts'".format(
-                app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT))
-            self.attempts = app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT
+        results = {}
+        for _ in range(0, self.iterations):
+            for kind, report in zip(
+                    (None, 'thr', 'iop'),
+                    self._measure_kinds):
+                args = {}
+                if kind is not None:
+                    args['m_type'] = kind
 
-        for _ in range(0, self.attempts):
-            w_res.append(self.measure_write())
-            r_res.append(self.measure_read())
-            self.remove_file()
+                storage = results.setdefault(report, [])
+                storage.append(_BlockDeviceSpeedResults(
+                    self.measure_write(**args),
+                    self.measure_read(**args)))
+                self.remove_file()
 
-            w_res_thr.append(self.measure_write(m_type='thr'))
-            r_res_thr.append(self.measure_read(m_type='thr'))
-            self.remove_file()
-
-            w_res_iop.append(self.measure_write(m_type='iop'))
-            r_res_iop.append(self.measure_read(m_type='iop'))
-            self.remove_file()
-        self.cleanup(node_id)
-        return self.generate_report('Block', compute_name, r_res, w_res,
-                                    r_res_thr, w_res_thr, r_res_iop, w_res_iop)
+        return self.generate_report(compute_host, results)
 
     def cleanup(self, node_id):
         LOG.debug('Start cleanup resources')
         vm, ip = self.get_test_vm(node_id)
 
         try:
-            cmds = ['umount /mnt/testvolume', 'rm -rf /mnt/testvolume']
-            for cmd in cmds:
-                LOG.debug('Executing command: %s' % cmd)
-                res = self.run_ssh_cmd(cmd)
-                LOG.debug('RESULT: %s' % str(res))
+            for cmd in [
+                    'sudo umount /mnt/testvolume',
+                    'sudo rm -rf /mnt/testvolume']:
+                self.ssh_connect.exec_cmd(cmd, exc=True)
         except OSError:
             LOG.error('Unmounting volume failed')
 
-        self.client.close()
+        self.ssh_connect.close()
         self.novaclient.volumes.delete_server_volume(vm.id, self.vol.id)
         LOG.debug('Waiting for volume became available')
         for i in range(0, 60):
@@ -415,6 +332,69 @@ class BlockStorageSpeed(BaseStorageSpeed):
         except Exception:
             LOG.error('Deleting test volume failed')
         LOG.debug('Cleanup finished')
+
+    def generate_report(self, node, measures):
+        results = []
+        # FIXME(dbogun): clear what must be stored into "size" field
+        # FIXME(dbogun): avoid this magic constants
+        size_map = dict(zip(
+            measures,
+            ('1Mb', '{}Mb'.format(self.max_thr), '4Kb')))
+
+        for kind in measures:
+            results += self._prepare_report_payload(
+                node, kind, measures[kind], size_map[kind])
+
+        average = {
+            'read': 0,
+            'write': 0}
+        counts = {x: 0 for x in average}
+        for row in results:
+            if row.pop('calculated', False):
+                continue
+            average[row['action']] += row['result']
+            counts[row['action']] += 1
+
+        record = functools.partial(
+            dict, node=node, type='All', size='All', attempt='average')
+
+        for kind in average:
+            average[kind] /= counts[kind]
+            results.append(record(action=kind, result=average[kind]))
+
+        return results, average['read'], average['write']
+
+    def _prepare_report_payload(self, node, measure_kind, raw, size):
+        payload = [[], []]
+        average = [[0], [0]]
+        action_labels = ('write', 'read')
+        record = functools.partial(
+            dict, node=node, type=measure_kind, size=size)
+
+        for attempt, measure in enumerate(raw):
+            for value, storage, avg, action in zip(
+                    measure, payload, average, action_labels):
+                if value:
+                    value = self.size / float(value)
+                else:
+                    value = 0.0
+                storage.append(record(
+                    result=measure.read, attempt=attempt + 1, action=action))
+                avg[0] += value
+
+        for idx, avg in enumerate(average):
+            average[idx] = record(
+                calculated=True,
+                result=avg[0] / len(raw),
+                attempt='{} average'.format(measure_kind),
+                action=action_labels[idx])
+
+        results = []
+        for storage, avg in zip(payload, average):
+            results += storage
+            results.append(avg)
+
+        return results
 
 
 class ObjectStorageSpeed(BaseStorageSpeed):
@@ -595,5 +575,7 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
                 'Image create request to glance have failed: {}'.format(e))
 
 
+_BlockDeviceSpeedResults = collections.namedtuple(
+    '_BlockDeviceSpeedResults', 'write, read')
 _GlanceSpeedResults = collections.namedtuple(
     '_GlanceSpeedresults', 'upload, download')

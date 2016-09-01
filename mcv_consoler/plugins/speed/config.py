@@ -19,6 +19,7 @@ compute_login = 'root'
 tool_vm_image = 'fedora-image'
 tool_vm_login = 'fedora'
 tool_vm_keypair = 'fedora-key'
+tool_vm_connect_tout = 180
 
 
 def tool_vm_keypair_path(work_dir):
