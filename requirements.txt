@@ -1,4 +1,5 @@
 colorlog==2.7.0
+Jinja2>=2.8
 flask_table
 oslo.config==3.17.0
 paramiko>=1.0

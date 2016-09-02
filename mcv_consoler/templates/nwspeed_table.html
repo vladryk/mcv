@@ -1,60 +1,64 @@
 {% extends "base.html" %}
 
-{% block title %}
-    {{ title }}
-{% endblock %}
+{% block title %} Hardware network speed results. {{ timestamp }} {% endblock title %}
 
-{% block table %}
-
+{% block body %}
 <div class="container-fluid">
-
-
     <div class="row-md-12"><h1 align="center">Network speed statistic</h1></div>
-    <div class="row-md-12"><h3 align="center">Treshold is {{ treshold_str }}, {{ treshold_prc }}%</h3></div>
-
-
-
-
+    <div class="row-md-12"><h3 align="center">Treshold is {{ threshold }} MB/s</h3></div>
  <div class="col-md-12">
-
     <table class="table table-bordered">
-
         <thead>
-             <tr><td class="text-center panel-title"><strong>AVG Speed NodeToNode: MB/s(Gb/s)</strong></td>
-                 {% for node in nodes %}
-                    <td class="text-center panel-title"><strong>{{ node }}, {{ nodes[node]['role'] }}</strong></td>
-                 {% endfor %}
+             <tr>
+                 <td class="text-center panel-title"><strong>AVG Speed NodeToNode: MB/s(Gb/s)</strong></td>
+                 {%- for node in nodes %}
+                 <td class="text-center panel-title"><strong>{{ node }} ({{ nodes[node]['roles']|join(', ') }})</strong></td>
+                 {%- endfor %}
              </tr>
         </thead>
 
         <tbody>
-        {% for node in nodes %}
+        {%- for node1fqdn, node1 in nodes.iteritems() %}
         <tr>
-            <td class="text-center panel-title"><strong>{{ node }} ( {{ nodes[node]['role'] }} )</strong></td>
-            {% for name in nodes %}
-                    {% set loop_index = loop.index %}
-                    {% if not nodes[node][name] %}
-                        <td class="text-center active"> </td>
-                    {% elif (nodes[node][name]|sum) / (nodes[node][name]|length) >= treshold %}
-                        <td class="text-center success">
-                            {% include "_nwspeed_collapse_panel.html" %}
-                        </td>
-                    {% else %}
-                        <td class="text-center danger">
-                            {% include "_nwspeed_collapse_panel.html" %}
-                        </td>
-                    {% endif %}
-            {% endfor %}
-
+            <td class="text-center panel-title"><strong>{{ node1fqdn }} ({{ node1['roles']|join(', ') }})</strong></td>
+        {%- for node2fqdn, node2 in nodes.iteritems() -%}
+            {%- set loop_index = loop.index -%}
+            {%- set record = tests|selectattr("from", "equalto", node1fqdn)|selectattr("to", "equalto", node2fqdn)|list|first -%}
+            {%- if not record %}
+            <td class="text-center active"></td>
+            {%- else -%}
+            {%- if record['success'] %}
+            <td class="text-center success">
+            {%- else %}
+            <td class="text-center danger">
+            {%- endif -%}
+            {%- set node_id = node1fqdn|replace('.', '_') %}
+            <div class="panel-group" id="accordion_{{ node_id }}_{{ loop_index }}" role="tablist" aria-multiselectable="true">
+            <div class="panel-heading" role="tab" id="headingOne_{{ node_id }}_{{ loop_index }}">
+              <h6 class="panel-title">
+                <a data-toggle="collapse" data-parent="#accordion_{{ node_id }}_{{ loop_index }}" href="#collapseOne_{{ node_id }}_{{ loop_index }}" aria-expanded="false" aria-controls="collapseOne_{{ node_id }}_{{ loop_index }}" class="collapsed">
+                  {{ record['avg'] }} ({{ record['avg_gbs'] }})
+                </a>
+              </h6>
+            </div>
+            <div id="collapseOne_{{ node_id }}_{{ loop_index }}" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingOne_{{ node_id }}_{{ loop_index }}" aria-expanded="false" style="height: 0px;">
+              <div class="panel-body">
+                <ol>
+                    {%- for i in record['attempts'] %}
+                    <li>attempt: {{ i }} MB/s</li>
+                    {%- endfor %}
+                </ol>
+              </div>
+            </div>
+            </div>
+            </td>
+        {%- endif -%}
+        {%- endfor %}
         </tr>
-        {% endfor %}
+        {%- endfor %}
         </tbody>
-
     </table>
-
  </div>
-
-
 </div>
 
-{% endblock %}
+{% endblock body %}

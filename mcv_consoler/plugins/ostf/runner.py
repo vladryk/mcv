@@ -242,11 +242,12 @@ class OSTFOnDockerRunner(runner.Runner):
         LOG.info("-" * 60)
         LOG.info("Starting task %s" % task)
         try:
-            task_time = self.seconds_to_time(kwargs['db'][kwargs['tool_name']][task])
+            test_time = kwargs['db'][kwargs['tool_name']][task]
         except KeyError:
-            task_time = 0
-            LOG.info(("You must update the database time tests. "
-                      "There is no time for %s") % task)
-        LOG.info("Expected time to complete the test: %s " % task_time)
+            LOG.info("You must update the database time tests. "
+                     "There is no time for %s", task)
+        else:
+            exp_time = utils.seconds_to_humantime(test_time)
+            LOG.info("Expected time to complete the test: %s ", exp_time)
         self._run_ostf_on_docker(task)
         LOG.info("-" * 60)

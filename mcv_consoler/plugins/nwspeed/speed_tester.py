@@ -13,7 +13,6 @@
 #    under the License.
 
 import logging
-import os
 import re
 from operator import truediv
 
@@ -55,36 +54,36 @@ class Node2NodeSpeed(object):
             return connect
         raise exceptions.AccessError("Can't access node {} via SSH".format(ip))
 
-    def measure_speed(self, node):
+    def measure_speed(self, node, attempts):
         res = dict()
         for target in self.nodes:
             if target is node:
                 continue
-            node_res = self._do_measure(node, target)
+            node_res = self._do_measure(node, target, attempts)
             res[target.fqdn] = node_res
         return res
 
-    def _do_measure(self, from_node, to_node, attempts=3):
-        nc_listen = 'nc -l -k -p {port} > /dev/null'
-        nc_send = 'LC_ALL=C ' \
-                  'dd if=/dev/zero bs=1M count={count} | ' \
-                  'nc {fqdn} {port}'
+    def _do_measure(self, node1, node2, attempts=3):
+        cmd_listen = 'nc -l -k -p {port} > /dev/null'
+        cmd_send = 'LC_ALL=C ' \
+                   'dd if=/dev/zero bs=1M count={count} | ' \
+                   'nc {fqdn} {port}'
         ctrl_c = chr(3)  # Ctrl+C pressed
 
+        ssh_node1 = self.ssh_conns[node1.fqdn]
+        ssh_node2 = self.ssh_conns[node2.fqdn]
+
+        LOG.debug('Starting netcat server on node %s', node2.fqdn)
+        cmd = cmd_listen.format(port=self.test_port)
+        LOG.debug('%s Running SSH command: %s', ssh_node2.identity, cmd)
+        sin, _, _ = ssh_node2.client.exec_command(cmd, get_pty=True)
+
+        cmd = cmd_send.format(count=self.data_size, fqdn=node2.fqdn,
+                              port=self.test_port)
         res = list()
-        from_ssh = self.ssh_conns[from_node.fqdn]
-        to_ssh = self.ssh_conns[to_node.fqdn]
-
-        LOG.debug('Starting netcat server on node %s', to_node.fqdn)
-        cmd = nc_listen.format(port=self.test_port)
-        LOG.debug('%s Running SSH command: %s', to_ssh.identity, cmd)
-        sin, _, _ = to_ssh.client.exec_command(cmd, get_pty=True)
-
-        cmd = nc_send.format(count=self.data_size, fqdn=to_node.fqdn,
-                             port=self.test_port)
         try:
             for _ in xrange(attempts):
-                out = from_ssh.exec_cmd(cmd)
+                out = ssh_node1.exec_cmd(cmd)
                 speed_mb = self._parse_speed(out.stderr)
                 res.append(speed_mb)
         finally:
@@ -117,36 +116,6 @@ class Node2NodeSpeed(object):
         speed, unit = res.group('speed', 'speed_units')
         speed_mbs = self._units_to_mb(speed, unit)
         return speed_mbs
-
-    def generate_report(self, node, spd_res):
-        path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
-        with open(path) as f:
-            template = f.read()
-        html_res = ''
-        avg_spds = []
-
-        for test_node, spd in spd_res.iteritems():
-            html_res += (
-                '<tr><td align="center">Network speed to node '
-                '{}:</td><tr>\n').format(test_node)
-
-            for i in range(len(spd)):
-                html_res += ('<tr><td>{} attempt:</td><td align="right">Speed '
-                             '{} MB/s</td><tr>\n').format(i + 1,
-                                                          round(spd[i], 2))
-
-            avg_spd = round(sum(spd) / float(len(spd)), 2)
-            html_res += (
-                '<tr><td align="center">Average speed: {} '
-                'MB/s</td><tr>\n').format(avg_spd)
-            avg_spds.append(avg_spd)
-
-        total_avg_spd = round(sum(avg_spds) / float(len(avg_spds)), 2)
-        LOG.info("Node %s average network speed: %s MB/s \n" % (
-            node.fqdn, total_avg_spd))
-        return template.format(node_name=node.fqdn,
-                               attempts=html_res,
-                               avg=total_avg_spd), total_avg_spd
 
     def cleanup(self):
         ssh_close = lambda c: c.close()

@@ -319,7 +319,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         db = kwargs.get('db')
         first_run = True
         multiplier = 1.0
-        current_time = 0
+        test_time = 0
         all_time -= elapsed_time
 
         self._setup_rally_on_docker()
@@ -345,17 +345,16 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.debug("Time start: %s UTC" % str(time_start))
             if not CONF.times.update:
                 try:
-                    current_time = db[tool_name][task]
+                    test_time = db[tool_name][task]
                 except KeyError:
-                    current_time = 0
+                    test_time = 0
 
-                msg = "Expected time to complete %s: %s" \
-                      % (task,
-                         self.seconds_to_time(current_time * multiplier))
-                if not current_time:
-                    LOG.debug(msg)
+                exp_time = utils.seconds_to_humantime(test_time * multiplier)
+                msg = "Expected time to complete %s: %s"
+                if not test_time:
+                    LOG.debug(msg, task, exp_time)
                 else:
-                    LOG.info(msg)
+                    LOG.info(msg, task, exp_time)
 
             self.run_individual_task(task, *args, **kwargs)
 
@@ -371,9 +370,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             else:
                 if first_run:
                     first_run = False
-                    if current_time:
-                        multiplier = float(time.seconds) / float(current_time)
-                all_time -= current_time
+                    if test_time:
+                        multiplier = float(time.seconds) / float(test_time)
+                all_time -= test_time
                 persent = 1.0
                 if kwargs["all_time"]:
                     persent -= float(all_time) / float(kwargs["all_time"])
@@ -381,9 +380,9 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 persent = 100 if persent > 100 else persent
 
                 line = 'Completed %s' % persent + '%'
-                time_to_string = self.seconds_to_time(all_time * multiplier)
+                time_str = utils.seconds_to_humantime(all_time * multiplier)
                 if all_time and multiplier:
-                    line += ' and remaining time %s' % time_to_string
+                    line += ' and remaining time %s' % time_str
 
                 LOG.info(line)
                 LOG.info("-" * 60)

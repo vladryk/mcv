@@ -34,7 +34,7 @@ from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.common.test_discovery import discovery
-from mcv_consoler import utils
+from mcv_consoler.utils import seconds_to_humantime
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -131,33 +131,14 @@ class Runner(object):
 
         return codes[tool_name]
 
-    # FIXME(dbogun): move to utils.py
-    def seconds_to_time(self, s):
-        s = int(round(s))
-        h = s // 3600
-        m = (s // 60) % 60
-        sec = s % 60
-
-        if m < 10:
-            m = str('0' + str(m))
-        else:
-            m = str(m)
-        if sec < 10:
-            m = str(m)
-        if sec < 10:
-            sec = str('0' + str(sec))
-        else:
-            sec = str(sec)
-
-        return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
-
-    def _validate_test_params(self, **params):
+    @staticmethod
+    def _validate_test_params(**params):
         for key in 'compute', 'concurrency':
             if key not in params:
                 continue
             if not isinstance(params[key], int):
                 LOG.warning("Type mismatch. Parameter '%s' expected to be "
-                            "an %s. Got: %s" % (key, int, type(key)))
+                            "an %s. Got: %s", key, int, type(key))
 
     def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
@@ -204,11 +185,11 @@ class Runner(object):
                     current_time = 0
 
                 msg = "Expected time to complete %s: %s"
-                msg %= (task, self.seconds_to_time(current_time * multiplier))
+                time_str = seconds_to_humantime(current_time * multiplier)
                 if not current_time:
-                    LOG.debug(msg)
+                    LOG.debug(msg, task, time_str)
                 else:
-                    LOG.info(msg)
+                    LOG.info(msg, task, time_str)
 
             # FIXME(dbogun): sort out exceptions handling
             try:
@@ -242,9 +223,10 @@ class Runner(object):
                 percent = int(percent * 100)
                 percent = 100 if percent > 100 else percent
 
-                line = 'Completed %s %%' % percent
+                line = 'Completed {} %'.format(percent)
                 if all_time and multiplier:
-                    line += ' and remaining time %s' % self.seconds_to_time(all_time * multiplier)
+                    time_str = seconds_to_humantime(all_time * multiplier)
+                    line = '{} and remaining time {}'.format(line, time_str)
                 LOG.info(line)
                 LOG.info("-" * 60)
 

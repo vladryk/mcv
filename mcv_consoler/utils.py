@@ -240,3 +240,15 @@ class DummyContextWrapper(object):
 
     def __exit__(self, *exc_info):
         pass
+
+
+def seconds_to_humantime(s):
+    """
+    s - type:int. Time in seconds
+    Always returns a human-readable time string.
+
+    Usage example:
+      >>> seconds_to_humantime(2000000)
+      '23 days, 3:33:20'
+    """
+    return str(datetime.timedelta(seconds=s))

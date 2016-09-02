@@ -245,7 +245,9 @@ nwspeed_opts = [
                help='NWSpeed data size'),
     # nodes_limit is optional, default value is None
     cfg.IntOpt('nodes_limit',
-               help='NWSpeed nodes limit')
+               help='NWSpeed nodes limit'),
+    cfg.IntOpt('attempts', default=3,
+               help='NWSpeed attempts count'),
 ]
 
 selfcheck = cfg.OptGroup(name='selfcheck',

@@ -121,23 +121,6 @@ class Consoler(object):
         LOG.info("Starting full check run.")
         return self._do_test_plan(discovery.get_all_tests())
 
-    # FIXME(dbogun): rewrite/move to utils
-    def seconds_to_time(self, s):
-        h = s // 3600
-        m = (s // 60) % 60
-        sec = s % 60
-
-        if m < 10:
-            m = str('0' + str(m))
-        else:
-            m = str(m)
-        if sec < 10:
-            sec = str('0' + str(sec))
-        else:
-            sec = str(sec)
-
-        return str(h) + 'h : ' + str(m) + 'm : ' + str(sec) + 's'
-
     def _do_test_plan(self, test_plan):
         self.results_dir = self.get_results_dir('/tmp')
         os.mkdir(self.results_dir)
@@ -177,12 +160,12 @@ class Consoler(object):
                         LOG.info("You must update the database time tests. "
                                  "There is no time for %s", test)
 
-            msg = "Expected time to complete all the tests: " \
-                  "%s\n" % self.seconds_to_time(self.all_time)
+            msg = "Expected time to complete all the tests: %s\n"
+            time_str = utils.seconds_to_humantime(self.all_time)
             if self.all_time == 0:
-                LOG.debug(msg)
+                LOG.debug(msg, time_str)
             else:
-                LOG.info(msg)
+                LOG.info(msg, time_str)
 
         for key in test_plan:
             if self.ctx.terminate_event.is_set():
