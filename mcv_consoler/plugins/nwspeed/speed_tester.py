@@ -13,7 +13,8 @@
 #    under the License.
 
 import os
-import time
+import re
+from operator import truediv
 
 import mcv_consoler.common.config as app_conf
 from mcv_consoler.log import LOG
@@ -62,7 +63,8 @@ class Node2NodeSpeed(object):
 
     def _do_measure(self, from_node, to_node, attempts=3):
         nc_listen = 'nc -l -k -p {port} > /dev/null'
-        nc_send = 'dd if=/dev/zero bs=1M count={count} | ' \
+        nc_send = 'LC_ALL=C ' \
+                  'dd if=/dev/zero bs=1M count={count} | ' \
                   'nc {fqdn} {port}'
         ctrl_c = chr(3)  # Ctrl+C pressed
 
@@ -79,14 +81,39 @@ class Node2NodeSpeed(object):
                              port=self.test_port)
         try:
             for _ in xrange(attempts):
-                start = time.time()
-                from_ssh.exec_cmd(cmd)
-                total_time = round(time.time() - start, 2)
-                res.append(total_time)
+                out = from_ssh.exec_cmd(cmd)
+                speed_mb = self._parse_speed(out.stderr)
+                res.append(speed_mb)
         finally:
             # terminate netcat server
             sin.write(ctrl_c)
         return res
+
+    @staticmethod
+    def _units_to_mb(speed, unit):
+        sp = float(speed)
+        u = unit.lower().strip()
+        if u[:1] == 'b':
+            return truediv(sp, 1024 * 1024)
+        if u[:2] == 'kb':
+            return truediv(sp, 1024)
+        if u[:2] == 'mb':
+            return sp
+        if u[:2] == 'gb':
+            return sp * 1024
+        raise ValueError('could not convert \'%s %s\' to MB/s' % (sp, unit))
+
+    def _parse_speed(self, text):
+        expr = r'^\d+\s+bytes\s+\([^)]+\) copied,\s+' \
+               r'(?P<time>[.0-9]+)\s+' \
+               r'(?P<time_units>\S+),\s+' \
+               r'(?P<speed>[.0-9]+)\s+(?P<speed_units>.*)$'
+        res = re.search(expr, text, re.M)
+        if res is None:
+            raise exceptions.ParseError("Can't get speed form %s" % text)
+        speed, unit = res.group('speed', 'speed_units')
+        speed_mbs = self._units_to_mb(speed, unit)
+        return speed_mbs
 
     def generate_report(self, node, spd_res):
         path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
@@ -99,9 +126,6 @@ class Node2NodeSpeed(object):
             html_res += (
                 '<tr><td align="center">Network speed to node '
                 '{}:</td><tr>\n').format(test_node)
-
-            # Calculate speed from time
-            spd = [float(self.data_size) / i for i in spd]
 
             for i in range(len(spd)):
                 html_res += ('<tr><td>{} attempt:</td><td align="right">Speed '

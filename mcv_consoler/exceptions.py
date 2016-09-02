@@ -39,3 +39,7 @@ class AccessError(RemoteError):
 
 class MissingDataError(MCVException):
     pass
+
+
+class ParseError(MCVException):
+    pass
