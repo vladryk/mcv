@@ -12,15 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import shlex
 import subprocess
 import time
 
-from mcv_consoler.log import LOG
 from mcv_consoler import utils
 
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class ProcessManager(object):

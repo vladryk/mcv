@@ -16,12 +16,14 @@ from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
 import datetime
 import json
+import logging
 import re
 import signal
 import subprocess
 
 from mcv_consoler import exceptions
-from mcv_consoler.log import LOG
+
+LOG = logging.getLogger(__name__)
 
 warnings = ('SNIMissingWarning',
             'InsecurePlatformWarning',

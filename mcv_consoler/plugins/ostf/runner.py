@@ -15,26 +15,20 @@
 from ConfigParser import NoOptionError
 import datetime
 import json
+import logging
 import os
-import re
 import subprocess
 import traceback
 
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.config import MOS_VERSIONS
-
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
-
-from mcv_consoler.log import LOG
-
 from mcv_consoler.plugins.ostf.reporter import Reporter
 from mcv_consoler.plugins import runner
-
 from mcv_consoler import utils
 
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class OSTFOnDockerRunner(runner.Runner):

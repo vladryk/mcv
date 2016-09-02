@@ -12,17 +12,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from distutils import util
 import fcntl
 import os
 import sys
 import threading
 import time
 import traceback
-
-from requests.packages import urllib3
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.packages.urllib3.exceptions import SNIMissingWarning
+import logging
 
 from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE, RUN_MODES
@@ -31,14 +28,10 @@ from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
 import mcv_consoler.consoler
-from mcv_consoler.log import LOG
+from mcv_consoler import log
+from mcv_consoler.utils import GET
 
-
-urllib3.disable_warnings(InsecurePlatformWarning)
-urllib3.disable_warnings(InsecureRequestWarning)
-urllib3.disable_warnings(SNIMissingWarning)
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 args = argparser.parse_args()
 
@@ -66,10 +59,16 @@ def load_config():
 
 
 def main():
-    LOG.debug('Consoler started by command: %s' % ' '.join(sys.argv))
-
     conf = load_config()
 
+    # TODO(abochkarev): need to re-write this
+    # code after integrating with oslo config
+    log_config = GET(conf, 'log_config', default='/etc/mcv/logging.yaml')
+    hide_ssl_warnings = GET(conf, 'hide_ssl_warnings', default=True,
+                            convert=util.strtobool)
+
+    log.configure_logging(log_config, hide_ssl_warnings)
+    LOG.debug('Consoler started by command: %s' % ' '.join(sys.argv))
     # show deprecation warning. Replace 'mode' with 'run_mode' if needed
     if args.mode is not None:
         warn_msg = "\nDeprecation warning: option '--mode' is deprecated " \

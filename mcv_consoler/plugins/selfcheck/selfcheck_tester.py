@@ -12,13 +12,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import os
 
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.errors import BaseSelfCheckError
-from mcv_consoler.log import LOG
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class BasicSelfCheck(object):

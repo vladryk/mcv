@@ -12,9 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
 import datetime
 import json
+import logging
 import os
 import shlex
 import subprocess
@@ -23,14 +23,12 @@ from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
-from mcv_consoler.log import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 import mcv_consoler.common.config as app_conf
 
-
 config = config_parser
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class ShakerRunner(runner.Runner):

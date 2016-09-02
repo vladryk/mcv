@@ -12,16 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import os.path
-
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
 from mcv_consoler.common.config import DEBUG
-from mcv_consoler.log import LOG
 
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Reporter(object):

@@ -13,17 +13,20 @@
 #    under the License.
 
 import itertools
+import logging
 import os
 import re
 import socket
 import shutil
 import subprocess
 import time
+import traceback
+
 import paramiko
 import yaml
-
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
+from novaclient import exceptions as nexc
 
 import mcv_consoler.exceptions
 from mcv_consoler.common import clients
@@ -34,20 +37,12 @@ from mcv_consoler.common.config import DEFAULT_RSA_KEY_PATH
 from mcv_consoler.common.config import MCV_LOCAL_PORT
 from mcv_consoler.common.config import RMT_CONTROLLER_PORT
 from mcv_consoler.common.config import RMT_CONTROLLER_USER
-
 from mcv_consoler import utils
 from mcv_consoler.utils import GET
-from novaclient import exceptions as nexc
-
-import traceback
-from mcv_consoler.log import LOG
-
 from mcv_consoler.utils import run_cmd
-
 from mcv_consoler.common.procman import ProcessManager
 
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 REMOTE_GRAB_FUEL_CREDENTIALS = """\

@@ -13,6 +13,7 @@
 #    under the License.
 
 import json
+import logging
 import os.path
 import subprocess
 import time
@@ -31,13 +32,11 @@ from mcv_consoler.common.config import SAHARA_IMAGE_PATH80
 from mcv_consoler.common.config import SAHARA_IMAGE_PATH70
 from mcv_consoler.common.config import TERASORT_JAR_PATH
 from mcv_consoler.common.errors import RallyError
-from mcv_consoler.log import LOG
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 
-
 config = config_parser
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 rally_json_template = """{
 "type": "ExistingCloud",

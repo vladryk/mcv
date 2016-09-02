@@ -13,6 +13,7 @@
 #    under the License.
 
 import datetime
+import logging
 import os.path
 # TODO(albartash): replace with traceback2
 import traceback
@@ -21,14 +22,13 @@ from flask_table import Table, Col
 from jinja2 import Template
 
 from mcv_consoler.common.errors import SpeedError
-from mcv_consoler.log import LOG
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
 from mcv_consoler.plugins.speed import speed_tester as st
 from mcv_consoler.utils import GET
 import mcv_consoler.common.config as app_conf
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class ObjTable(Table):

@@ -12,12 +12,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
+
 import re
-from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
-from mcv_consoler.log import LOG
+from ConfigParser import NoSectionError, NoOptionError
 
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 _custom_group_prefix = 'custom_test_group_'
 

@@ -12,17 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import time
 
 import mcv_consoler.common.config as app_conf
-from mcv_consoler.log import LOG
 from mcv_consoler.auth.router import Router
 from mcv_consoler.auth.router import IRouter
 from mcv_consoler.auth.router import CRouter
 from mcv_consoler import utils
 
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class AccessSteward(object):

@@ -13,15 +13,15 @@
 #    under the License.
 
 import json
+import logging
 import os
-
-from flask_table import Table, Col
 from jinja2 import Template
 
-from mcv_consoler.common import clients as Clients
-from mcv_consoler.log import LOG
+from flask_table import Table, Col
 
-LOG = LOG.getLogger(__name__)
+from mcv_consoler.common import clients as Clients
+
+LOG = logging.getLogger(__name__)
 
 RESOURCES_TEMPLATE = {
     'flavors': None,

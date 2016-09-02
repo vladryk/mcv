@@ -1,4 +1,5 @@
 version: 1
+disable_existing_loggers: False
 formatters:
   simple:
     format: '%(message)s'
@@ -29,6 +30,8 @@ handlers:
     encoding: utf-8
 
 loggers:
+  requests:
+    level: CRITICAL
   paramiko.transport:
     level: CRITICAL
 

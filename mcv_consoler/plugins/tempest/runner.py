@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 from ConfigParser import NoOptionError
 import datetime
 import glob
@@ -24,11 +25,10 @@ import traceback
 from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import TempestError
-from mcv_consoler.log import LOG
 from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler import utils
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):

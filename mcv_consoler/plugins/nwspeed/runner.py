@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import os
 import traceback
 from collections import namedtuple
@@ -21,12 +22,11 @@ import mcv_consoler.common.config as app_conf
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import NWSpeedError
-from mcv_consoler.log import LOG
 from mcv_consoler.plugins.nwspeed import speed_tester as st
 from mcv_consoler.utils import GET
 from mcv_consoler import exceptions
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 Node = namedtuple('Node', ('fqdn', 'ip'))

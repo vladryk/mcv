@@ -12,17 +12,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
 import os
 import re
 from operator import truediv
 
 import mcv_consoler.common.config as app_conf
-from mcv_consoler.log import LOG
 from mcv_consoler import exceptions
 from mcv_consoler.utils import GET
 from mcv_consoler.common import ssh
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Node2NodeSpeed(object):

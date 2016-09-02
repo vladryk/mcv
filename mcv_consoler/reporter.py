@@ -13,10 +13,12 @@
 #    under the License.
 
 from datetime import datetime
-
-from mcv_consoler.log import LOG
-from mcv_consoler import utils
+import logging
 import os
+
+from mcv_consoler import utils
+
+LOG = logging.getLogger(__name__)
 
 # The very basic one-page reporter for MCV. Answers the question 'why do you
 # call it beta?'.

@@ -13,6 +13,7 @@
 #    under the License.
 
 import collections
+import logging
 import os
 import socket
 
@@ -20,10 +21,8 @@ import paramiko
 
 from mcv_consoler import exceptions
 from mcv_consoler.common.config import DEFAULT_SSH_TIMEOUT
-from mcv_consoler.log import LOG
 
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 ProcOutput = collections.namedtuple(
     'ProcOutput', 'stdout, stderr, rcode')

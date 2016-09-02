@@ -16,11 +16,13 @@ from ConfigParser import NoSectionError
 from datetime import datetime
 import imp
 import json
+import logging
 import os
-import prettytable
 import re
 import subprocess
 import traceback
+
+import prettytable
 
 from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
@@ -31,14 +33,12 @@ from mcv_consoler.common import clients
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
 from mcv_consoler.common.test_discovery import discovery
-
-from mcv_consoler.log import LOG
 from mcv_consoler import exceptions
 from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section
 from mcv_consoler import utils
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
                           "Failed: {test_failed}, Skipped: {test_skipped}, " \

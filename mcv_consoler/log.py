@@ -15,21 +15,22 @@
 import logging
 import logging.config
 
+from requests.packages import urllib3
 import yaml
 
 
-def _get_logger():
-    """Get the configured logger
+def configure_logging(log_config=None, hide_ssl_warnings=None):
+    """Configure the logging system
 
-    Load the logging configuration file and
-    configure the logging system.
+    Load the logging configuration file and configure the
+    logging system.
+
+    :param log_config: path to the logging config file
+    :param hide_ssl_warnings: allows to enable/disable
+    urllib3 warnings
     """
-    # TODO(abochkarev): it is required to get rid of using
-    # the hardcoded logging config path. The best place for
-    # this param is /etc/mcv.conf
-    log_config = '/etc/mcv/logging.yaml'
     with open(log_config, 'r') as f:
         logging.config.dictConfig(yaml.load(f))
-    return logging
 
-LOG = _get_logger()
+    if hide_ssl_warnings:
+        urllib3.disable_warnings()

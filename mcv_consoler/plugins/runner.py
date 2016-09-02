@@ -15,6 +15,7 @@
 from ConfigParser import NoOptionError
 import datetime
 import json
+import logging
 import os
 import re
 import subprocess
@@ -32,12 +33,9 @@ from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.common.test_discovery import discovery
-
-from mcv_consoler.log import LOG
 from mcv_consoler import utils
 
-
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Runner(object):
