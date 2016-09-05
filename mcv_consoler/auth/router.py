@@ -370,7 +370,11 @@ class CRouter(Router):
             if dst.startswith('os_'):
                 dst = dst[3:]
             self.os_data[dst] = openrc[src]
+
         self.os_data['mos_version'] = mos_version
+        # FIXME(dbogun): remove "duplicated" records from os_data
+        self.os_data['api_key'] = self.os_data['password']
+        self.os_data['project_id'] = self.os_data['tenant_name']
 
         return True
 
