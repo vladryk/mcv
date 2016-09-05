@@ -14,26 +14,23 @@
 
 import argparse
 
-from mcv_consoler.common.config import MODES, RUN_MODES
-from mcv_consoler.common.config import PROJECT_DESCRIPTION
-from mcv_consoler.common.config import PROJECT_NAME
-from mcv_consoler.common.config import RUN_DESCRIPTION
+from mcv_consoler.common import config
 from mcv_consoler.version import version
 
 
 def _get_parser():
     parser = argparse.ArgumentParser(
-        prog=PROJECT_NAME,
+        prog=config.PROJECT_NAME,
         formatter_class=argparse.RawTextHelpFormatter,
-        description=PROJECT_DESCRIPTION,
-        epilog=RUN_DESCRIPTION)
+        description=config.PROJECT_DESCRIPTION,
+        epilog=config.RUN_DESCRIPTION)
 
-    one_of_is_required = parser.add_mutually_exclusive_group(required=True)
+    required = parser.add_mutually_exclusive_group(required=True)
 
-    one_of_is_required.add_argument(
+    required.add_argument(
         "--run",
-        nargs='+',
-        help="""Run one of specified test suites.""")
+        nargs="+",
+        help="Run one of specified test suites.")
 
     one_of_is_required.add_argument(
         "--compare-resources",
@@ -42,22 +39,28 @@ def _get_parser():
 
     parser.add_argument(
         "--config",
-        help="""Provide custom config file instead of the default one""")
+        help="Provide custom config file instead of the default one")
 
     parser.add_argument(
-        "--no-tunneling", action="store_true", default=False,
-        help="""Forbids setting up automatic tunnels. Used for L2 only.""")
+        "--no-tunneling",
+        action="store_true",
+        default=False,
+        help="Forbids setting up automatic tunnels. Used for L2 only.")
 
     parser.add_argument(
         "--version",
         action="version",
         version=version,
-        help="""Print out version of MCV Consoler and exit.""")
+        help="Print out version of MCV Consoler and exit.")
 
-    mode_is_required = parser.add_mutually_exclusive_group(required=True)
+    required = parser.add_mutually_exclusive_group(required=True)
 
-    mode_is_required.add_argument(
-        "--run-mode", choices=RUN_MODES, required=False,  # remember to set this to 'True' when we remove '--mode' from options
+    required.add_argument(
+        "--run-mode",
+        choices=config.RUN_MODES,
+        # TODO(abochkarev): need to set required to 'True'
+        # after removing '--mode' from options
+        required=False,
         help="""Choose mode in which Consoler is going to work.
 
 Possible values:
@@ -66,10 +69,19 @@ instance -  Run MCV inside the cloud as an instance (L1)
 node -      Run MCV as a separate node with direct access to admin network (L2)
 external -  Run MCV as a separate node in external network (L3)""")
 
-    mode_is_required.add_argument(
-        "--mode", type=int, choices=MODES,
-        help="""WARNING: This option is deprecated. Use '--run-mode' instead""")
+    required.add_argument(
+        "--mode",
+        type=int,
+        choices=config.MODES,
+        help="WARNING: This option is deprecated. Use '--run-mode' instead")
+
+    parser.add_argument(
+        "--debug",
+        default=False,
+        action="store_true",
+        help="Show debug messages.")
 
     return parser
+
 
 argparser = _get_parser()

@@ -19,18 +19,28 @@ from requests.packages import urllib3
 import yaml
 
 
-def configure_logging(log_config=None, hide_ssl_warnings=None):
+def configure_logging(log_config=None, debug=None, hide_ssl_warnings=None):
     """Configure the logging system
 
     Load the logging configuration file and configure the
     logging system.
 
     :param log_config: path to the logging config file
+    :param debug: allows to enable/disable the console
+    debug mode
     :param hide_ssl_warnings: allows to enable/disable
     urllib3 warnings
     """
     with open(log_config, 'r') as f:
         logging.config.dictConfig(yaml.load(f))
+
+    if not debug:
+        logger = logging.getLogger()
+        for handler in logger.handlers:
+            if handler.name == 'console':
+                handler.setLevel(logging.INFO)
+                handler.setFormatter(logging.Formatter())
+                break
 
     if hide_ssl_warnings:
         urllib3.disable_warnings()

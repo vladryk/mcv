@@ -67,7 +67,7 @@ def main():
     hide_ssl_warnings = GET(conf, 'hide_ssl_warnings', default=True,
                             convert=util.strtobool)
 
-    log.configure_logging(log_config, hide_ssl_warnings)
+    log.configure_logging(log_config, args.debug, hide_ssl_warnings)
     LOG.debug('Consoler started by command: %s' % ' '.join(sys.argv))
     # show deprecation warning. Replace 'mode' with 'run_mode' if needed
     if args.mode is not None:

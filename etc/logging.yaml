@@ -1,8 +1,6 @@
 version: 1
 disable_existing_loggers: False
 formatters:
-  simple:
-    format: '%(message)s'
   complex:
     format: '%(levelname)-8s %(asctime)s [%(name)s; %(filename)s:%(lineno)s] %(message)s'
     datefmt: '%m-%d %H:%M:%S'
@@ -19,8 +17,8 @@ formatters:
 handlers:
   console:
     class: logging.StreamHandler
-    level: INFO
-    formatter: simple
+    level: DEBUG
+    formatter: colored
     stream: ext://sys.stdout
   file:
     class: logging.FileHandler
