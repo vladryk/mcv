@@ -23,8 +23,8 @@ from keystoneclient import exceptions as k_exc
 from glanceclient import exc as g_exc
 from neutronclient.common import exceptions as n_exc
 from novaclient import exceptions as no_exc
+from oslo_config import cfg
 
-from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.config import FEDORA_IMAGE_PATH
 from mcv_consoler.common.config import MOS_HADOOP_MAP
@@ -35,8 +35,8 @@ from mcv_consoler.common.errors import RallyError
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 
-config = config_parser
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 rally_json_template = """{
 "type": "ExistingCloud",
@@ -59,7 +59,6 @@ class RallyRunner(runner.Runner):
 
     def __init__(self, ctx):
         super(RallyRunner, self).__init__(ctx)
-        self.config = self.ctx.config
         # this object is supposed to live for one run
         # so let's leave it as is for now.
         # TODO(albartash): todo smth with this property
@@ -99,7 +98,7 @@ class RallyRunner(runner.Runner):
         self.time_of_tests[task] = {'duration': time_of_tests}
         if type(resulting_dict) != dict:
             LOG.debug(("Task {task} has failed with the following error: "
-                      "{err}").format(task=task, err=resulting_dict))
+                       "{err}").format(task=task, err=resulting_dict))
             self.test_failures.append(task)
             LOG.info(" * FAILED")
             return False
@@ -294,9 +293,9 @@ class RallyOnDockerRunner(RallyRunner):
         for flav in flavors:
             if flav.name == 'mcv-workload-test-flavor':
                 return flav.id
-        ram = utils.GET(self.config, 'ram', 'workload')
-        disc = utils.GET(self.config, 'disc', 'workload')
-        vcpu = utils.GET(self.config, 'vcpu', 'workload')
+        ram = CONF.workload.ram
+        disc = CONF.workload.disc
+        vcpu = CONF.workload.vcpu
         flavor = self.novaclient.flavors.create('mcv-workload-test-flavor',
                                                 ram, vcpu, disc, 'auto')
         return flavor.id
@@ -370,7 +369,7 @@ class RallyOnDockerRunner(RallyRunner):
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting Rally container. Result: {result}'.format(
-                  result=str(res)))
+            result=str(res)))
 
         self._verify_rally_container_is_up()
 
@@ -430,10 +429,10 @@ class RallyOnDockerRunner(RallyRunner):
                """sed -i "61s/.*/"""
                """            sudo sh -c 'echo %s %s >> """
                """\/etc\/hosts'/" %s""") % (
-            self.container_id,
-            self.access_data['ips']['endpoint'],
-            self.access_data['auth_fqdn'],
-            template_path)
+                  self.container_id,
+                  self.access_data['ips']['endpoint'],
+                  self.access_data['auth_fqdn'],
+                  template_path)
 
         res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
@@ -511,28 +510,21 @@ class RallyOnDockerRunner(RallyRunner):
         self._check_rally_setup()
 
     def _prepare_certification_task_args(self):
-        args = {}
-
-        def _ADD(argname):
-            args[argname] = utils.GET(self.config, argname, 'certification')
-
-        _ADD("tenants_amount")
-        _ADD("users_amount")
-        _ADD("storage_amount")
-        _ADD("computes_amount")
-        _ADD("controllers_amount")
-        _ADD("network_amount")
-
-        args["smoke"] = True
-        args["use_existing_users"] = False
-        args["flavor_name"] = "m1.tiny"
-        args["image_name"] = "^(cirros.*uec|TestVM)$"
-        args["glance_image_location"] = os.path.join(
-            self.home, 'images/cirros-0.3.1-x86_64-disk.img')
-        args["service_list"] = utils.GET(self.config,
-                                         'services',
-                                         'certification').split(',')
-        return args
+        return {
+            'tenants_amount': CONF.certification.tenants_amount,
+            'users_amount': CONF.certification.users_amount,
+            'storage_amount': CONF.certification.storage_amount,
+            'computes_amount': CONF.certification.computes_amount,
+            'controllers_amount': CONF.certification.controllers_amount,
+            'network_amount': CONF.certification.network_amount,
+            'smoke': True,
+            'use_existing_users': False,
+            'flavor_name': 'm1.tiny',
+            'image_name': '^(cirros.*uec|TestVM)$',
+            'glance_image_location': os.path.join(
+                self.home, 'images/cirros-0.3.1-x86_64-disk.img'),
+            'service_list': CONF.certification.services
+        }
 
     def prepare_workload_task(self):
         image_id = self.create_fedora_image()
@@ -541,8 +533,8 @@ class RallyOnDockerRunner(RallyRunner):
             return
 
         net, rou = self.get_network_router_id()
-        concurrency = utils.GET(self.config, 'concurrency', 'workload')
-        instance_count = utils.GET(self.config, 'instance_count', 'workload')
+        concurrency = CONF.workload.concurrency
+        instance_count = CONF.workload.instance_count
         task_args = {
             'network_id': net,
             'router_id': rou,
@@ -554,7 +546,7 @@ class RallyOnDockerRunner(RallyRunner):
         return task_args
 
     def prepare_big_data_task(self):
-        mos_version = utils.GET(self.config, 'mos_version', 'basic')
+        mos_version = CONF.basic.mos_version
 
         image_id = self.create_sahara_image(mos_version)
         if image_id is None:
@@ -572,8 +564,8 @@ class RallyOnDockerRunner(RallyRunner):
             return
 
         flavor_id = self.create_or_get_flavor()
-        file_size = utils.GET(self.config, 'file_size', 'workload')
-        worker = utils.GET(self.config, 'workers_count', 'workload')
+        file_size = CONF.workload.file_size
+        worker = CONF.workload.workers_count
         task_args = {
             'file_size': file_size,
             'workers_count': worker,
@@ -625,18 +617,13 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info("Running task %s" % task)
             ext_net, rou = self.get_network_router_id()
             location = os.path.join(self.home, 'tests/%s' % task)
-            gre_enabled = utils.GET(self.config, 'gre_enabled', 'rally')
-            vlan_amount = utils.GET(self.config, 'vlan_amount', 'rally')
-            concurrency = utils.GET(self.config, 'concurrency', 'rally')
             network = self.create_test_network()
-            if isinstance(concurrency, basestring):
-                concurrency = int(concurrency)
 
             task_args = {"compute": kwargs["compute"],
-                         "concurrency": concurrency,
+                         "concurrency": CONF.rally.concurrency,
                          "current_path": os.path.join(self.home, 'tests'),
-                         "gre_enabled": gre_enabled,
-                         "vlan_amount": vlan_amount,
+                         "gre_enabled": CONF.rally.gre_enabled,
+                         "vlan_amount": CONF.rally.vlan_amount,
                          'network': network,
                          'parameters': {'public_net': ext_net}
                          }
@@ -766,5 +753,3 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info(" * FAILED")
             return False
         return self._evaluate_task_result(task, task_result)
-
-

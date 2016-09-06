@@ -21,8 +21,10 @@ import subprocess
 import time
 import traceback
 
-from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
-from mcv_consoler.common.config import TIMES_DB_PATH
+from oslo_config import cfg
+from oslo_config.cfg import NoSuchOptError
+
+from mcv_consoler.common import config
 from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
@@ -35,6 +37,7 @@ from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class Runner(object):
@@ -162,9 +165,10 @@ class Runner(object):
         tool_name = kwargs["tool_name"]
         all_time = kwargs["all_time"]
         elapsed_time = kwargs["elapsed_time"]
-        max_failed_tests = utils.GET(
-            self.ctx.config, 'max_failed_tests', tool_name,
-            DEFAULT_FAILED_TEST_LIMIT, convert=int)
+        try:
+            max_failed_tests = CONF[tool_name]['max_failed_tests']
+        except NoSuchOptError:
+            max_failed_tests = config.DEFAULT_FAILED_TEST_LIMIT
 
         LOG.debug("The following tests will be run:")
         LOG.debug("\n".join(tasks))
@@ -188,12 +192,12 @@ class Runner(object):
             LOG.info("-" * 60)
             if kwargs.get('event').is_set():
                 LOG.info("Caught keyboard interrupt. "
-                         "Task %s won't start" % task)
+                         "Task %s won't start", task)
                 break
             time_start = datetime.datetime.utcnow()
-            LOG.debug("Running task " + task)                   # was info
-            LOG.debug("Time start: %s UTC" % str(time_start))   # was info
-            if self.ctx.config.get('times', 'update') == 'False':
+            LOG.debug("Running task %s", task)
+            LOG.debug("Time start: %s UTC", time_start)
+            if not CONF.times.update:
                 try:
                     current_time = db[tool_name][task]
                 except KeyError:
@@ -219,10 +223,9 @@ class Runner(object):
             time_end = datetime.datetime.utcnow()
             duration = time_end - time_start
             duration = duration.total_seconds()
-
             LOG.debug("Time end: %s UTC" % str(time_end))
 
-            if self.ctx.config.get('times', 'update') == 'True':
+            if CONF.times.update:
                 if tool_name in db.keys():
                     db[tool_name].update({task: int(duration)})
                 else:
@@ -250,10 +253,9 @@ class Runner(object):
                 self.failure_indicator = self.get_error_code(tool_name)
                 break
 
-        if self.ctx.config.get('times', 'update') == 'True':
-            f = file(TIMES_DB_PATH, "w")
-            f.write(json.dumps(db))
-            f.close()
+        if CONF.times.update:
+            with open(config.TIMES_DB_PATH, "w") as f:
+                json.dump(db, f)
 
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,

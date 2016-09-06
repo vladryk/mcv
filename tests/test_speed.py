@@ -16,7 +16,6 @@ import mock
 import unittest
 
 from mcv_consoler import accessor
-from mcv_consoler.common.cfgparser import config_parser
 import mcv_consoler.plugins.speed.runner as runner
 
 
@@ -55,8 +54,7 @@ class TestSpeedRunner(BaseTestCase):
         run._it_ends_well('fake')
 
     def test_evaluate_result_pass(self):
-        fake_config = config_parser
-        fake_config.add_section('speed')
+        fake_config = {}
         run = runner.SpeedTestRunner(self.accessor,
                                      'fake-path',
                                      config=fake_config)
@@ -64,9 +62,7 @@ class TestSpeedRunner(BaseTestCase):
         run._evaluate_task_results([80])
 
     def test_evaluate_result_fail(self):
-        fake_config = config_parser
-        fake_config.add_section('speed')
-        fake_config.set('speed', 'threshold', '11')
+        fake_config = {}
         run = runner.SpeedTestRunner(self.accessor,
                                      'fake-path',
                                      config=fake_config)

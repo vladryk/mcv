@@ -16,15 +16,15 @@ import logging
 import time
 
 from novaclient import exceptions
+from oslo_config import cfg
 
-from mcv_consoler.common.cfgparser import config_parser
 from mcv_consoler.common.config import DEFAULT_NETWORK_NAME_INT
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common import ssh
-from mcv_consoler import utils
 from mcv_consoler.plugins.speed import config
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class Preparer(object):
@@ -128,8 +128,7 @@ class Preparer(object):
         ssh.save_private_key(
             config.tool_vm_keypair_path(self.work_dir), keypair.private_key)
 
-        network_name = utils.GET(
-            config_parser, "network_name", "network_speed")
+        network_name = CONF.network_speed.network_name
         if not network_name:
             network_name = DEFAULT_NETWORK_NAME_INT
             LOG.error("Failed to get option 'network_speed:network_name' from "
@@ -144,10 +143,9 @@ class Preparer(object):
         compute_hosts = [host for host in self.nova.hosts.list(
             zone=availability_zone) if host.service == 'compute']
 
-        compute_nodes_limit = utils.GET(
-            config_parser, 'compute_nodes_limit', 'speed')
+        compute_nodes_limit = CONF.speed.compute_nodes_limit
         if compute_nodes_limit is not None:
-            compute_hosts = compute_hosts[:int(compute_nodes_limit)]
+            compute_hosts = compute_hosts[:compute_nodes_limit]
             LOG.debug('Speed will be measured on {} compute nodes'.format(
                 len(compute_hosts)))
         else:
@@ -177,9 +175,8 @@ class Preparer(object):
         if not server_ids:
             return None
 
-        network_name = utils.GET(
-            config_parser, 'network_ext_name', 'network_speed',
-            self.nova.floating_ip_pools.list()[0].name)
+        network_name = CONF.network_speed.network_ext_name or \
+            self.nova.floating_ip_pools.list()[0].name
 
         server_ids_copy = server_ids[:]
 

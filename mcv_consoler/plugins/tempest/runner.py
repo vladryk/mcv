@@ -12,8 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+
 import logging
-from ConfigParser import NoOptionError
 import datetime
 import glob
 import json
@@ -22,13 +22,16 @@ import shlex
 import subprocess
 import traceback
 
-from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
+from oslo_config import cfg
+
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.plugins.rally import runner as rrunner
 from mcv_consoler import utils
 
+
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
@@ -37,8 +40,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def __init__(self, ctx):
         super(TempestOnDockerRunner, self).__init__(ctx)
-
-        self.config = self.ctx.config
         self.path = self.ctx.work_dir.base_dir
         self.container = None
         self.failed_cases = 0
@@ -321,12 +322,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         current_time = 0
         all_time -= elapsed_time
 
-        try:
-            max_failed_tests = int(self.config.get('tempest',
-                                                   'max_failed_tests'))
-        except NoOptionError:
-            max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
-
         self._setup_rally_on_docker()
 
         # NOTE(ogrytsenko): only test-suites are discoverable for tempest
@@ -348,7 +343,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             LOG.info('Running %s tempest set' % task)
 
             LOG.debug("Time start: %s UTC" % str(time_start))
-            if self.config.get('times', 'update') == 'False':
+            if not CONF.times.update:
                 try:
                     current_time = db[tool_name][task]
                 except KeyError:
@@ -368,7 +363,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             time = time_end - time_start
             LOG.debug("Time end: %s UTC" % str(time_end))
 
-            if self.config.get('times', 'update') == 'True':
+            if CONF.times.update:
                 if tool_name in db.keys():
                     db[tool_name].update({task: time.seconds})
                 else:
@@ -403,15 +398,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 "test_skipped": self.task.get("skipped", 0),
                 "expected_failures": self.task.get("expected_failures", 0)
             }
-            if self.failed_cases > max_failed_tests:
+            if self.failed_cases > CONF.tempest.max_failed_tests:
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
                 break
 
-        if self.config.get('times', 'update') == 'True':
-            f = file(TIMES_DB_PATH, "w")
-            f.write(json.dumps(db))
-            f.close()
+        if CONF.times.update:
+            with open(TIMES_DB_PATH, "w") as f:
+                json.dump(db, f)
 
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         self.cleanup_toolbox()

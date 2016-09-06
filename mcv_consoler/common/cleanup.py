@@ -14,24 +14,25 @@
 
 import os
 import logging
-import prettytable
-import traceback
 import time
-import yaml
-
+import traceback
 from datetime import datetime
 
-from mcv_consoler.utils import GET
+from oslo_config import cfg
+import yaml
+import prettytable
+
 from mcv_consoler.common import config
 from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class Cleanup(object):
     def __init__(self, ctx):
         self.ctx = ctx
-        self.store = Store(self.ctx.config)
+        self.store = Store()
         self.started_resources = None
         self.finished_resources = None
 
@@ -170,14 +171,11 @@ class Cleanup(object):
 
 
 class Store(object):
-    def __init__(self, conf, path=config.CLEANUP_FILES_PATH):
+    def __init__(self, path=config.CLEANUP_FILES_PATH):
         self.path = path
         time_now = datetime.utcnow().strftime('%Y_%m_%d_%H:%M')
         self.file_name = os.path.join(self.path, 'cleanup_%s.yaml' % time_now)
-        self.days = GET(conf, 'days', 'cleanup', default=30, convert=int)
-        self.cleanup_age_limit = GET(conf, 'days',
-                                     'cleanup',config.CLEANUP_AGE_LIMIT,
-                                      convert=int)
+        self.cleanup_age_limit = CONF.cleanup.days * config.CLEANUP_AGE_LIMIT
 
     def save(self, data):
         with open(self.file_name, 'w') as fp:
@@ -194,7 +192,7 @@ class Store(object):
 
     def remove_outdated_files(self):
         now = time.time()
-        cutoff = now - (self.days * self.cleanup_age_limit)
+        cutoff = now - self.cleanup_age_limit
         files = os.listdir(self.path)
         for f in files:
             path = os.path.join(self.path, f)

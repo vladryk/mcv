@@ -18,15 +18,16 @@ import traceback
 from collections import namedtuple
 from datetime import datetime
 
+from oslo_config import cfg
+
 import mcv_consoler.common.config as app_conf
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.common.errors import NWSpeedError
 from mcv_consoler.plugins.nwspeed import speed_tester as st
-from mcv_consoler.utils import GET
 from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
-
+CONF = cfg.CONF
 
 Node = namedtuple('Node', ('fqdn', 'ip'))
 
@@ -40,7 +41,6 @@ class NWSpeedTestRunner(run.Runner):
         super(NWSpeedTestRunner, self).__init__(ctx)
         self.ctx = ctx
         self.access_data = self.ctx.access_data
-        self.config = self.ctx.config
         self.path = self.ctx.work_dir.base_dir
         self.test_failures = []
         self.hw_nodes = []
@@ -52,14 +52,14 @@ class NWSpeedTestRunner(run.Runner):
         # 2. Each speed value should be higher than
         #    value from 1 point * range in percents (see MCV-288 description)
         res = True
-        threshold = GET(self.config, 'threshold', 'nwspeed', 100, float)
-        LOG.info('Threshold is %s MB/s' % threshold)
+        threshold = CONF.nwspeed.threshold
+        LOG.info('Threshold is %s MB/s', threshold)
         if self.av_speed < threshold:
             res = False
             LOG.warning('Average network speed is under threshold')
             self.failure_indicator = NWSpeedError.LOW_AVG_SPEED
             return res
-        percent_range = GET(self.config, 'range', 'nwspeed', 10, float)
+        percent_range = CONF.nwspeed.range
         LOG.info('Threshold range is %s percents from average' % percent_range)
         range_speed = self.av_speed - (self.av_speed * (percent_range / 100.0))
         for speed in task_results:
@@ -71,7 +71,7 @@ class NWSpeedTestRunner(run.Runner):
         return res
 
     def _prepare_nodes(self):
-        cluster_id = GET(self.config, 'cluster_id', 'fuel', convert=int)
+        cluster_id = CONF.fuel.cluster_id
         fuel = self.ctx.access.fuel
         all_nodes = fuel.node.get_all(environment_id=cluster_id)
         all_nodes = list(fuel.filter_nodes_by_status(all_nodes))
@@ -83,7 +83,7 @@ class NWSpeedTestRunner(run.Runner):
                 node, network=app_conf.FUEL_MANAGEMENT_NETWORK_NAME)
             res.append(Node(node['fqdn'], mgmt_ip))
 
-        limit = GET(self.config, 'nodes_limit', 'nwspeed', None, int)
+        limit = CONF.nwspeed.nodes_limit
         if limit is None:
             return res
         res = sorted(res)[:limit]
@@ -92,7 +92,6 @@ class NWSpeedTestRunner(run.Runner):
         return res
 
     def run_batch(self, tasks, *args, **kwargs):
-
         tasks, missing = self.discovery.match(tasks)
         self.test_not_found.extend(missing)
 
@@ -111,7 +110,7 @@ class NWSpeedTestRunner(run.Runner):
         runner_obj = None
         try:
             runner_cls = getattr(st, task)
-            runner_obj = runner_cls(self.ctx, self.config, self.hw_nodes)
+            runner_obj = runner_cls(self.ctx, self.hw_nodes)
             runner_obj.init_ssh_conns()
         except AttributeError:
             LOG.error('Incorrect task: %s', task)
@@ -126,12 +125,12 @@ class NWSpeedTestRunner(run.Runner):
             return False
 
         report_all = ("<!DOCTYPE html>\n"
-                   "<html lang=\"en\">\n"
-                   "<head>\n"
-                   "    <meta charset=\"UTF-8\">\n"
-                   "    <title></title>\n"
-                   "</head>\n"
-                   "<body>\n")
+                      "<html lang=\"en\">\n"
+                      "<head>\n"
+                      "    <meta charset=\"UTF-8\">\n"
+                      "    <title></title>\n"
+                      "</head>\n"
+                      "<body>\n")
 
         average_all = []
 

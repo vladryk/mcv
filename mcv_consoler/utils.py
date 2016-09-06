@@ -12,8 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
-from ConfigParser import NoSectionError
 import datetime
 import json
 import itertools
@@ -50,29 +48,6 @@ def run_cmd(cmd, quiet=False):
     result = re.sub(r'  (%s).*\n' % "|".join(warnings), '', result)
     quiet or LOG.debug('RESULT: "%s"' % result)
     return result
-
-
-def GET(config, key, section="basic", default=None, convert=None):
-    try:
-        value = config.get(section, key)
-        if convert:
-            value = convert(value)
-    except (ValueError, TypeError) as e:
-        raise exceptions.ConfigurationError(
-            'Invalid value for option {}, converter {!r}: {}'.format(
-                '.'.join((section, key)), convert, e))
-    except NoSectionError:
-        LOG.debug('Section {sec} missed in configuration file. '
-                  'It may be dangerous'.format(sec=section))
-        value = default
-    except NoOptionError:
-        LOG.debug('Option {opt} missed in configuration file. '
-                  'It may be dangerous'.format(opt=key))
-        if default is not None:
-            LOG.debug('Setting {opt} to default value {val}'.format(
-                opt=key, val=default))
-        value = default
-    return value
 
 
 class WorkDir(object):

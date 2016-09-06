@@ -35,7 +35,7 @@ def _get_parser():
     operation.add_argument(
         "--compare-resources",
         default=False,
-        help="""Compare current resources with yaml-file""")
+        help="Compare current resources with yaml-file")
 
     parser.add_argument(
         "--config",

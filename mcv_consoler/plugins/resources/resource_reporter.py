@@ -158,7 +158,6 @@ class ResourceSearch(object):
 class ErrorResourceSearch(ResourceSearch):
 
     def __init__(self, access_data, *args, **kwargs):
-        self.config = kwargs.get('config')
         self.resources = []
         self.init_clients(access_data)
 
@@ -253,7 +252,6 @@ class ErrorResourceSearch(ResourceSearch):
 class GeneralResourceSearch(ResourceSearch):
 
     def __init__(self, access_data, *args, **kwargs):
-        self.config = kwargs.get('config')
         self.resources = RESOURCES_TEMPLATE
         self.init_clients(access_data)
 

@@ -1,0 +1,306 @@
+#    Copyright 2016 Mirantis, Inc
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+from oslo_config import cfg
+
+from mcv_consoler.common import config
+
+basic = cfg.OptGroup(name='basic',
+                     title='MCV configuration')
+
+basic_opts = [
+    cfg.StrOpt('auth_protocol', default='https',
+               help='Authentication protocol'),
+    cfg.StrOpt('mos_version', default='8.0',
+               help='MOS version'),
+    cfg.StrOpt('instance_ip', required=True,
+               help='MCV host'),
+    cfg.StrOpt('log_config', default='/etc/mcv/logging.yaml',
+               help='MCV log config path'),
+    cfg.BoolOpt('hide_ssl_warnings', default=False,
+                help='MCV ssl warnings'),
+    cfg.StrOpt('scenario', default='/etc/mcv/scenario.yaml',
+               help='MCV test groups scenario path')
+]
+
+fuel = cfg.OptGroup(name='fuel',
+                    title='Fuel master node configuration')
+
+fuel_opts = [
+    cfg.StrOpt('username', required=True,
+               help='Fuel username'),
+    cfg.StrOpt('password', required=True, secret=True,
+               help='Fuel password'),
+    cfg.StrOpt('nailgun_host', default='10.20.0.2',
+               help='Fuel nailgun host'),
+    cfg.IntOpt('cluster_id', default=1,
+               help='Fuel cluster id'),
+    cfg.StrOpt('ssh_cert', default='/root/.ssh/id_rsa',
+               help='Fuel ssh certificate path')
+]
+
+auth = cfg.OptGroup(name='auth',
+                    title='MOS configuration')
+
+auth_opts = [
+    cfg.StrOpt('os_username', required=True,
+               help='MOS user name'),
+    cfg.StrOpt('os_tenant_name', required=True,
+               help='MOS tenant name'),
+    cfg.StrOpt('os_password', required=True, secret=True,
+               help='MOS password'),
+    cfg.StrOpt('region_name', default='RegionOne',
+               help='MOS region name'),
+    cfg.StrOpt('auth_endpoint_ip', default='1.1.1.3',
+               help='MOS auth endpoint ip'),
+    cfg.StrOpt('auth_fqdn', default='public.fuel.local',
+               help='MOS auth domain name'),
+    cfg.StrOpt('controller_ip', default='1.1.1.4',
+               help='MOS controller ip'),
+    cfg.StrOpt('controller_uname', required=True,
+               help='MOS controller user name'),
+    cfg.StrOpt('controller_pwd', required=True, secret=True,
+               help='MOS controller password'),
+    cfg.StrOpt('ssh_key', default='/home/mcv/id_rsa',
+               help='Path to the SSH key to access cloud nodes')
+]
+
+rally = cfg.OptGroup(name='rally',
+                     title='Rally configuration')
+
+rally_opts = [
+    cfg.StrOpt('runner', default='RallyOnDockerRunner',
+               help='Rally plugin name'),
+    cfg.IntOpt('concurrency', default=5,
+               help='Rally concurrency'),
+    cfg.IntOpt('vlan_amount', default=1,
+               help='Rally vlan amount'),
+    cfg.BoolOpt('gre_enabled', default=False,
+                help='Rally gre'),
+    cfg.IntOpt('max_failed_tests', default=10,
+               help='Rally max failed tests count'),
+    cfg.StrOpt('network_name', default='admin_internal_net',
+               help='Rally network name')
+]
+
+certification = cfg.OptGroup(name='certification',
+                             title='Certification configuration')
+
+certification_opts = [
+    cfg.ListOpt('services', default=['authentication', 'neutron', 'cinder', 'glance', 'nova', 'keystone'],
+                help='List tested services'),
+    cfg.IntOpt('controllers_amount', default=1,
+               help='Controllers amount'),
+    cfg.IntOpt('computes_amount', default=2,
+               help='Computes amount'),
+    cfg.IntOpt('storage_amount', default=1,
+               help='Storage amount'),
+    cfg.IntOpt('tenants_amount', default=1,
+               help='Tenants amount'),
+    cfg.IntOpt('users_amount', default=1,
+               help='Users amount'),
+    cfg.IntOpt('network_amount', default=1,
+               help='Network amount'),
+]
+
+workload = cfg.OptGroup(name='workload',
+                        title='Workload configuration')
+
+workload_opts = [
+    cfg.IntOpt('instance_count', default=2,
+               help='Workload instance count'),
+    cfg.IntOpt('concurrency', default=1,
+               help='Workload concurrency'),
+    cfg.IntOpt('file_size', default=10000,
+               help='Workload file size'),
+    cfg.IntOpt('workers_count', default=3,
+               help='Workload workers count'),
+    cfg.IntOpt('ram', default=8096,
+               help='Workload ram'),
+    cfg.IntOpt('disc', default=20,
+               help='Workload disc size'),
+    cfg.IntOpt('vcpu', default=4,
+               help='Workload cpu count')
+]
+
+tempest = cfg.OptGroup(name='tempest',
+                       title='Tempest configuration')
+
+tempest_opts = [
+    cfg.StrOpt('runner', default='TempestOnDockerRunner',
+               help='Tempest plugin name'),
+    cfg.IntOpt('max_failed_tests', default=100,
+               help='Tempest max failed tests count')
+]
+
+ostf = cfg.OptGroup(name='ostf',
+                    title='OSTF configuration')
+
+ostf_opts = [
+    cfg.StrOpt('runner', default='OSTFOnDockerRunner',
+               help='OSTF plugin name'),
+    cfg.IntOpt('max_failed_tests', default=10,
+               help='OSTF max failed tests count')
+]
+
+resources = cfg.OptGroup(name='resources',
+                         title='Resource configuration')
+
+resources_opts = [
+    cfg.StrOpt('runner', default='ResourceReportRunner',
+               help='Resource plugin name'),
+    cfg.IntOpt('max_failed_tests', default=1,
+               help='Resource max failed tests count')
+]
+
+shaker = cfg.OptGroup(name='shaker',
+                      title='Shaker configuration')
+
+shaker_opts = [
+    cfg.StrOpt('runner', default='ShakerOnDockerRunner',
+               help='Shaker plugin name'),
+    cfg.BoolOpt('cleanup', default=True,
+                help='Shaker cleanup'),
+    cfg.IntOpt('timeout', default=1200,
+               help='Shaker timeout'),
+    cfg.IntOpt('agents_timeout', default=60,
+               help='Shaker agents timeout'),
+    cfg.IntOpt('max_failed_tests', default=1,
+               help='Shaker max failed tests count'),
+    cfg.StrOpt('image_name', default='shaker-image',
+               help='Shaker image name'),
+    cfg.StrOpt('flavor_name', default='shaker-flavor',
+               help='Shaker flavor name')
+
+]
+
+network_speed = cfg.OptGroup(name='network_speed',
+                             title='Network speed configuration')
+
+network_speed_opts = [
+    cfg.FloatOpt('threshold', default=7.0,
+                 help='Network threshold'),
+    cfg.StrOpt('network_name', default='admin_internal_net',
+               help='Network name'),
+    cfg.StrOpt('network_ext_name', default='admin_floating_net',
+               help='Network name'),
+    cfg.IntOpt('max_failed_tests', default=10,
+               help='Network speed max failed tests count')
+
+]
+
+speed = cfg.OptGroup(name='speed',
+                     title='Speed configuration')
+
+speed_opts = [
+    cfg.StrOpt('runner', default='SpeedTestRunner',
+               help='Speed plugin name'),
+    cfg.StrOpt('availability_zone', default='nova',
+               help='Speed availability zone'),
+    cfg.StrOpt('speed_image_path',
+               default=config.FEDORA_IMAGE_PATH,
+               help='Speed image path'),
+    cfg.StrOpt('flavor_req', default='ram:1024,vcpus:1',
+               help='Speed flavour requirements'),
+    cfg.StrOpt('image_size', default='1G',
+               help='Speed image size'),
+    cfg.StrOpt('volume_size', default='1G',
+               help='Speed volume size'),
+    # threshold is optional, default value is None
+    cfg.FloatOpt('threshold',
+                 help='Speed threshold'),
+    cfg.IntOpt('max_failed_tests', default=10,
+               help='Speed max failed tests count'),
+    # compute_nodes_limit is optional, default value is None
+    cfg.IntOpt('compute_nodes_limit',
+               help='Speed compute nodes limit'),
+    cfg.IntOpt('attempts', default=3,
+               help='Speed attempts count'),
+]
+
+nwspeed = cfg.OptGroup(name='nwspeed',
+                       title='NWSpeed configuration')
+
+nwspeed_opts = [
+    cfg.StrOpt('runner', default='NWSpeedTestRunner',
+               help='NWSpeed plugin name'),
+    cfg.FloatOpt('threshold', default=100.0,
+                 help='NWSpeed threshold'),
+    cfg.FloatOpt('range', default=10.0,
+                 help='NWSpeed range'),
+    cfg.IntOpt('test_port', default=5903,
+               help='NWSpeed test port'),
+    cfg.IntOpt('data_size', default=100,
+               help='NWSpeed data size'),
+    # nodes_limit is optional, default value is None
+    cfg.IntOpt('nodes_limit',
+               help='NWSpeed nodes limit')
+]
+
+selfcheck = cfg.OptGroup(name='selfcheck',
+                         title='Self check configuration')
+
+selfcheck_opts = [
+    cfg.StrOpt('runner', default='SelfCheckRunner',
+               help='Self check plugin name')
+]
+
+cleanup = cfg.OptGroup(name='cleanup',
+                       title='Cleanup configuration')
+
+cleanup_opts = [
+    cfg.BoolOpt('show_trash', default=False,
+                help='Cleanup trash configuration'),
+    cfg.IntOpt('days', default=5,
+               help='Cleanup days')
+]
+
+times = cfg.OptGroup(name='times',
+                     title='Times configuration')
+
+times_opts = [
+    cfg.BoolOpt('update', default=True,
+                help='Times update')
+]
+
+cfg_for_reg = [
+    (basic, basic_opts),
+    (fuel, fuel_opts),
+    (auth, auth_opts),
+    (rally, rally_opts),
+    (certification, certification_opts),
+    (workload, workload_opts),
+    (tempest, tempest_opts),
+    (ostf, ostf_opts),
+    (resources, resources_opts),
+    (shaker, shaker_opts),
+    (network_speed, network_speed_opts),
+    (speed, speed_opts),
+    (nwspeed, nwspeed_opts),
+    (selfcheck, selfcheck_opts),
+    (cleanup, cleanup_opts),
+    (times, times_opts),
+]
+
+CONF = cfg.CONF
+
+
+def init_config(name_config=None):
+    for group, opts in cfg_for_reg:
+        CONF.register_group(group)
+        CONF.register_opts(opts, group)
+    name_configs = [name_config if name_config else
+                    config.DEFAULT_CONFIG_FILE]
+    CONF(default_config_files=name_configs, args='')
+    return CONF

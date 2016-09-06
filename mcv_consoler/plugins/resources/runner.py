@@ -29,7 +29,6 @@ class ResourceReportRunner(run.Runner):
 
     def __init__(self, ctx):
         super(ResourceReportRunner, self).__init__(ctx)
-        self.config = self.ctx.config
         self.access_data = self.ctx.access_data
         self.path = self.ctx.work_dir.base_dir
         self.test_failures = []
@@ -66,7 +65,7 @@ class ResourceReportRunner(run.Runner):
             LOG.error('Incorrect choice of reporter')
             LOG.info(" * FAILED")
             return False
-        reporter = reporter_class(self.access_data, config=self.config)
+        reporter = reporter_class(self.access_data)
         html, res = reporter.search_resources()
 
         # store raw results

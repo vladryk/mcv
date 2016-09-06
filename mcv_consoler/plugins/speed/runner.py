@@ -20,6 +20,7 @@ import traceback
 
 from flask_table import Table, Col
 from jinja2 import Template
+from oslo_config import cfg
 
 from mcv_consoler import exceptions
 from mcv_consoler.common import context
@@ -27,10 +28,9 @@ from mcv_consoler.common.errors import SpeedError
 import mcv_consoler.plugins.runner as run
 from mcv_consoler.plugins.speed.prepare_instance import Preparer
 from mcv_consoler.plugins.speed import speed_tester as st
-from mcv_consoler.utils import GET
-import mcv_consoler.common.config as app_conf
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class ObjTable(Table):
@@ -59,23 +59,21 @@ class SpeedTestRunner(run.Runner):
 
         self.access_data = self.ctx.access_data
         self.path = self.ctx.work_dir.base_dir
-        self.config = self.ctx.config
+
 
         self.test_failures = []
         self.node_ids = []
         # TODO(albartash): Make a single place for images!
         self.imagedir = '/home/mcv/toolbox/rally/images'
 
-        self.threshold = GET(self.config,
-                             'threshold',
-                             'speed', str(app_conf.DEFAULT_SPEED_STORAGE))
+        self.threshold = CONF.speed.threshold
         self.preparer = Preparer(self.access_data, self.path)
 
     def _evaluate_task_results(self, task_results):
         res = True
         status = 'PASSED'
         for speed in task_results:
-            if speed < float(self.threshold):
+            if speed < self.threshold:
                 res = False
                 LOG.warning('Average speed is under the threshold')
                 status = 'FAILED'
@@ -84,10 +82,9 @@ class SpeedTestRunner(run.Runner):
         return res
 
     def _prepare_vms(self):
-        avail_zone = GET(self.config, 'availability_zone', 'speed', 'nova')
-        flavor_req = GET(self.config, 'flavor_req', 'speed', 'ram:1024,vcpus:1')
-        image_path = GET(self.config, 'speed_image_path', 'speed',
-                         app_conf.FEDORA_IMAGE_PATH)
+        avail_zone = CONF.speed.availability_zone
+        flavor_req = CONF.speed.flavor_req
+        image_path = CONF.speed.speed_image_path
 
         supported_req = ['ram', 'vcpus', 'disk']
         flavor_req = dict((k.strip(), int(v.strip())) for k, v in
@@ -97,8 +94,8 @@ class SpeedTestRunner(run.Runner):
 
     def run_batch(self, tasks, *args, **kwargs):
         res = {'test_failures': [], 'test_success': [], 'test_not_found': []}
-        LOG.info('Threshold is %s Mb/s\n' % self.threshold)
-        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+        LOG.info('Threshold is %s Mb/s\n', self.threshold)
+        LOG.info("Time start: %s UTC\n", datetime.datetime.utcnow())
 
         tasks, missing = self.discovery.match(tasks)
         self.test_not_found.extend(missing)
@@ -107,7 +104,7 @@ class SpeedTestRunner(run.Runner):
             self.node_ids = self._prepare_vms()
             res = super(SpeedTestRunner, self).run_batch(
                 tasks, *args, **kwargs)
-            res['threshold'] = self.threshold + ' Mb/s'
+            res['threshold'] = '{} Mb/s'.format(self.threshold)
             return res
         except Exception:
             LOG.error('Caught unexpected error, exiting. '
@@ -144,11 +141,9 @@ class SpeedTestRunner(run.Runner):
             return False
 
         kwargs['work_dir'] = self.path
-        kwargs['image_size'] = GET(self.config, 'image_size', 'speed', '1G')
-        kwargs['volume_size'] = GET(self.config, 'volume_size', 'speed', '1G')
-        kwargs['iterations'] = GET(
-            self.config, 'attempts', 'speed',
-            default=app_conf.SPEED_STORAGE_ATTEMPTS_DEFAULT, convert=int)
+        kwargs['image_size'] = CONF.speed.image_size
+        kwargs['volume_size'] = CONF.speed.volume_size
+        kwargs['iterations'] = CONF.speed.attempts
 
         LOG.debug('Start generating %s' % task)
         try:

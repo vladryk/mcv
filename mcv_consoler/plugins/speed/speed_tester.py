@@ -19,14 +19,16 @@ import json
 import math
 import time
 
+from oslo_config import cfg
+
 from mcv_consoler.common import clients
-from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import ssh
 from mcv_consoler import exceptions
 from mcv_consoler.plugins.speed import config
 from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class BaseStorageSpeed(object):
@@ -35,7 +37,7 @@ class BaseStorageSpeed(object):
     def __init__(self, ctx, *args, **kwargs):
         self.ctx = ctx
         self.access_data = self.ctx.access_data
-        self.config = kwargs.get('config')
+
         self.work_dir = kwargs['work_dir']
 
         protocol = 'https' if self.access_data['insecure'] else 'http'
@@ -265,8 +267,8 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
         try:
             for cmd in [
-                    'sudo umount /mnt/testvolume',
-                    'sudo rm -rf /mnt/testvolume']:
+                'sudo umount /mnt/testvolume',
+                'sudo rm -rf /mnt/testvolume']:
                 self.ssh_connect.exec_cmd(cmd, exc=True)
         except OSError:
             LOG.error('Unmounting volume failed')
@@ -354,9 +356,7 @@ class ObjectStorageSpeed(BaseStorageSpeed):
         super(ObjectStorageSpeed, self).__init__(ctx, *args, **kwargs)
         self.size = self.prepare_size(kwargs['image_size'])
         self.iterations = kwargs['iterations']
-
-        cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
-        self.nodes = self.ctx.access.fuel.node.get_all(environment_id=cluster)
+        self.nodes = self.ctx.access.fuel.node.get_all(environment_id=CONF.fuel.cluster_id)
 
     def measure_speed(self, node_id):
         LOG.info('Running measuring object storage r/w speed...')

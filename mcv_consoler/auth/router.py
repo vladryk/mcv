@@ -28,6 +28,7 @@ import yaml
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
 from novaclient import exceptions as nexc
+from oslo_config import cfg
 
 import mcv_consoler.exceptions
 from mcv_consoler.common import context
@@ -35,12 +36,11 @@ from mcv_consoler.common import clients
 from mcv_consoler.common import ssh
 from mcv_consoler.common import config as mcv_config
 from mcv_consoler.common import resource
-
 from mcv_consoler import utils
-from mcv_consoler.utils import GET
 from mcv_consoler.utils import run_cmd
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 REMOTE_GRAB_FUEL_CREDENTIALS = """\
@@ -72,24 +72,23 @@ class Router(object):
 
     def __init__(self, ctx, **kwargs):
         self.ctx = ctx
-        self.config = self.ctx.config
         self.hosts = EtcHosts()
 
         self.os_data = self.get_os_data()
 
     def get_os_data(self):
         # TODO(albartash): needs to be received from endpoint-list
-        protocol = GET(self.config, 'auth_protocol')
+        protocol = CONF.basic.auth_protocol
 
-        endpoint_ip = GET(self.config, 'auth_endpoint_ip', 'auth')
+        endpoint_ip = CONF.auth.auth_endpoint_ip
         auth_url_tpl = '{hprot}://{ip}:{port}/v{version}'
-        tenant_name = GET(self.config, 'os_tenant_name', 'auth')
-        password = GET(self.config, 'os_password', 'auth')
+        tenant_name = CONF.auth.os_tenant_name
+        password = CONF.auth.os_password
         insecure = (protocol == "https")
         # NOTE(albartash): port 8443 is not ready to use somehow
         nailgun_port = 8000
 
-        os_data = {'username': GET(self.config, 'os_username', 'auth'),
+        os_data = {'username': CONF.auth.os_username,
                    'password': password,
                    'tenant_name': tenant_name,
                    'auth_url': auth_url_tpl.format(hprot=protocol,
@@ -97,28 +96,26 @@ class Router(object):
                                                    port=5000,
                                                    version="2.0"),
                    'ips': {
-                       'controller': GET(self.config, 'controller_ip', 'auth'),
+                       'controller': CONF.auth.controller_ip,
                        'endpoint': endpoint_ip,
-                       'instance': GET(self.config, 'instance_ip')},
+                       'instance': CONF.basic.instance_ip},
                    'auth': {
-                       'controller_uname': GET(self.config, 'controller_uname',
-                                               'auth'),
-                       'controller_pwd': GET(self.config, 'controller_pwd',
-                                             'auth')},
+                       'controller_uname': CONF.auth.controller_uname,
+                       'controller_pwd': CONF.auth.controller_pwd},
                    'fuel': {
-                       'username': GET(self.config, 'username', 'fuel'),
-                       'password': GET(self.config, 'password', 'fuel'),
-                       'nailgun': GET(self.config, 'nailgun_host', 'fuel'),
+                       'username': CONF.fuel.username,
+                       'password': CONF.fuel.password,
+                       'nailgun': CONF.fuel.nailgun_host,
                        'nailgun_port': nailgun_port,
-                       'cluster_id': GET(self.config, 'cluster_id', 'fuel'),
-                        # TODO(albartash): fix in router.py (None to "")
+                       'cluster_id': CONF.fuel.cluster_id,
+                       # TODO(albartash): fix in router.py (None to "")
                        'ca_cert': "",
-                       'cert': GET(self.config, 'ssh_cert', 'fuel'),
+                       'cert': CONF.fuel.ssh_cert,
                    },
-                  'debug': mcv_config.DEBUG,
-                  'insecure': insecure,
-                  'mos_version': GET(self.config, 'mos_version', 'basic'),
-                  'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
+                   'debug': mcv_config.DEBUG,
+                   'insecure': insecure,
+                   'mos_version': CONF.basic.mos_version,
+                   'auth_fqdn': CONF.auth.auth_fqdn,
                    # nova tenant
                    'project_id': tenant_name,
                    # nova and cinder passwd
@@ -241,7 +238,7 @@ class CRouter(Router):
             yaml.dump(settings, fd)
 
     def populate_cluster_nodes_info(self):
-        cluster = utils.GET(self.config, 'cluster_id', 'fuel', convert=int)
+        cluster = CONF.fuel.cluster_id
 
         node_set = self.ctx.fuel.node.get_all(environment_id=cluster)
         node_set = self.ctx.fuel.filter_nodes_by_status(node_set)
@@ -526,9 +523,9 @@ class IRouter(Router):
         data = super(IRouter, self).get_os_data()
 
         data.update({
-            'auth_fqdn': GET(self.config, 'auth_fqdn', 'auth'),
-            'region_name': GET(self.config, 'region_name', 'auth'),
-            'public_endpoint_ip': GET(self.config, 'auth_endpoint_ip', 'auth'),
+            'auth_fqdn': CONF.auth.auth_fqdn,
+            'region_name': CONF.auth.region_name,
+            'public_endpoint_ip': CONF.auth.auth_endpoint_ip,
         })
         # NOTE(albartash): As in L1 endpoint is public,
         # we will duplicate it here.

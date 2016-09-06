@@ -12,22 +12,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoSectionError
+import copy
 from datetime import datetime
-from distutils import util
 import imp
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import traceback
 
+import ruamel.yaml
 import prettytable
+from oslo_config import cfg
 
 from mcv_consoler.accessor import AccessSteward
-from mcv_consoler.common.config import DEFAULT_CONFIG_FILE
 from mcv_consoler.common.config import PLUGINS_DIR_NAME
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common import context
@@ -44,6 +43,7 @@ from mcv_consoler import utils
 from mcv_consoler.common import cleanup
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
                           "Failed: {test_failed}, Skipped: {test_skipped}, " \
@@ -59,7 +59,7 @@ class Consoler(object):
 
     def __init__(self, ctx):
         self.ctx = context.Context(ctx, resources=resource.Pool())
-        self.config = ctx.config
+        self.scenario = ctx.scenario
         self._name_parts = [
             'mcv',
             datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')]
@@ -67,26 +67,11 @@ class Consoler(object):
     def prepare_tests(self, test_group):
         section = "custom_test_group_" + test_group
         try:
-            self.config.options(section)
-        except NoSectionError:
-            LOG.warning(("Test group {group} doesn't seem to exist "
-                         "in config!").format(group=test_group))
-            return {}
-
-        out = dict([(opt, self.config.get(section, opt)) for opt in
-                    self.config.options(section)])
-        return out
-
-    def split_tests(self, runner, tests_str):
-        res = list()
-        lines = tests_str.split('\n')
-        for line in lines:
-            raw_tests = line.strip(', ').split(',')
-            tests = map(str.strip, raw_tests)
-            res.extend(tests)
-        LOG.debug("Selected {n} tests for '{key}' runner: {tests}".format(
-            n=len(res), key=runner, tests=', '.join(res)))
-        return res
+            return self.scenario[section]
+        except KeyError:
+            raise exceptions.MissingDataError(
+                "Test group {group} doesn't seem to exist in config!"
+                .format(group=test_group))
 
     def get_results_dir(self, dst_dir=None):
         no_artifacts = lambda s: s.replace('.yaml', '').replace(':', '.')
@@ -103,8 +88,7 @@ class Consoler(object):
         def pretty_print_tests(tests):
             LOG.info("Amount of tests requested per available tools:")
             for group, test_list in tests.iteritems():
-                test_list = test_list.strip(', ')
-                LOG.info(" %s : %s", group, len(test_list.split(',')))
+                LOG.info(" %s : %s", group, len(test_list))
 
         test_plan = self.prepare_tests(test_group)
         if test_plan is None:
@@ -165,10 +149,7 @@ class Consoler(object):
         self._collect_predefined_data()
 
         clean_up_wrapper = utils.DummyContextWrapper
-        is_clean_up_requested = utils.GET(
-            self.config, 'show_trash', 'cleanup', default=False,
-            convert=util.strtobool)
-        if is_clean_up_requested:
+        if CONF.cleanup.show_trash:
             clean_up_wrapper = cleanup.CleanUpWrapper
 
         with self._make_access_helper() as access_helper:
@@ -183,7 +164,7 @@ class Consoler(object):
         with open(TIMES_DB_PATH, 'r') as fd:
             db = json.load(fd)
 
-        if self.config.get('times', 'update') == 'False':
+        if not CONF.times.update:
             for key in test_plan.keys():
                 batch = [x for x in (''.join(test_plan[key].split()
                                              ).split(',')) if x]
@@ -208,9 +189,7 @@ class Consoler(object):
                 LOG.info("Catch Keyboard interrupt. "
                          "No more tests will be launched")
                 break
-            if self.config.get('times', 'update') == 'True':
-                # FIXME(dbogun): this value is always forced to 0, look
-                # like a bug
+            if CONF.times.update:
                 elapsed_time_by_group[key] = 0
                 # FIXME(dbogun): rewrite timesdb implementation
                 # We must reload timesdb because plugin (probably) update id
@@ -239,7 +218,7 @@ class Consoler(object):
                 path = os.path.join(self.results_dir, key)
                 os.mkdir(path)
 
-                factory = getattr(module, self.config.get(key, 'runner'))
+                factory = getattr(module, CONF[key]['runner'])
                 runner = factory(context.Context(
                     self.ctx,
                     work_dir=utils.WorkDir(
@@ -247,7 +226,7 @@ class Consoler(object):
 
                 batch = test_plan[key]
                 if isinstance(batch, basestring):
-                    batch = self.split_tests(key, batch)
+                    batch = [batch]
 
                 LOG.debug("Running {batch} for {key}"
                           .format(batch=len(batch),
@@ -258,7 +237,7 @@ class Consoler(object):
                         batch,
                         compute=1,
                         event=self.ctx.terminate_event,
-                        config=self.config,
+                        scenario=self.scenario,
                         tool_name=key,
                         db=db,
                         all_time=self.all_time,
@@ -359,41 +338,29 @@ class Consoler(object):
         res_table.align = "l"
         print(res_table)
 
-    def _search_and_remove_group_failed(self, file_to_string):
-        object_for_search = re.compile(
-            r"\[custom_test_group_failed\].*?End\sof.*?\n",
-            re.DOTALL)
-
-        list_of_strings = object_for_search.findall(file_to_string)
-        if list_of_strings:
-            LOG.debug("Your config contains one or more "
-                      "'custom_test_group_failed'."
-                      "It will be removed")
-            return re.sub(object_for_search, "", file_to_string)
-        else:
-            return file_to_string
-
-    def update_config(self, results):
-        with open(DEFAULT_CONFIG_FILE, 'r') as f:
-            file_to_string = f.read()
-
-        result = self._search_and_remove_group_failed(file_to_string)
-
-        default_str = ""
-        for key in results.iterkeys():
-            if not validate_section(results[key], 'test_failures'):
-                continue
-            to_rerun = ",".join(results[key]["results"]["test_failures"])
-            if to_rerun != "":
-                default_str = (default_str + str(key) + '=' +
-                               str(to_rerun) + '\n')
-        if default_str != "":
-            default_str = ("\n[custom_test_group_failed]\n" +
-                           default_str + "# End of group failed. Don't remove"
-                           + "this comment\n")
-
-        with open(DEFAULT_CONFIG_FILE, 'w') as f:
-            f.write(result + default_str)
+    @staticmethod
+    def update_scenario(run_results):
+        failed_test_section = 'custom_test_group_failed'
+        test_failures = 'test_failures'
+        results = 'results'
+        with open(CONF.basic.scenario, 'r+') as f:
+            yaml = ruamel.yaml.load(f, ruamel.yaml.RoundTripLoader)
+            yaml_copy = copy.deepcopy(yaml)
+            if failed_test_section in yaml:
+                del yaml[failed_test_section]
+            group = {}
+            for key, value in run_results.iteritems():
+                if not validate_section(value, test_failures):
+                    continue
+                failures = value[results][test_failures]
+                if failures:
+                    group[key] = failures
+            if group:
+                yaml[failed_test_section] = group
+            if yaml != yaml_copy:
+                f.seek(0)
+                ruamel.yaml.dump(yaml, f, ruamel.yaml.RoundTripDumper, block_seq_indent=2)
+                f.truncate()
 
     def _do_finalization(self, run_results):
         if run_results is None:
@@ -401,7 +368,7 @@ class Consoler(object):
             return
 
         self.describe_results(run_results)
-        self.update_config(run_results)
+        self.update_scenario(run_results)
         try:
             reporter.brew_a_report(run_results, self.results_dir, 'index.html')
         except Exception as e:
@@ -455,7 +422,6 @@ class Consoler(object):
         finally:
             LOG.debug('Perform house keeping')
             self.ctx.resources.terminate()
-
         return self.failure_indicator
 
     def _show_resources(self):

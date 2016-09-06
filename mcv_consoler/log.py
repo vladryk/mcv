@@ -15,23 +15,24 @@
 import logging
 import logging.config
 
+from oslo_config import cfg
 from requests.packages import urllib3
 import yaml
 
+CONF = cfg.CONF
 
-def configure_logging(log_config=None, debug=None, hide_ssl_warnings=None):
+
+def configure_logging(debug=None):
     """Configure the logging system
 
     Load the logging configuration file and configure the
     logging system.
 
-    :param log_config: path to the logging config file
     :param debug: allows to enable/disable the console
     debug mode
-    :param hide_ssl_warnings: allows to enable/disable
-    urllib3 warnings
     """
-    with open(log_config, 'r') as f:
+
+    with open(CONF.basic.log_config, 'r') as f:
         logging.config.dictConfig(yaml.load(f))
 
     if not debug:
@@ -42,5 +43,7 @@ def configure_logging(log_config=None, debug=None, hide_ssl_warnings=None):
                 handler.setFormatter(logging.Formatter())
                 break
 
-    if hide_ssl_warnings:
+    if CONF.basic.hide_ssl_warnings:
         urllib3.disable_warnings()
+
+    CONF.log_opt_values(logging, logging.DEBUG)

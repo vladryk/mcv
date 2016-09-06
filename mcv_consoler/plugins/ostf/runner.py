@@ -12,23 +12,22 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
 import datetime
 import json
 import logging
 import os
 import subprocess
-import traceback
 
-from mcv_consoler.common.config import DEFAULT_FAILED_TEST_LIMIT
+from oslo_config import cfg
+
 from mcv_consoler.common.config import MOS_VERSIONS
-from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
 from mcv_consoler.plugins.ostf.reporter import Reporter
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class OSTFOnDockerRunner(runner.Runner):
@@ -38,21 +37,9 @@ class OSTFOnDockerRunner(runner.Runner):
 
     def __init__(self, ctx):
         super(OSTFOnDockerRunner, self).__init__(ctx)
-
-        self.config = self.ctx.config
         self.access_data = self.ctx.access_data
         self.path = self.ctx.work_dir.base_dir
-
-        try:
-            self.mos_version = self.config.get('basic', "mos_version")
-        except NoOptionError:
-            LOG.error('No MOS version found in configuration file. '
-                      'Please specify it at section "ostf" as an option'
-                      '"version"')
-            self.failure_indicator = CAError.CONFIG_ERROR
-            return
-
-        LOG.debug('Found MOS version: %s' % self.mos_version)
+        self.mos_version = self.ctx.access_data['mos_version']
 
         # this object is supposed to live for one run
         # so let's leave it as is for now.
@@ -66,17 +53,7 @@ class OSTFOnDockerRunner(runner.Runner):
         self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
         self.config_filename = 'ostfcfg.conf'
-
-        try:
-            max_failed = utils.GET(self.config, 'max_failed_tests', 'ostf')
-            self.max_failed_tests = int(max_failed)
-        except NoOptionError:
-            self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
-        except (TypeError, ValueError):
-            LOG.debug(traceback.format_exc())
-            LOG.debug("Failed to get 'ostf.max_failed_tests' from config. "
-                      "Using default value: %s" % DEFAULT_FAILED_TEST_LIMIT)
-            self.max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
+        self.max_failed_tests = CONF.ostf.max_failed_tests
 
     def _do_config_extraction(self):
         LOG.debug("Checking for existing OSTF configuration file...")
@@ -110,28 +87,27 @@ class OSTFOnDockerRunner(runner.Runner):
         add_host = ""
         if self.access_data["auth_fqdn"] != '':
             add_host = "--add-host={fqdn}:{endpoint}".format(
-                       fqdn=self.access_data["auth_fqdn"],
-                       endpoint=self.access_data["public_endpoint_ip"])
+                fqdn=self.access_data["auth_fqdn"],
+                endpoint=self.access_data["public_endpoint_ip"])
 
-        protocol = "https" if self.access_data['insecure'] else 'http'
-        nailgun_port = str(self.access_data["fuel"]["nailgun_port"])
+        protocol = "https" if self.access_data["insecure"] else "http"
 
         LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true", ] +
             [add_host] * (add_host != "") +
             ["-p", "8080:8080",
-             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
-             "-e", "OS_USERNAME=" + self.access_data["username"],
+             "-e", "OS_TENANT_NAME={}".format(self.access_data["tenant_name"]),
+             "-e", "OS_USERNAME={}".format(self.access_data["username"]),
              "-e", "PYTHONWARNINGS=ignore",
-             "-e", "NAILGUN_PROTOCOL=" + protocol,
-             "-e", "OS_PASSWORD=" + self.access_data["password"],
+             "-e", "NAILGUN_PROTOCOL={}".format(protocol),
+             "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "NAILGUN_HOST=" + self.access_data["fuel"]["nailgun"],
-             "-e", "NAILGUN_PORT=" + nailgun_port,
-             "-e", "CLUSTER_ID=" + self.access_data["fuel"]["cluster_id"],
-             "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
-             "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
+             "-e", "NAILGUN_HOST={}".format(self.access_data["fuel"]["nailgun"]),
+             "-e", "NAILGUN_PORT={}".format(self.access_data["fuel"]["nailgun_port"]),
+             "-e", "CLUSTER_ID={}".format(self.access_data["fuel"]["cluster_id"]),
+             "-e", "OS_REGION_NAME={}".format(self.access_data["region_name"]),
+             "-v", "{}:{}".format(self.homedir, self.home), "-w", self.home,
              "-t", "mcv-ostf"],
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
@@ -255,7 +231,7 @@ class OSTFOnDockerRunner(runner.Runner):
                 break
 
         time_end = datetime.datetime.utcnow()
-        LOG.info("\nTime end: %s UTC" % str(time_end))
+        LOG.info("\nTime end: %s UTC", time_end)
 
         return {"test_failures": self.failures,
                 "test_success": self.success,
@@ -270,7 +246,7 @@ class OSTFOnDockerRunner(runner.Runner):
         except KeyError:
             task_time = 0
             LOG.info(("You must update the database time tests. "
-                     "There is no time for %s") % task)
+                      "There is no time for %s") % task)
         LOG.info("Expected time to complete the test: %s " % task_time)
         self._run_ostf_on_docker(task)
         LOG.info("-" * 60)

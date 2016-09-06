@@ -17,24 +17,26 @@ import os
 import re
 from operator import truediv
 
+from oslo_config import cfg
+
 import mcv_consoler.common.config as app_conf
 from mcv_consoler import exceptions
-from mcv_consoler.utils import GET
 from mcv_consoler.common import ssh
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
 class Node2NodeSpeed(object):
-    def __init__(self, ctx, config, nodes):
+
+    def __init__(self, ctx, nodes):
         self.ctx = ctx
-        self.config = config
         self.nodes = nodes
         self.ssh_conns = dict()
         # Port for testing speed between nodes
-        self.test_port = GET(self.config, 'test_port', 'nwspeed', 5903)
+        self.test_port = CONF.nwspeed.test_port
         # Data size for testing in megabytes
-        self.data_size = GET(self.config, 'data_size', 'nwspeed', 100)
+        self.data_size = CONF.nwspeed.data_size
 
     def init_ssh_conns(self):
         if not self.nodes:

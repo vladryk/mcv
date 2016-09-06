@@ -19,7 +19,8 @@ import os
 import shlex
 import subprocess
 
-from mcv_consoler.common.cfgparser import config_parser
+from oslo_config import cfg
+
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
@@ -27,8 +28,8 @@ from mcv_consoler.plugins import runner
 from mcv_consoler import utils
 import mcv_consoler.common.config as app_conf
 
-config = config_parser
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class ShakerRunner(runner.Runner):
@@ -38,7 +39,6 @@ class ShakerRunner(runner.Runner):
 
     def __init__(self, ctx):
         super(ShakerRunner, self).__init__(ctx)
-        self.config = self.ctx.config
 
         # this object is supposed to live for one run
         # so let's leave it as is for now.
@@ -116,17 +116,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.path = self.ctx.work_dir.base_dir
 
         self.container_id = None
-        self.image_name = utils.GET(
-            self.config, 'image_name', 'shaker') or 'shaker-image'
-        self.flavor_name = utils.GET(
-            self.config, 'flavor_name', 'shaker') or 'shaker-flavor'
+        self.image_name = CONF.shaker.image_name
+        self.flavor_name = CONF.shaker.flavor_name
         self.output = None
         self.success = None
-        self.threshold = utils.GET(
-             self.config,
-             'threshold',
-             'network_speed', str(app_conf.DEFAULT_SHAKER_THRESHOLD))
-
+        self.threshold = CONF.network_speed.threshold
         self.heat = Clients.get_heat_client(self.access_data)
 
     def _check_shaker_setup(self):
@@ -156,24 +150,21 @@ class ShakerOnDockerRunner(ShakerRunner):
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["public_endpoint_ip"])
 
-        network_name = utils.GET(
-            self.config, 'network_ext_name', 'network_speed') or ""
-
         res = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
             [add_host] * (add_host != "") +
             ["-p", "5999:5999",
-             "-e", "OS_AUTH_URL=" + self.access_data["auth_url"],
-             "-e", "OS_TENANT_NAME=" + self.access_data["tenant_name"],
-             "-e", "OS_USERNAME=" + self.access_data["username"],
-             "-e", "OS_PASSWORD=" + self.access_data["password"],
-             "-e", "OS_REGION_NAME=" + self.access_data["region_name"],
-             "-e", "SHAKER_EXTERNAL_NET=" + str(network_name),
+             "-e", "OS_AUTH_URL={}".format(self.access_data["auth_url"]),
+             "-e", "OS_TENANT_NAME={}".format(self.access_data["tenant_name"]),
+             "-e", "OS_USERNAME={}".format(self.access_data["username"]),
+             "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
+             "-e", "OS_REGION_NAME={}".format(self.access_data["region_name"]),
+             "-e", "SHAKER_EXTERNAL_NET={}".format(CONF.network_speed.network_ext_name or ""),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "OS_INSECURE=" + str(self.access_data["insecure"]),
+             "-e", "OS_INSECURE={}".format(self.access_data["insecure"]),
              # TODO(vokhrimenko): temporarily not used
-             #"-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
-             "-v", "%s:%s" % (self.homedir, self.home), "-w", self.home,
+             # "-e", "OS_CACERT=" + self.access_data["fuel"]["ca_cert"],
+             "-v", "{}:{}".format(self.homedir, self.home), "-w", self.home,
              "-t", "mcv-shaker"],
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
@@ -199,10 +190,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         # TODO(albartash): make port for Shaker configurable some day
 
-        timeout = self.config.get("shaker", "timeout")
-        agents_timeout = utils.GET(
-            self.config, 'agents_timeout', 'shaker') or str(
-                app_conf.SHAKER_AGENTS_TIMEOUT)
+        timeout = CONF.shaker.timeout
+        agents_timeout = CONF.shaker.agents_timeout
 
         cmd = ("docker exec -t {cid} timeout {tout} shaker "
                "--agent-loss-timeout {agent_tout} "
@@ -217,7 +206,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "--log-file {home}/log/shaker.log"
                ).format(cid=self.container,
                         tout=timeout,
-                        agent_tout = agents_timeout,
+                        agent_tout=agents_timeout,
                         image=self.image_name,
                         flavor=self.flavor_name,
                         sep=self.access_data['ips']["instance"],
@@ -234,10 +223,9 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         if proc.returncode == 124:
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
-            LOG.info('Process #%d killed after %s seconds.\n'
+            LOG.info('Process {} killed after {} seconds.\n'
                      'Report for this scenario was lost. '
-                     'For more details - please see logs ' % (proc.pid,
-                                                              timeout))
+                     'For more details - please see logs '.format(proc.pid, timeout))
             LOG.info(' * FAILED')
             LOG.info('-' * 60)
             LOG.debug('Timeout error occurred trying to execute shaker')
@@ -275,12 +263,11 @@ class ShakerOnDockerRunner(ShakerRunner):
         return result
 
     def clear_shaker(self):
-        cleanup = utils.GET(self.config, 'cleanup', 'shaker') or 'True'
-        if cleanup == 'True':
+        if CONF.shaker.cleanup:
             LOG.info("Removing shaker's image and flavor")
             cmd = "docker exec -t %s shaker-cleanup --image-name %s " \
-              "--flavor-name %s" % (self.container_id, self.image_name,
-                                    self.flavor_name)
+                  "--flavor-name %s" % (self.container_id, self.image_name,
+                                        self.flavor_name)
             utils.run_cmd(cmd)
 
     def _get_task_result_from_docker(self, task_id):
@@ -340,7 +327,7 @@ class ShakerOnDockerRunner(ShakerRunner):
         success = True & (len(speeds) > 0)
 
         for i in speeds:
-            if (i < float(threshold) * 1024):
+            if (i < threshold * 1024):
                 success = False
 
         ok = """
@@ -428,9 +415,9 @@ class ShakerOnDockerRunner(ShakerRunner):
                       'uploaded to Glance with your own.')
             tasks, missing = [], list(tasks)
         else:
-            LOG.info('\nThreshold is %s Gb/s\n' % self.threshold)
+            LOG.info('\nThreshold is %s Gb/s\n', self.threshold)
             self.output = ''
-            LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+            LOG.info("Time start: %s UTC\n", datetime.datetime.utcnow())
 
             tasks, missing = self.discovery.match(tasks)
 
@@ -441,8 +428,8 @@ class ShakerOnDockerRunner(ShakerRunner):
         self._generate_report_network_speed(self.threshold,
                                             'network_speed',
                                             self.output)
-        result['threshold'] = self.threshold + ' Gb/s'
-        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+        result['threshold'] = '{} Gb/s'.format(self.threshold)
+        LOG.info("\nTime end: %s UTC", datetime.datetime.utcnow())
         self.clear_shaker()
         return result
 

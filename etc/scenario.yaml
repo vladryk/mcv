@@ -1,0 +1,183 @@
+#
+# Configuration for MCV Test Groups.
+#
+# MCV allows to run tests in three ways:
+#
+# +----------------------------+------------------------------------------------------------------+
+# |      Way to run tests      |                        Shell command                             |
+# +----------------------------+------------------------------------------------------------------+
+# |   Run a full test suite    | $ mcvconsoler --run full --run-mode=instance                     |
+# |   Run a custom test group  | $ mcvconsoler --run group <group> --run-mode=node                |
+# |   Run a single test        | $ mcvconsoler --run single <plugin> <test> --run-mode=external   |
+# +----------------------------+------------------------------------------------------------------+
+#
+# In most of cases you don't need to use running of single test.
+# In case you want to run all tests, please run a full test suite.
+# In case you want to run some specific tests, please use custom test groups.
+#
+# You can use the preset test groups, or create your own one.
+#
+# Each custom test group has the next syntax:
+#
+# groupname:
+#   plugin1:
+#     - test1
+#     - test2
+#     - test3
+#   plugin2:
+#     - test01
+#     - test02
+#     - test03
+#
+# Example:
+#
+# example:
+#   resources:
+#     - GeneralResourceSearch
+#     - ErrorResourceSearch
+#   tempest:
+#     - telemetry
+#   rally:
+#     - load-keystone-create-and-delete-user.yaml
+#
+#
+# MCV provides predefined test groups organized by aim of running tests within
+# them. You can also see the list of these groups in our documentation:
+#
+#     https://mirantis.jira.com/wiki/display/MCV/List+of+basic+test+groups
+#
+# NOTE: Some of tests in predefined test groups are disabled from the start.
+# You can uncomment them if your cloud satisfy requirements related to such
+# tests.
+#
+custom_test_group_quick:
+  resources:
+    - ErrorResourceSearch
+    - GeneralResourceSearch
+  ostf:
+    - SanityIdentityTest
+    - SanityComputeTest
+    - GlanceSanityTests
+    - SanityHeatTest
+    - NetworksTest
+    - GlanceSmokeTests
+    - FlavorsAdminTest
+    - VolumesTest
+    - TestImageAction
+    - HeatSmokeTests:test_actions
+    - HeatSmokeTests:test_advanced_actions
+    - HeatSmokeTests:test_update
+    - HeatSmokeTests:test_rollback
+#
+# Uncomment if you have Murano installed
+#   - MuranoSanityTests
+#
+# Uncomment if you have Sahara installed
+#   - VanillaTwoTemplatesTest,HDPTwoTemplatesTest
+#
+# Uncomment if you have Ceilometer installed
+#   - CeilometerApiTests
+#
+custom_test_group_selfcheck:
+  selfcheck:
+    - BasicSelfCheck
+custom_test_group_smoke:
+  rally:
+    - certification
+custom_test_group_speed:
+  speed:
+    - ObjectStorageSpeed
+    - BlockStorageSpeed
+  shaker:
+    - same_node.yaml
+    - different_nodes.yaml
+    - floating_ip.yaml
+    - different_nodes_threads_10.yaml
+    - full_l3_east_west.yaml
+  nwspeed:
+    - Node2NodeSpeed
+custom_test_group_workload:
+  rally:
+    - workload.yaml
+    - big-data-workload.yaml
+custom_test_group_scale:
+  rally:
+    - load-ceilometer-create-alarm.yaml
+    - load-ceilometer-create-and-delete-alarm.yaml
+    - load-ceilometer-create-and-list-alarm.yaml
+    - load-ceilometer-create-and-query-alarm-history.yaml
+    - load-ceilometer-create-and-query-alarms.yaml
+    - load-ceilometer-create-and-query-samples.yaml
+    - load-ceilometer-create-and-update-alarm.yaml
+    - load-ceilometer-create-meter-and-get-stats.yaml
+    - load-ceilometer-list-alarms.yaml
+    - load-ceilometer-list-meters.yaml
+    - load-ceilometer-list-resources.yaml
+    - load-cinder-create-and-attach-volume.yaml
+    - load-cinder-create-and-delete-snapshot.yaml
+    - load-cinder-create-and-delete-volume.yaml
+    - load-cinder-create-and-extend-volume.yaml
+    - load-cinder-create-and-list-snapshots.yaml
+    - load-cinder-create-and-list-volume.yaml
+    - load-cinder-create-and-upload-volume-to-image.yaml
+    - load-cinder-create-from-volume-and-delete-volume.yaml
+    - load-cinder-create-snapshot-and-attach-volume.yaml
+    - load-glance-create-and-delete-image.yaml
+    - load-glance-create-and-list-image.yaml
+    - load-glance-create-image-and-boot-instances.yaml
+    - load-glance-list_images.yaml
+    - load-heat-create-and-delete-stack_with_neutron.yaml
+    - load-heat-create-and-delete-stack_with_volume.yaml
+    - load-heat-create-and-delete-stack.yaml
+    - load-heat-create-and-list-stack.yaml
+    - load-heat-create-check-delete-stack.yaml
+    - load-heat-create-suspend-resume-delete-stack.yaml
+    - load-heat-create-update-delete-stack-add-res.yaml
+    - load-heat-create-update-delete-stack-del-res.yaml
+    - load-heat-create-update-delete-stack-increase.yaml
+    - load-heat-create-update-delete-stack-inplace.yaml
+    - load-heat-create-update-delete-stack-reduce.yaml
+    - load-heat-create-update-delete-stack-replace.yaml
+    - load-heat-list-stack-and-resources.yaml
+    - load-keystone-create-and-delete-user.yaml
+    - load-keystone-create-and-list-tenants.yaml
+    - load-keystone-create-and-list-users.yaml
+    - load-keystone-create-tenant-with-users.yaml
+    - load-neutron-create_and_delete_networks.yaml
+    - load-neutron-create_and_delete_ports.yaml
+    - load-neutron-create_and_delete_routers.yaml
+    - load-neutron-create_and_delete_subnets.yaml
+    - load-neutron-create_and_list_networks.yaml
+    - load-neutron-create_and_list_ports.yaml
+    - load-neutron-create_and_list_routers.yaml
+    - load-neutron-create_and_list_subnets.yaml
+    - load-neutron-create_and_update_networks.yaml
+    - load-neutron-create_and_update_ports.yaml
+    - load-neutron-create_and_update_routers.yaml
+    - load-neutron-create_and_update_subnets.yaml
+    - load-neutron-update_quotas.yaml
+    - load-nova-boot_and_bounce_server.yaml
+    - load-nova-boot_and_delete_server_with_keypair.yaml
+    - load-nova-boot_and_delete_server_with_secgroups.yaml
+    - load-nova-boot_and_delete_server.yaml
+    - load-nova-boot_and_list_server_batch_all_at_once.yaml
+    - load-nova-boot_and_list_server_batch_x10.yaml
+    - load-nova-boot_and_list_server.yaml
+    - load-nova-boot_and_migrate_server.yaml
+    - load-nova-boot_and_rebuild_server.yaml
+    - load-nova-boot_server_from_volume_and_delete.yaml
+    - load-nova-boot_server_from_volume_and_live_migrate.yaml
+    - load-nova-create_and_delete_keypair.yaml
+    - load-nova-create_and_delete_secgroups.yaml
+    - load-nova-create_and_list_keypairs.yaml
+    - load-nova-create_and_list_secgroups.yaml
+    - load-nova-nova-update-and-delete.yaml
+    - load-nova-pause_and_unpause.yaml
+    - load-nova-resize_server.yaml
+    - load-nova-snapshot_server.yaml
+    - load-nova-suspend_and_resume.yaml
+    - load-swift-create-container-and-object-then-delete-all.yaml
+    - load-swift-create-container-and-object-then-download-object.yaml
+    - load-swift-create-container-and-object-then-list-objects.yaml
+    - load-swift-list-and-download-objects-in-containers.yaml
+    - load-swift-list-objects-in-containers.yaml

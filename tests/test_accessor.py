@@ -22,7 +22,6 @@ import sys
 import unittest
 
 from mcv_consoler import accessor
-from mcv_consoler.common.cfgparser import config_parser
 
 
 def input_diverter(f, *args, **kwargs):
@@ -46,7 +45,7 @@ def bender_rodrigues(f, *args, **kwargs):
     return inner
 
 
-class test_AccessSteward(unittest.TestCase):
+class TestAccessSteward(unittest.TestCase):
     fake_access_data_template = {"controller_ip": '10.6.7.7',
                                  "instance_ip": '10.6.7.1',
                                  "os_username": 'admin',
@@ -56,8 +55,7 @@ class test_AccessSteward(unittest.TestCase):
                                  "nailgun_host": '10.6.7.4'}
 
     def setUp(self):
-        self.fake_config = config_parser
-        self.fake_config.add_section('basic')
+        self.fake_config = {}
         self.accessor = accessor.AccessSteward(self.fake_config)
         self.accessor.novaclient = mock.Mock()
 

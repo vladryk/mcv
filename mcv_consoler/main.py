@@ -12,26 +12,28 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from distutils import util
 import fcntl
-import os
 import sys
 import threading
 import time
 import traceback
 import logging
+import datetime
 
-from mcv_consoler.common.cfgparser import config_parser
-from mcv_consoler.common.config import DEFAULT_CONFIG_FILE, RUN_MODES
+import yaml
+from oslo_config import cfg
+
+from mcv_consoler.common.config import RUN_MODES
 from mcv_consoler.common import context
 from mcv_consoler.common.cmd import argparser
-from mcv_consoler.common.conf_validation import validate_conf
 from mcv_consoler.common.errors import CAError
 import mcv_consoler.consoler
 from mcv_consoler import log
-from mcv_consoler.utils import GET
+from mcv_consoler import consoler
+from mcv_consoler.common import cfglib
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 args = argparser.parse_args()
 
@@ -45,30 +47,16 @@ def acquire_lock():
     return True
 
 
-def load_config():
-    if args.config is not None:
-        default_config = args.config
-    else:
-        default_config = DEFAULT_CONFIG_FILE
-    path_to_config = os.path.join(os.path.dirname(__file__), default_config)
-    conf = config_parser
-    conf.read(path_to_config)
-    # a little hack. We will need this later, when validating a config
-    conf._conf_path = path_to_config
-    return conf
+def load_scenario():
+    with open(CONF.basic.scenario, 'r') as f:
+        return yaml.load(f)
 
 
 def main():
-    conf = load_config()
+    cfglib.init_config(args.config)
+    log.configure_logging(args.debug)
 
-    # TODO(abochkarev): need to re-write this
-    # code after integrating with oslo config
-    log_config = GET(conf, 'log_config', default='/etc/mcv/logging.yaml')
-    hide_ssl_warnings = GET(conf, 'hide_ssl_warnings', default=True,
-                            convert=util.strtobool)
-
-    log.configure_logging(log_config, args.debug, hide_ssl_warnings)
-    LOG.debug('Consoler started by command: %s' % ' '.join(sys.argv))
+    LOG.debug('Consoler started by command: %s', ' '.join(sys.argv))
     # show deprecation warning. Replace 'mode' with 'run_mode' if needed
     if args.mode is not None:
         warn_msg = "\nDeprecation warning: option '--mode' is deprecated " \
@@ -78,10 +66,6 @@ def main():
         if args.run_mode is None:
             args.run_mode = RUN_MODES[args.mode - 1]
 
-    if args.run is not None:
-        if not validate_conf(conf, args.run):
-            return CAError.CONFIG_ERROR
-
     if not acquire_lock():
         LOG.error("There is another instance of MCVConsoler! Stop.")
         return CAError.TOO_MANY_INSTANCES
@@ -89,7 +73,7 @@ def main():
     ctx = context.Context(
         None,
         args=args,
-        config=conf,
+        scenario=load_scenario(),
         terminate_event=threading.Event())
     consoler = mcv_consoler.consoler.Consoler(ctx)
 
