@@ -107,8 +107,8 @@ class BaseStorageSpeed(object):
         else:
             LOG.debug('Command "%s" finished with exit code %d' % (cmd,
                                                                    status))
-        LOG.debug('Stdout: %s' % out)
-        LOG.debug('Stderr: %s' % err)
+        LOG.debug('Stdout: %s', out)
+        LOG.debug('Stderr: %s', err)
         return {'ret': status, 'out': out, 'err': err}
 
     def prepare_size(self, str_size):
@@ -332,16 +332,17 @@ class BlockStorageSpeed(BaseStorageSpeed):
         LOG.info(
             "Measuring write speed: block size {0}, "
             "count {1}".format(bs, count))
-        return self.run_ssh_cmd('dd if=/dev/zero of=%s bs=%s count=%d '
-                                'conv=notrunc,fsync' % (
-                                    self.image_name, bs, count))['ret']
+        return self.run_ssh_cmd(
+            'LC_ALL=C dd if=/dev/zero of=%s bs=%s count=%d '
+            'conv=notrunc,fsync' % (self.image_name, bs, count))['ret']
 
     @block_measure_dec
     def measure_read(self, bs, count):
         LOG.info(
-            "Measuring  read speed: block size {0}, "
+            "Measuring read speed: block size {0}, "
             "count {1}".format(bs, count))
-        return self.run_ssh_cmd('dd if=%s of=/dev/null bs=%s count=%d' % (
+        return self.run_ssh_cmd(
+            'LC_ALL=C dd if=%s of=/dev/null bs=%s count=%d' % (
             self.image_name, bs, count))['ret']
 
     def measure_speed(self, node_id):
