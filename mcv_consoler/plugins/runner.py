@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ConfigParser import NoOptionError
 import datetime
 import json
 import logging
@@ -39,12 +38,14 @@ LOG = logging.getLogger(__name__)
 
 
 class Runner(object):
+    identity = None
     failure_indicator = CAError.NO_RUNNER_ERROR
 
     def __init__(self, ctx):
         super(Runner, self).__init__()
         self.ctx = ctx
         self.current_task = 1
+        self.test_failures = []
         self.test_without_report = []
         self.test_success = []
         self.test_not_found = []
@@ -104,6 +105,7 @@ class Runner(object):
 
         return codes[tool_name]
 
+    # FIXME(dbogun): move to utils.py
     def seconds_to_time(self, s):
         s = int(round(s))
         h = s // 3600
@@ -134,14 +136,12 @@ class Runner(object):
     def run_batch(self, tasks, *args, **kwargs):
         """Runs a bunch of tasks."""
 
-        config = kwargs["config"]
         tool_name = kwargs["tool_name"]
         all_time = kwargs["all_time"]
         elapsed_time = kwargs["elapsed_time"]
-        try:
-            max_failed_tests = int(config.get(tool_name, 'max_failed_tests'))
-        except NoOptionError:
-            max_failed_tests = DEFAULT_FAILED_TEST_LIMIT
+        max_failed_tests = utils.GET(
+            self.ctx.config, 'max_failed_tests', tool_name,
+            DEFAULT_FAILED_TEST_LIMIT, convert=int)
 
         LOG.debug("The following tests will be run:")
         LOG.debug("\n".join(tasks))
@@ -170,50 +170,53 @@ class Runner(object):
             time_start = datetime.datetime.utcnow()
             LOG.debug("Running task " + task)                   # was info
             LOG.debug("Time start: %s UTC" % str(time_start))   # was info
-            if self.config.get('times', 'update') == 'False':
+            if self.ctx.config.get('times', 'update') == 'False':
                 try:
                     current_time = db[tool_name][task]
                 except KeyError:
                     current_time = 0
 
-                msg = "Expected time to complete %s: %s" % (task,
-                    self.seconds_to_time(current_time * multiplier))
+                msg = "Expected time to complete %s: %s"
+                msg %= (task, self.seconds_to_time(current_time * multiplier))
                 if not current_time:
                     LOG.debug(msg)
                 else:
                     LOG.info(msg)
 
+            # FIXME(dbogun): sort out exceptions handling
             try:
                 if self.run_individual_task(task, *args, **kwargs):
                     self.test_success.append(task)
                 else:
                     failures += 1
-            except:
+            except Exception:
                 failures += 1
                 LOG.debug(traceback.format_exc())
 
             time_end = datetime.datetime.utcnow()
-            time = time_end - time_start
+            duration = time_end - time_start
+            duration = duration.total_seconds()
+
             LOG.debug("Time end: %s UTC" % str(time_end))
 
-            if self.config.get('times', 'update') == 'True':
+            if self.ctx.config.get('times', 'update') == 'True':
                 if tool_name in db.keys():
-                    db[tool_name].update({task: time.seconds})
+                    db[tool_name].update({task: int(duration)})
                 else:
-                    db.update({tool_name: {task: time.seconds}})
+                    db.update({tool_name: {task: int(duration)}})
             else:
                 if first_run:
                     first_run = False
                     if current_time:
-                        multiplier = float(time.seconds) / float(current_time)
+                        multiplier = duration / current_time
                 all_time -= current_time
-                persent = 1.0
+                percent = 1.0
                 if kwargs["all_time"]:
-                    persent -= float(all_time) / float(kwargs["all_time"])
-                persent = int(persent * 100)
-                persent = 100 if persent > 100 else persent
+                    percent -= float(all_time) / float(kwargs["all_time"])
+                percent = int(percent * 100)
+                percent = 100 if percent > 100 else percent
 
-                line = 'Completed %s' % persent + '%'
+                line = 'Completed %s %%' % percent
                 if all_time and multiplier:
                     line += ' and remaining time %s' % self.seconds_to_time(all_time * multiplier)
                 LOG.info(line)
@@ -224,7 +227,7 @@ class Runner(object):
                 self.failure_indicator = self.get_error_code(tool_name)
                 break
 
-        if self.config.get('times', 'update') == 'True':
+        if self.ctx.config.get('times', 'update') == 'True':
             f = file(TIMES_DB_PATH, "w")
             f.write(json.dumps(db))
             f.close()
@@ -237,6 +240,3 @@ class Runner(object):
 
     def _evaluate_task_results(self, task_results):
         raise NotImplementedError
-
-    def orient_self(self):
-        self.directory = os.getcwd("")
