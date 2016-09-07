@@ -145,7 +145,6 @@ class Runner(object):
 
         LOG.debug("The following tests will be run:")
         LOG.debug("\n".join(tasks))
-        self.total_checks = len(tasks)
 
         failures = 0
 

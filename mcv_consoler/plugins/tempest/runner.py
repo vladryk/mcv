@@ -394,11 +394,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 LOG.info("-" * 60)
 
             t.append(self.task['test_cases'].keys())
-            if self.failed_cases > max_failed_tests:
-                self.total_checks = len(t)
-                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
-                break
 
             tempest_task_results_details[task] = {
                 # overall number of tests in suit
@@ -408,13 +403,16 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                 "test_skipped": self.task.get("skipped", 0),
                 "expected_failures": self.task.get("expected_failures", 0)
             }
+            if self.failed_cases > max_failed_tests:
+                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
+                break
 
         if self.config.get('times', 'update') == 'True':
             f = file(TIMES_DB_PATH, "w")
             f.write(json.dumps(db))
             f.close()
 
-        self.total_checks = len(t)
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         self.cleanup_toolbox()
         return {"test_failures": self.test_failures,
