@@ -18,6 +18,7 @@ import time
 from novaclient import exceptions
 
 from mcv_consoler.common.cfgparser import config_parser
+from mcv_consoler.common.config import DEFAULT_NETWORK_NAME_INT
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common import ssh
 from mcv_consoler import utils
@@ -130,9 +131,10 @@ class Preparer(object):
         network_name = utils.GET(
             config_parser, "network_name", "network_speed")
         if not network_name:
+            network_name = DEFAULT_NETWORK_NAME_INT
             LOG.error("Failed to get option 'network_speed:network_name' from "
-                      "configuration file. Using default value 'net04'")
-            network_name = 'net04'
+                      "configuration file. Using default value '{}'".format(
+                      network_name))
         try:
             network = self.nova.networks.find(label=network_name)
         except exceptions.NotFound:

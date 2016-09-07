@@ -120,3 +120,7 @@ TIMES_DB_PATH = '/home/mcv/toolbox/times.json'
 
 # Shaker timeout for agents
 SHAKER_AGENTS_TIMEOUT = 60
+
+# Default values for network names to be used for launching instances
+DEFAULT_NETWORK_NAME_INT = 'admin_internal_net'
+DEFAULT_NETWORK_NAME_EXT = 'admin_floating_net'

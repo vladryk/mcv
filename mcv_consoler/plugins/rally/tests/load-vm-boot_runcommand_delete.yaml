@@ -6,7 +6,7 @@
             name: "m1.nano"
         image:
             name: "TestVM"
-        floating_network: "net04_ext"
+        floating_network: "admin_floating_net"
         script: "/opt/stack/rally-scenarios/vm/instance_metadata.sh"
         interpreter: "/bin/sh"
         username: "cirros"
