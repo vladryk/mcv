@@ -30,8 +30,7 @@ handlers:
 
 loggers:
   paramiko.transport:
-    level: WARNING
-    handlers: [console, file]
+    level: CRITICAL
 
 root:
   level: NOTSET
