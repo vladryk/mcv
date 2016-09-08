@@ -60,7 +60,6 @@ class Consoler(object):
     def __init__(self, ctx):
         self.ctx = context.Context(ctx, resources=resource.Pool())
         self.config = ctx.config
-        self.cloud_cleanup = None
         self._name_parts = [
             'mcv',
             datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')]
@@ -165,19 +164,19 @@ class Consoler(object):
 
         self._collect_predefined_data()
 
-        access_helper = AccessSteward(
-            self.ctx, self.ctx.args.run_mode,
-            port_forwarding=not self.ctx.args.no_tunneling)
+        clean_up_wrapper = utils.DummyContextWrapper
+        is_clean_up_requested = utils.GET(
+            self.config, 'show_trash', 'cleanup', default=False,
+            convert=util.strtobool)
+        if is_clean_up_requested:
+            clean_up_wrapper = cleanup.CleanUpWrapper
 
-        if not access_helper.check_and_fix_environment():
-            raise exceptions.AccessError(
-                'Unable to setup access to OS cloud.')
-        try:
-            self._exec_tests(test_plan, access_helper)
-        finally:
-            access_helper.cleanup()
+        with self._make_access_helper() as access_helper:
+            self._update_ctx_with_access_data(access_helper)
+            with clean_up_wrapper(self.ctx):
+                return self._exec_tests(test_plan)
 
-    def _exec_tests(self, test_plan, access_helper):
+    def _exec_tests(self, test_plan):
         elapsed_time_by_group = dict()
         dispatch_result = {}
 
@@ -241,13 +240,10 @@ class Consoler(object):
                 os.mkdir(path)
 
                 factory = getattr(module, self.config.get(key, 'runner'))
-                access_data = access_helper.access_data()
                 runner = factory(context.Context(
                     self.ctx,
                     work_dir=utils.WorkDir(
-                        path, parent=self.ctx.work_dir_global),
-                    access_data=access_data,
-                    access=clients.OSClientsProxy(self.ctx, access_data)))
+                        path, parent=self.ctx.work_dir_global)))
 
                 batch = test_plan[key]
                 if isinstance(batch, basestring):
@@ -433,6 +429,7 @@ class Consoler(object):
         LOG.info("One page report could be found in %s\n" % archive_file)
 
     def __call__(self):
+        # FIXME(dbogun): implement acceptable way to run different cli commands
         if self.ctx.args.compare_resources:
             self._show_resources()
             return
@@ -449,78 +446,37 @@ class Consoler(object):
         self._name_parts.append(method)
 
         try:
-            if not self._check_fix_env():
-                return CAError.WRONG_CREDENTIALS
-            cleanup_status = utils.GET(self.config, 'show_trash', 'cleanup')
-
-            try:
-                if util.strtobool(cleanup_status):
-                    self.cloud_cleanup = cleanup.Cleanup(
-                        self.config, self.access_helper.access_data())
-                    self.cloud_cleanup.get_started_resources()
-            except Exception:
-                LOG.error("Something went wrong with the command, "
-                          "please refer to logs to discover the problem.")
-                LOG.debug('Error details', exc_info=True)
-                self.failure_indicator = CAError.UNKNOWN_OUTER_ERROR
             run_results = handler(*params)
             self._do_finalization(run_results)
-
         except exceptions.AccessError as e:
             LOG.error('Have some issues with accessing cloud: %s', e)
             LOG.debug('Error details', exc_info=True)
             self.failure_indicator = CAError.WRONG_CREDENTIALS
         finally:
-            try:
-                if self.cloud_cleanup:
-                    self.cloud_cleanup.get_finished_resources()
-            except Exception as e:
-                LOG.debug(traceback.format_exc())
-                LOG.debug('Cleanup failed.')
-
-            for handler in (
-                    self.access_helper.cleanup,
-                    self.ctx.resources.terminate):
-                try:
-                    handler()
-                except Exception as e:
-                    LOG.error(
-                        'Unhandled error during housekeeping stage: {}',
-                        e, exc_info=True)
+            LOG.debug('Perform house keeping')
+            self.ctx.resources.terminate()
 
         return self.failure_indicator
 
     def _show_resources(self):
-        if not self._check_fix_env():
-            self.access_helper.cleanup()
-            return CAError.WRONG_CREDENTIALS
-        cloud_cleanup = cleanup.Cleanup(
-            self.config, self.access_helper.access_data())
-        try:
-            cloud_cleanup.compare_yaml_resources(self.ctx.args.compare_resources[0])
-        except Exception:
-            LOG.debug("Cleanup failed", exc_info=True)
-        finally:
-            self.access_helper.cleanup()
+        with self._make_access_helper() as access_helper:
+            self._update_ctx_with_access_data(access_helper)
 
-    def _check_fix_env(self):
-        # TODO(vokhrimenko): need rewrite function.
-        # Best way - using a context manager
-        try:
-            self.access_helper = AccessSteward(
-                self.ctx, self.ctx.args.run_mode,
-                port_forwarding=not self.ctx.args.no_tunneling)
-            if not self.access_helper.check_and_fix_environment():
-                raise exceptions.AccessError(
-                    'Unable to setup access to OS cloud.')
-            return True
-        except Exception as e:
-            LOG.info("Something went wrong with checking credentials "
-                     "and preparing environment")
-            LOG.error("The following error has terminated "
-                      "the consoler: %s", repr(e))
-            LOG.debug('Error details', exc_info=True)
-            return False
+            cloud_cleanup = cleanup.Cleanup(self.ctx)
+            cloud_cleanup.compare_yaml_resources(
+                self.ctx.args.compare_resources[0])
+
+    def _make_access_helper(self):
+        return AccessSteward(
+            self.ctx, self.ctx.args.run_mode,
+            port_forwarding=not self.ctx.args.no_tunneling)
+
+    def _update_ctx_with_access_data(self, access_helper):
+        access_data = access_helper.access_data()
+        context.add(self.ctx, 'access_data', access_data)
+        context.add(
+            self.ctx, 'access', clients.OSClientsProxy(
+                self.ctx, access_data))
 
     def _collect_predefined_data(self):
         work_dir = self.ctx.work_dir_global

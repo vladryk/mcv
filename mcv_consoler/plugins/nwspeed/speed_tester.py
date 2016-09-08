@@ -26,7 +26,8 @@ LOG = logging.getLogger(__name__)
 
 
 class Node2NodeSpeed(object):
-    def __init__(self, config, nodes):
+    def __init__(self, ctx, config, nodes):
+        self.ctx = ctx
         self.config = config
         self.nodes = nodes
         self.ssh_conns = dict()
@@ -38,10 +39,11 @@ class Node2NodeSpeed(object):
     def init_ssh_conns(self):
         if not self.nodes:
             return
+        work_dir = self.ctx.work_dir_global
+        rsa_path = work_dir.resource(work_dir.RES_OS_SSH_KEY)
         login = app_conf.OS_NODE_SSH_USER
         for node in self.nodes:
-            conn = self._ssh_connect(
-                login, node.ip, app_conf.DEFAULT_RSA_KEY_PATH)
+            conn = self._ssh_connect(login, node.ip, rsa_path)
             self.ssh_conns[node.fqdn] = conn
 
     @staticmethod

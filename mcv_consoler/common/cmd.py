@@ -25,14 +25,14 @@ def _get_parser():
         description=config.PROJECT_DESCRIPTION,
         epilog=config.RUN_DESCRIPTION)
 
-    required = parser.add_mutually_exclusive_group(required=True)
+    operation = parser.add_mutually_exclusive_group(required=True)
 
-    required.add_argument(
+    operation.add_argument(
         "--run",
         nargs="+",
         help="Run one of specified test suites.")
 
-    one_of_is_required.add_argument(
+    operation.add_argument(
         "--compare-resources",
         default=False,
         help="""Compare current resources with yaml-file""")
@@ -68,9 +68,9 @@ def _get_parser():
         version=version,
         help="Print out version of MCV Consoler and exit.")
 
-    required = parser.add_mutually_exclusive_group(required=True)
+    operation = parser.add_mutually_exclusive_group(required=True)
 
-    required.add_argument(
+    operation.add_argument(
         "--run-mode",
         choices=config.RUN_MODES,
         # TODO(abochkarev): need to set required to 'True'
@@ -84,7 +84,7 @@ instance -  Run MCV inside the cloud as an instance (L1)
 node -      Run MCV as a separate node with direct access to admin network (L2)
 external -  Run MCV as a separate node in external network (L3)""")
 
-    required.add_argument(
+    operation.add_argument(
         "--mode",
         type=int,
         choices=config.MODES,

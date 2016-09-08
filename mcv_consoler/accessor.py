@@ -19,6 +19,7 @@ import mcv_consoler.common.config as app_conf
 from mcv_consoler.auth.router import Router
 from mcv_consoler.auth.router import IRouter
 from mcv_consoler.auth.router import CRouter
+from mcv_consoler import exceptions
 from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
@@ -35,57 +36,54 @@ class AccessSteward(object):
             app_conf.RUN_MODES[2]: CRouter}.get(mode, Router)
         self.router = router_class(self.ctx, **kwargs)
 
+    def __enter__(self):
+        self._recount_docker_images()
+        self.router.setup_connections()
+
+        return self
+
+    def __exit__(self, *exc_info):
+        self.router.cleanup()
+
     def access_data(self):
         return self.router.os_data
 
-    def check_docker_images(self):
+    def _recount_docker_images(self):
+        # TODO(dbogun): why for this method here? It must be in router
         LOG.debug('Validating that all docker images required by '
                   'the application are available')
 
-        sleep_total = 0
-        sleep_for = app_conf.DOCKER_CHECK_INTERVAL
-        timeout = app_conf.DOCKER_LOADING_IMAGE_TIMEOUT
+        now = time.time()
+        time_end = now + app_conf.DOCKER_LOADING_IMAGE_TIMEOUT
 
-        while True:
+        missing = app_conf.DOCKER_REQUIRED_IMAGES
+        while now < time_end:
             if self.ctx.terminate_event.is_set():
-                LOG.warning('Caught Keyboard Interrupt, exiting')
-                return False
+                raise exceptions.EarlyExitCtrl
 
-            if sleep_total >= timeout:
-                LOG.warning('Failed to load one or more docker images. '
-                            'Gave up after %s seconds. See log for more '
-                            'details' % sleep_total)
-                return False
+            available = utils.run_cmd(
+                'docker images --format {{.Repository}}', quiet=True)
+            available = available.split()
+            available = set(available)
+            missing = app_conf.DOCKER_REQUIRED_IMAGES - available
+            if not missing:
+                break
 
-            res = utils.run_cmd("docker images --format {{.Repository}}",
-                                quiet=True)
+            missing = sorted(missing)
+            LOG.debug(
+                'One or more docker images are not present: "%s"',
+                '", "'.join(missing))
 
-            all_present = all(map(res.count, app_conf.DOCKER_REQUIRED_IMAGES))
-            if all_present:
-                LOG.debug("All docker images seem to be in place")
-                return True
-
-            by_name = lambda img: res.count(img) == 0
-            not_found = filter(by_name, app_conf.DOCKER_REQUIRED_IMAGES)
-
-            formatter = dict(
-                sleep=sleep_for, total=sleep_total,
-                max=timeout, left=timeout - sleep_total
-            )
-            LOG.debug('One or more docker images are not present: '
-                      '{missing}.'.format(missing=', '.join(not_found)))
-            LOG.debug('Going to wait {sleep} more seconds for them to load. '
-                      'ETA: already waiting {total} sec; max time {max}; '
-                      '{left} left'.format(**formatter))
-
+            sleep_for = time_end - time.time()
+            sleep_for = max(sleep_for, 0)
+            sleep_for = min(sleep_for, 1)
             time.sleep(sleep_for)
-            sleep_total += sleep_for
 
-    def cleanup(self):
-        self.router.cleanup()
+            now = time.time()
+        else:
+            missing = sorted(missing)
+            raise exceptions.FrameworkError(
+                'Unable to locate docker image(s): "{}"'.format(
+                    '", "'.join(missing)))
 
-    def check_and_fix_environment(self):
-        if not self.check_docker_images():
-            LOG.warning('Failed to load docker images. Exiting')
-            return False
-        return self.router.setup_connections()
+        LOG.debug('All docker images seem to be in place')

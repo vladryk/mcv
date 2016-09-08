@@ -31,6 +31,8 @@ class Context(object):
 
     def __getattr__(self, attr):
         data = _self[self]
+        if data.parent is None:
+            raise AttributeError('Context have no field {!r}'.format(attr))
         return getattr(data.parent, attr)
 
 

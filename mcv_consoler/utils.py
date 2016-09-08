@@ -254,3 +254,14 @@ class LazyAttribute(object):
     def __repr__(self):
         return '<{}(name={}, target={})>'.format(
             type(self), self.name, self.target)
+
+
+class DummyContextWrapper(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        pass

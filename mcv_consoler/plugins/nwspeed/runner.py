@@ -38,7 +38,7 @@ class NWSpeedTestRunner(run.Runner):
 
     def __init__(self, ctx):
         super(NWSpeedTestRunner, self).__init__(ctx)
-
+        self.ctx = ctx
         self.access_data = self.ctx.access_data
         self.config = self.ctx.config
         self.path = self.ctx.work_dir.base_dir
@@ -111,7 +111,7 @@ class NWSpeedTestRunner(run.Runner):
         runner_obj = None
         try:
             runner_cls = getattr(st, task)
-            runner_obj = runner_cls(self.config, self.hw_nodes)
+            runner_obj = runner_cls(self.ctx, self.config, self.hw_nodes)
             runner_obj.init_ssh_conns()
         except AttributeError:
             LOG.error('Incorrect task: %s', task)

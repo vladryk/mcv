@@ -13,81 +13,71 @@
 #    under the License.
 
 import os
-import time
-import yaml
+import logging
 import prettytable
 import traceback
+import time
+import yaml
 
 from datetime import datetime
 
-from mcv_consoler.log import LOG
 from mcv_consoler.utils import GET
-from mcv_consoler.common import clients
 from mcv_consoler.common import config
 from mcv_consoler import exceptions
 
-LOG = LOG.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Cleanup(object):
-    def __init__(self, conf, os_data):
-        self.config = conf
-        self.os_data = os_data
-        self.store = Store(self.config)
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.store = Store(self.ctx.config)
         self.started_resources = None
         self.finished_resources = None
 
-        self._create_clients()
-
-    def _create_clients(self):
-        try:
-            self.keystoneclient = clients.get_keystone_client(self.os_data)
-            self.novaclient = clients.get_nova_client(self.os_data)
-            self.cinderclient = clients.get_cinder_client(self.os_data)
-            self.glanceclient = clients.get_glance_client(self.os_data)
-            self.neutronclient = clients.get_neutron_client(self.os_data)
-            self.heatclient = clients.get_heat_client(self.os_data)
-        except Exception:
-            LOG.debug(traceback.format_exc())
-            raise exceptions.ClientsError(
-                'Unable to create clients')
-
     def _get_list_of_resources(self):
+        keystone = self.ctx.access.keystone
+        nova = self.ctx.access.nova
+        cinder = self.ctx.access.cinder
+        glance = self.ctx.access.glance
+        neutron = self.ctx.access.neutron
+        heat = self.ctx.access.heat
+
         resources = {}
         try:
             # TODO(vokhrimenko): Need remove try-except after fix MCV-834
             try:
                 resources['users'] = [
-                    i.name for i in self.keystoneclient.users.findall()]
+                    i.name for i in keystone.users.findall()]
                 resources['projects'] = [
-                    i.name for i in self.keystoneclient.tenants.findall()]
+                    i.name for i in keystone.tenants.findall()]
             except Exception:
                 LOG.warning("Can't get resources from Keystone")
 
             resources['flavors'] = [
-                i.name for i in self.novaclient.flavors.findall()]
+                i.name for i in nova.flavors.findall()]
             resources['servers'] = [
-                i.name for i in self.novaclient.servers.findall()]
+                i.name for i in nova.servers.findall()]
             resources['keypairs'] = [
-                i.name for i in self.novaclient.keypairs.findall()]
+                i.name for i in nova.keypairs.findall()]
             resources['security_groups'] = [
-                i.name for i in self.novaclient.security_groups.findall()]
+                i.name for i in nova.security_groups.findall()]
 
             resources['volumes'] = [
-                i.name for i in self.cinderclient.volumes.findall()]
+                i.name for i in cinder.volumes.findall()]
             resources['volume_snapshots'] = [
-                i.name or i.id for i in self.cinderclient.volume_snapshots.findall()]
+                i.name or i.id for i in cinder.volume_snapshots.findall()]
 
             resources['images'] = [
-                i.name for i in self.glanceclient.images.findall()]
+                i.name for i in glance.images.findall()]
 
             resources['routers'] = [
-                i['name'] for i in self.neutronclient.list_routers()['routers']]
+                i['name'] for i in neutron.list_routers()['routers']]
             resources['networks'] = [
-                i['name'] for i in self.neutronclient.list_networks()['networks']]
+                i['name'] for i in neutron.list_networks()['networks']]
 
             resources['stacks'] = [
-                i.stack_name for i in self.heatclient.stacks.list()]
+                i.stack_name for i in heat.stacks.list()]
 
         except Exception:
             LOG.debug(traceback.format_exc())
@@ -139,7 +129,6 @@ class Cleanup(object):
         except Exception:
             LOG.debug("Can't remove old cleanup's files")
 
-
     @staticmethod
     def print_resources(resources):
         LOG.info("Resources that have been found:")
@@ -152,7 +141,6 @@ class Cleanup(object):
         resource_table.add_row(["", ""])
         resource_table.align = "l"
         print(resource_table)
-
 
     @staticmethod
     def compare_start_end_resources(start, end):
@@ -191,7 +179,6 @@ class Store(object):
                                      'cleanup',config.CLEANUP_AGE_LIMIT,
                                       convert=int)
 
-
     def save(self, data):
         with open(self.file_name, 'w') as fp:
             yaml.dump(data, stream=fp, default_flow_style=False)
@@ -216,3 +203,15 @@ class Store(object):
                 c = t.st_ctime
                 if c < cutoff:
                     os.remove(path)
+
+
+class CleanUpWrapper(object):
+    def __init__(self, ctx):
+        self.clean_ctrl = Cleanup(ctx)
+
+    def __enter__(self):
+        self.clean_ctrl.get_started_resources()
+        return self
+
+    def __exit__(self, *exc_info):
+        self.clean_ctrl.get_finished_resources()

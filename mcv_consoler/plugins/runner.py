@@ -56,9 +56,9 @@ class Runner(object):
         return discovery.use(self.identity)
 
     def dump_raw_results(self, task, raw_results):
-        path_to_store = os.path.join(self.ctx.work_dir_global,
-                                     "raw_data",
-                                     self.identity)
+        # FIXME(dbogun): define corresponding resource in WorkDir
+        path_to_store = os.path.join(
+            self.ctx.work_dir_global.base_dir, "raw_data", self.identity)
 
         if not os.path.exists(path_to_store):
             os.makedirs(path_to_store)
@@ -74,9 +74,9 @@ class Runner(object):
                       "archive for {identity}."
                       .format(task=task, identity=self.identity))
             LOG.debug(traceback.format_exc())
-
-        LOG.debug("Raw results for task `{task}` were dumped into file:"
-                  " {path}".format(task=task, path=path_to_store))
+        else:
+            LOG.debug("Raw results for task `{task}` were dumped into file:"
+                      " {path}".format(task=task, path=path_to_store))
 
     def run_individual_task(self, task, *args, **kwargs):
         raise NotImplementedError

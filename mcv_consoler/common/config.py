@@ -58,7 +58,8 @@ DEFAULT_FAILED_TEST_LIMIT = 10
 MOS_VERSIONS = ['6.1', '7.0', '8.0', '9.0']
 
 # Options used while verifying that docker images are up and running
-DOCKER_REQUIRED_IMAGES = ("mcv-rally", "mcv-shaker", "mcv-ostf", 'mcv-tempest')
+DOCKER_REQUIRED_IMAGES = frozenset((
+    "mcv-rally", "mcv-shaker", "mcv-ostf", 'mcv-tempest'))
 DOCKER_LOADING_IMAGE_TIMEOUT = 60 * 20  # 20 min
 DOCKER_CHECK_INTERVAL = 20
 

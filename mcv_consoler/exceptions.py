@@ -17,6 +17,10 @@ class MCVException(Exception):
     pass
 
 
+class EarlyExitCtrl(MCVException):
+    pass
+
+
 class FrameworkError(MCVException):
     pass
 
