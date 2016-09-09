@@ -13,11 +13,14 @@
 #    under the License.
 
 import errno
+import logging
 import os
 import time
 import weakref
 
 from mcv_consoler import exceptions
+
+LOG = logging.getLogger(__name__)
 
 
 class ResourceAbstract(object):
@@ -108,8 +111,29 @@ class OSObjectResource(ResourceAbstract):
         self.target = target
 
     def terminate(self, is_last_request):
+        LOG.debug('Remove OS-object %r', self.target)
         self.target.delete()
         super(OSObjectResource, self).terminate(is_last_request)
+
+
+class CallOnReleaseResource(ResourceAbstract):
+    def __init__(self, target, housekeeper):
+        self.target = target
+        self.housekeeper = housekeeper
+
+    def terminate(self, is_last_request):
+        self.housekeeper(self.target)
+        super(CallOnReleaseResource, self).terminate(is_last_request)
+
+
+class OSSecGroupRemove(object):
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    def __call__(self, target):
+        LOG.debug(
+            'Remove OS-security-group %s(%s)', target['name'], target['id'])
+        self.ctx.access.neutron.delete_security_group(target['id'])
 
 
 class Pool(object):

@@ -17,6 +17,8 @@ flavor_min_ram = 1024
 flavor_min_vcpus = 1
 flavor_min_disk = 0
 
+secgroup_name = 'mcv-speed-test'
+
 tool_vm_name = 'mcv-speed-test'
 tool_vm_image_name = 'mcv-fedora-image'
 tool_vm_login = 'fedora'

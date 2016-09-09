@@ -72,6 +72,7 @@ class Allocator(object):
         vm_image = self._upload_vm_image()
         flavor = self._create_os_flavor()
         keypair = self._create_os_keypair()
+        secgroup = self._create_os_secgroup()
         network = self._lookup_network(self.network)
         network_ext = self._lookup_network(self.floating_network)
         computes = self._lookup_computes()
@@ -88,6 +89,7 @@ class Allocator(object):
                 name=config.tool_vm_name,
                 image=vm_image.id, flavor=flavor.id,
                 key_name=keypair.name, availability_zone=zone,
+                security_groups=[secgroup['name']],
                 nics=[{'net-id': network.id}])
             vms[vm_details.id] = vm_details
 
@@ -177,6 +179,35 @@ class Allocator(object):
         self.resource_pool.add(resource.FileResource(key_path), True)
 
         return keypair
+
+    def _create_os_secgroup(self):
+        neutron = self.ctx.access.neutron
+
+        current_secgroups = neutron.list_security_groups()
+        current_secgroups = current_secgroups['security_groups']
+        for secgroup in current_secgroups:
+            if secgroup['name'] != config.secgroup_name:
+                continue
+            break
+        else:
+            payload = {'name': config.secgroup_name}
+            payload = {'security_group': payload}
+            secgroup = neutron.create_security_group(payload)
+            secgroup = secgroup['security_group']
+            secgroup_killer = resource.OSSecGroupRemove(self.ctx)
+            self.resource_pool.add(
+                resource.CallOnReleaseResource(secgroup, secgroup_killer),
+                True)
+
+            payload = {
+                'direction': 'ingress',
+                'protocol': 'tcp', 'port_range_max': 22, 'port_range_min': 22,
+                'ethertype': 'IPv4',
+                'security_group_id': secgroup['id']}
+            payload = {'security_group_rule': payload}
+            neutron.create_security_group_rule(payload)
+
+        return secgroup
 
     def _lookup_network(self, name):
         try:
