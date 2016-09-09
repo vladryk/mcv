@@ -13,6 +13,7 @@
 #    under the License.
 
 import datetime
+import itertools
 import logging
 import os.path
 # TODO(albartash): replace with traceback2
@@ -25,9 +26,10 @@ from oslo_config import cfg
 from mcv_consoler import exceptions
 from mcv_consoler.common import context
 from mcv_consoler.common.errors import SpeedError
-import mcv_consoler.plugins.runner as run
-from mcv_consoler.plugins.speed.prepare_instance import Preparer
+from mcv_consoler.plugins import runner
+from mcv_consoler.plugins.speed import resources
 from mcv_consoler.plugins.speed import speed_tester as st
+from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -49,71 +51,53 @@ class BlockTable(Table):
     result = Col('RESULT')
 
 
-class SpeedTestRunner(run.Runner):
+class SpeedTestRunner(runner.Runner):
     failure_indicator = SpeedError.NO_RUNNER_ERROR
     identity = 'speed'
     config_section = 'speed'
 
     def __init__(self, ctx):
         super(SpeedTestRunner, self).__init__(ctx)
+        work_dir = SpeedWorkDir.new_as_replacement(self.ctx.work_dir)
+        context.add(self.ctx, 'work_dir', work_dir)
 
-        self.access_data = self.ctx.access_data
-        self.path = self.ctx.work_dir.base_dir
+    def run_batch(self, tasks, *args, **kwargs):
+        LOG.info('Threshold is %s Mb/s\n' % CONF.speed.threshold)
+        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
 
+        tasks, missing = self.discovery.match(tasks)
+        self.test_not_found.extend(missing)
 
-        self.test_failures = []
-        self.node_ids = []
-        # TODO(albartash): Make a single place for images!
-        self.imagedir = '/home/mcv/toolbox/rally/images'
+        flavor = CONF.speed.flavor_req
+        avail_zone = CONF.speed.availability_zone
+        tool_vm_image = CONF.speed.speed_image_path
+        network = CONF.network_speed.network_name
+        floating_net = CONF.network_speed.network_ext_name
+        nodes_limit = CONF.speed.compute_nodes_limit
 
-        self.threshold = CONF.speed.threshold
-        self.preparer = Preparer(self.access_data, self.path)
+        with resources.Allocator(
+                self.ctx, flavor, avail_zone, tool_vm_image,
+                network, floating_net,
+                nodes_limit=nodes_limit) as allocator:
+            context.add(self.ctx, 'allocator', allocator)
+            results = super(SpeedTestRunner, self).run_batch(
+                tasks, *args, **kwargs)
+
+        results['threshold'] = '{} Mb/s'.format(CONF.speed.threshold)
+        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+        return results
 
     def _evaluate_task_results(self, task_results):
         res = True
         status = 'PASSED'
         for speed in task_results:
-            if speed < self.threshold:
+            if speed < CONF.speed.threshold:
                 res = False
                 LOG.warning('Average speed is under the threshold')
                 status = 'FAILED'
                 break
         LOG.info(' * %s' % status)
         return res
-
-    def _prepare_vms(self):
-        avail_zone = CONF.speed.availability_zone
-        flavor_req = CONF.speed.flavor_req
-        image_path = CONF.speed.speed_image_path
-
-        supported_req = ['ram', 'vcpus', 'disk']
-        flavor_req = dict((k.strip(), int(v.strip())) for k, v in
-                          (item.split(':') for item in flavor_req.split(',')
-                           ) if (k and v) and (k in supported_req))
-        return self.preparer.prepare_instances(image_path, flavor_req, avail_zone)
-
-    def run_batch(self, tasks, *args, **kwargs):
-        res = {'test_failures': [], 'test_success': [], 'test_not_found': []}
-        LOG.info('Threshold is %s Mb/s\n', self.threshold)
-        LOG.info("Time start: %s UTC\n", datetime.datetime.utcnow())
-
-        tasks, missing = self.discovery.match(tasks)
-        self.test_not_found.extend(missing)
-
-        try:
-            self.node_ids = self._prepare_vms()
-            res = super(SpeedTestRunner, self).run_batch(
-                tasks, *args, **kwargs)
-            res['threshold'] = '{} Mb/s'.format(self.threshold)
-            return res
-        except Exception:
-            LOG.error('Caught unexpected error, exiting. '
-                      'Please check mcvconsoler logs')
-            LOG.debug(traceback.format_exc())
-            return res
-        finally:
-            LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
-            self.preparer.delete_instances()
 
     def generate_report(self, result, task):
         # Append last run to existing file for now.
@@ -124,28 +108,24 @@ class SpeedTestRunner(run.Runner):
             table = ObjTable(result)
         else:
             table = BlockTable(result)
+
         table_html = table.__html__()
         path = os.path.join(os.path.dirname(__file__), 'speed_template.html')
         temp = open(path, 'r').read()
         template = Template(temp)
         res = template.render(table=table_html, name=task)
 
-        report = file('%s/%s.html' % (self.path, task), 'w')
+        report = file('%s/%s.html' % (self.ctx.work_dir.base_dir, task), 'wt')
         report.write(res)
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
-        if not self.node_ids:
-            LOG.error('Failed to measure speed - no test VMs was created')
-            self.test_failures.append(task)
-            return False
-
-        kwargs['work_dir'] = self.path
-        kwargs['image_size'] = CONF.speed.image_size
-        kwargs['volume_size'] = CONF.speed.volume_size
-        kwargs['iterations'] = CONF.speed.attempts
-
         LOG.debug('Start generating %s' % task)
+
+        test_args = {
+            'image_size': CONF.speed.image_size,
+            'volume_size': CONF.speed.volume_size,
+            'iterations': CONF.speed.attempts}
         try:
             speed_class = getattr(st, task)
         except AttributeError:
@@ -153,7 +133,7 @@ class SpeedTestRunner(run.Runner):
                 'Invalid test "%s" name (speed plugin)'.format(task))
         try:
             reporter = speed_class(
-                context.Context(self.ctx, runner=self), *args, **kwargs)
+                context.Context(self.ctx, runner=self), **test_args)
         except Exception:
             LOG.error('Error creating class %s. Please check mcvconsoler logs '
                       'for more info' % task)
@@ -166,10 +146,10 @@ class SpeedTestRunner(run.Runner):
         w_average_all = []
 
         time_start = datetime.datetime.utcnow()
-        for node_id in self.node_ids:
-            LOG.debug("Measuring speed on node %s" % node_id)
+        for vm in self.ctx.allocator.target_vms:
+            LOG.debug("Measuring speed on node %s" % vm.id)
             try:
-                res, r_average, w_average = reporter.measure_speed(node_id)
+                res, r_average, w_average = reporter.measure_speed(vm)
                 res_all += res
                 r_average_all.append(r_average)
                 w_average_all.append(w_average)
@@ -178,7 +158,7 @@ class SpeedTestRunner(run.Runner):
                 raise
             finally:
                 try:
-                    reporter.cleanup(node_id)
+                    reporter.cleanup(vm)
                 except Exception as e:
                     LOG.warning(
                         'Unhandled exception in %r.cleanup(): %s', reporter, e)
@@ -188,7 +168,8 @@ class SpeedTestRunner(run.Runner):
         self.dump_raw_results(task, res_all)
 
         time_end = datetime.datetime.utcnow()
-        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+        time_of_tests = '{:.3f}s'.format(
+            (time_end - time_start).total_seconds())
         self.time_of_tests[task] = {'duration': time_of_tests}
         r_av = round(sum(r_average_all) / len(r_average_all), 2)
         w_av = round(sum(w_average_all) / len(w_average_all), 2)
@@ -201,3 +182,12 @@ class SpeedTestRunner(run.Runner):
             return False
 
         return True
+
+
+class SpeedWorkDir(utils.WorkDir):
+    _idx = itertools.count(utils.WorkDir.RES__LAST + 1)
+    RES__LAST = RES_TOOL_VM_SSH_KEY = next(_idx)
+    del _idx
+
+    _resource_map = {
+        RES_TOOL_VM_SSH_KEY: 'tool-vm.ssh.key'}

@@ -25,6 +25,7 @@ from oslo_config import cfg
 from oslo_config.cfg import NoSuchOptError
 
 from mcv_consoler.common import config
+from mcv_consoler.common import context
 from mcv_consoler.common.errors import BaseSelfCheckError
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import OSTFError
@@ -47,6 +48,8 @@ class Runner(object):
     def __init__(self, ctx):
         super(Runner, self).__init__()
         self.ctx = ctx
+        context.add(self.ctx, 'runner', self)
+
         self.current_task = 1
         self.test_failures = []
         self.test_without_report = []

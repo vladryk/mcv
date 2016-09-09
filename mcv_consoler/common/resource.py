@@ -13,6 +13,7 @@
 #    under the License.
 
 import errno
+import os
 import time
 import weakref
 
@@ -88,6 +89,29 @@ class ClosableResource(ResourceAbstract):
         self.target.close()
 
 
+class FileResource(ResourceAbstract):
+    def __init__(self, path, missing_ok=True):
+        self.path = path
+        self.missing_ok = missing_ok
+
+    def terminate(self, is_last_request):
+        try:
+            os.unlink(self.path)
+        except OSError as e:
+            if not self.missing_ok or e.errno != errno.ENOENT:
+                raise
+        super(FileResource, self).terminate(is_last_request)
+
+
+class OSObjectResource(ResourceAbstract):
+    def __init__(self, target):
+        self.target = target
+
+    def terminate(self, is_last_request):
+        self.target.delete()
+        super(OSObjectResource, self).terminate(is_last_request)
+
+
 class Pool(object):
     def __init__(self):
         self._space = []
@@ -101,14 +125,15 @@ class Pool(object):
         self._space.append(ref)
 
     def terminate(self, iterations=3):
+        iterations = max(1, iterations)
         step = 0
 
         while step < iterations:
-            repeat = []
             step += 1
 
             time_slot = int(time.time() + 1)
 
+            repeat = []
             while True:
                 try:
                     ref, obj = self._pop()

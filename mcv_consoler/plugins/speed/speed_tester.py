@@ -21,6 +21,7 @@ import time
 
 from oslo_config import cfg
 
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import clients
 from mcv_consoler.common import ssh
 from mcv_consoler import exceptions
@@ -34,11 +35,10 @@ CONF = cfg.CONF
 class BaseStorageSpeed(object):
     ssh_connect = None
 
-    def __init__(self, ctx, *args, **kwargs):
+    def __init__(self, ctx, **kwargs):
         self.ctx = ctx
         self.access_data = self.ctx.access_data
-
-        self.work_dir = kwargs['work_dir']
+        self.iterations = kwargs['iterations']
 
         protocol = 'https' if self.access_data['insecure'] else 'http'
 
@@ -55,16 +55,17 @@ class BaseStorageSpeed(object):
     def cleanup(self, vm_uuid):
         pass
 
-    def get_test_vm(self, node_id):
-        vm = self.novaclient.servers.find(id=node_id)
+    @staticmethod
+    def get_vm_external_addr(vm):
         floating_ip = [ip['addr'] for ip in vm.addresses.values()[0] if
                        ip['OS-EXT-IPS:type'] == 'floating'][0]
-        return vm, floating_ip
+        return floating_ip
 
     def set_ssh_connection(self, hostname):
+        work_dir = self.ctx.work_dir
         self.ssh_connect = ssh.SSHClient(
             hostname, config.tool_vm_login,
-            rsa_key=config.tool_vm_keypair_path(self.work_dir),
+            rsa_key=work_dir.resource(work_dir.RES_TOOL_VM_SSH_KEY),
             timeout=config.tool_vm_connect_tout)
 
         now = time.time()
@@ -122,10 +123,9 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
     _measure_kinds = ('general', 'throughput', 'IOPs')
 
-    def __init__(self, ctx, *args, **kwargs):
-        super(BlockStorageSpeed, self).__init__(ctx, *args, **kwargs)
-        self.size_str = kwargs.get('volume_size')
-        self.size = 0
+    def __init__(self, ctx, **kwargs):
+        super(BlockStorageSpeed, self).__init__(ctx, **kwargs)
+        self.size = self.prepare_size(kwargs['volume_size'])
         self.device = None
         self.vol = None
         self.max_thr = 1
@@ -236,15 +236,15 @@ class BlockStorageSpeed(BaseStorageSpeed):
             'sudo dd if={} of=/dev/null bs={} count={}'.format(
                 self.image_name, bs, count)).rcode
 
-    def measure_speed(self, node_id):
-        target_vm, target_ip = self.get_test_vm(node_id)
-        self.set_ssh_connection(target_ip)
+    def measure_speed(self, vm):
+        vm_addr = self.get_vm_external_addr(vm)
+        self.set_ssh_connection(vm_addr)
 
-        self.create_test_volume(target_vm)
+        self.create_test_volume(vm)
         self.drop_cache()
         self.get_max_throughput()
 
-        compute_host = getattr(target_vm, 'OS-EXT-SRV-ATTR:host')
+        compute_host = getattr(vm, 'OS-EXT-SRV-ATTR:host')
 
         LOG.info('Starting measuring block storage r/w speed')
 
@@ -265,17 +265,13 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
         return self.generate_report(compute_host, results)
 
-    def cleanup(self, node_id):
+    def cleanup(self, vm):
         LOG.debug('Start cleanup resources')
-        vm, ip = self.get_test_vm(node_id)
 
-        try:
-            for cmd in [
+        for cmd in [
                 'sudo umount /mnt/testvolume',
                 'sudo rm -rf /mnt/testvolume']:
-                self.ssh_connect.exec_cmd(cmd, exc=True)
-        except OSError:
-            LOG.error('Unmounting volume failed')
+            self.ssh_connect.exec_cmd(cmd, exc=True)
 
         self.ssh_connect.close()
         self.novaclient.volumes.delete_server_volume(vm.id, self.vol.id)
@@ -285,10 +281,7 @@ class BlockStorageSpeed(BaseStorageSpeed):
             if vol.status == 'available':
                 break
             time.sleep(1)
-        try:
-            self.cinderclient.volumes.delete(self.vol)
-        except Exception:
-            LOG.error('Deleting test volume failed')
+        self.cinderclient.volumes.delete(self.vol)
         LOG.debug('Cleanup finished')
 
     def generate_report(self, node, measures):
@@ -356,16 +349,18 @@ class BlockStorageSpeed(BaseStorageSpeed):
 
 
 class ObjectStorageSpeed(BaseStorageSpeed):
-    def __init__(self, ctx, *args, **kwargs):
-        super(ObjectStorageSpeed, self).__init__(ctx, *args, **kwargs)
+    def __init__(self, ctx, **kwargs):
+        super(ObjectStorageSpeed, self).__init__(ctx, **kwargs)
         self.size = self.prepare_size(kwargs['image_size'])
-        self.iterations = kwargs['iterations']
-        self.nodes = self.ctx.access.fuel.node.get_all(environment_id=CONF.fuel.cluster_id)
 
-    def measure_speed(self, node_id):
+        nodes = self.ctx.access.fuel.node.get_all(
+            environment_id=CONF.fuel.cluster_id)
+        self.nodes = self.ctx.access.fuel.filter_nodes_by_status(nodes)
+
+    def measure_speed(self, vm):
         LOG.info('Running measuring object storage r/w speed...')
 
-        node = self._get_node_by_instance(node_id)
+        node = self._get_node_by_instance(vm.id)
 
         measures = []
         for _ in range(self.iterations):
@@ -448,10 +443,12 @@ class GlanceToComputeSpeedMetric(_MetricAbstract):
             time_track.query('download'))
 
     def _open_ssh_connect(self, node):
-        ctx = self.manager.ctx
+        fuel = self.manager.ctx.access.fuel
+        work_dir = self.manager.ctx.work_dir
+
         connect = ssh.SSHClient(
-            ctx.access.fuel.get_node_address(node), config.compute_login,
-            rsa_key=ctx.work_dir.resource(ctx.work_dir.RES_OS_SSH_KEY))
+            fuel.get_node_address(node), app_conf.OS_NODE_SSH_USER,
+            rsa_key=work_dir.resource(work_dir.RES_OS_SSH_KEY))
 
         if not connect.connect():
             raise exceptions.AccessError(

@@ -71,6 +71,10 @@ class WorkDir(object):
             res_map.update(vars(cls).get('_resource_map', default))
         self._resource_map = res_map
 
+    @classmethod
+    def new_as_replacement(cls, current):
+        return cls(current.base_dir, parent=current.parent)
+
     def resource(self, resource, lookup=True):
         try:
             suffix = self._resource_map[resource]
@@ -252,3 +256,45 @@ def seconds_to_humantime(s):
       '23 days, 3:33:20'
     """
     return str(datetime.timedelta(seconds=s))
+
+
+class ComparableMixin(object):
+    @property
+    def cmp_payload(self):
+        raise NotImplementedError
+
+    @property
+    def cmp_idnr(self):
+        return id(type(self))
+
+    def __eq__(self, other):
+        left, right = self._cmp_data(other)
+        return left == right
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __lt__(self, other):
+        left, right = self._cmp_data(other)
+        return left < right
+
+    def __le__(self, other):
+        left, right = self._cmp_data(other)
+        return left <= right
+
+    def __gt__(self, other):
+        left, right = self._cmp_data(other)
+        return left > right
+
+    def __ge__(self, other):
+        left, right = self._cmp_data(other)
+        return left >= right
+
+    def _cmp_data(self, other):
+        if not isinstance(other, ComparableMixin):
+            raise NotImplementedError
+
+        data = []
+        for obj in (self, other):
+            data.append((obj.cmp_idnr, ) + obj.cmp_payload)
+        return data
