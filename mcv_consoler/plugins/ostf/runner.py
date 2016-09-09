@@ -187,9 +187,8 @@ class OSTFOnDockerRunner(runner.Runner):
             results = []
             try:
                 fpath = os.path.join(self.homedir, 'ostf_report.json')
-                fp = open(fpath, 'r')
-                results = json.load(fp.read())
-                fp.close()
+                with open(fpath) as fp:
+                    results = json.load(fp)
                 os.remove(fpath)
                 # TODO(albartash): check if we need LOG.error here
             except IOError as e:
