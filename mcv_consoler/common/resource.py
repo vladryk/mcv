@@ -144,7 +144,7 @@ class Pool(object):
 
     def _pop(self):
         while True:
-            ref = self._space.pop(0)
+            ref = self._space.pop()
 
             obj = ref()
             if obj is None:
