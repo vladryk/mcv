@@ -17,16 +17,22 @@ import os
 import urlparse
 import weakref
 
-import cinderclient.client as cinder
+import cinderclient.client
+import cinderclient.exceptions
 import fuelclient
 import fuelclient.client
+import fuelclient.cli.error
 import fuelclient.fuelclient_settings
-import glanceclient as glance
-from heatclient import client as heat
-from keystoneclient.v2_0 import client as keystone_v2
-from neutronclient.neutron import client as neutron
-import novaclient.client as nova
-import saharaclient.client as sahara
+import glanceclient
+import glanceclient.exc
+import heatclient.client
+import heatclient.exc
+import keystoneclient
+import neutronclient.common.exceptions
+import neutronclient.neutron.client
+import novaclient.client
+import novaclient.exceptions
+import saharaclient.client
 
 from mcv_consoler import exceptions
 from mcv_consoler.common import config as mcv_config
@@ -41,13 +47,28 @@ class _ClientProxyBase(utils.LazyAttributeMixin):
 
 class OSClientsProxy(_ClientProxyBase):
     keystone = utils.LazyAttribute()
+    keystone_exc = keystoneclient.exceptions
+
     nova = utils.LazyAttribute()
+    nova_exc = novaclient.exceptions
+
     cinder = utils.LazyAttribute()
+    cinder_exc = cinderclient.exceptions
+
     glance = utils.LazyAttribute()
+    glance_exc = glanceclient.exc
+
     neutron = utils.LazyAttribute()
+    neutron_exc = neutronclient.common.exceptions
+
     heat = utils.LazyAttribute()
+    heat_exc = heatclient.exc
+
     sahara = utils.LazyAttribute()
+    # sahara_exc: looks like saharaclient have no it's own exceptions
+
     fuel = utils.LazyAttribute()
+    fuel_exc = fuelclient.cli.error
 
     def lazy_attribute_handler(self, target):
         try:
@@ -120,18 +141,18 @@ def _filter_keys(data_dict, keys):
 def get_keystone_client(access_data):
     # @TODO(albartash): implement Keystone v3
     client_data = _filter_keys(access_data, keystone_keys)
-    return keystone_v2.Client(**client_data)
+    return keystoneclient.v2_0.Client(**client_data)
 
 
 def get_nova_client(access_data):
     client_data = _filter_keys(access_data, nova_keys)
     client_data['timeout'] = 10
-    return nova.Client('2', **client_data)
+    return novaclient.client.Client('2', **client_data)
 
 
 def get_cinder_client(access_data):
     client_data = _filter_keys(access_data, cinder_keys)
-    return cinder.Client('2', **client_data)
+    return cinderclient.client.Client('2', **client_data)
 
 
 def get_glance_client(access_data):
@@ -140,7 +161,7 @@ def get_glance_client(access_data):
     client_data['endpoint'] = keystone_client.service_catalog.url_for(
         service_type="image")
     client_data['token'] = keystone_client.auth_token
-    return glance.Client('1', **client_data)
+    return glanceclient.Client('1', **client_data)
 
 
 def get_neutron_client(access_data):
@@ -149,7 +170,7 @@ def get_neutron_client(access_data):
     client_data['endpoint_url'] = keystone_client.service_catalog.url_for(
         service_type="network")
     client_data['token'] = keystone_client.auth_token
-    return neutron.Client('2.0', **client_data)
+    return neutronclient.neutron.client.Client('2.0', **client_data)
 
 
 def get_heat_client(access_data):
@@ -159,7 +180,7 @@ def get_heat_client(access_data):
         service_type='orchestration')
     client_data['token'] = keystone_client.auth_token
 
-    return heat.Client('1', **client_data)
+    return heatclient.client.Client('1', **client_data)
 
 
 def get_sahara_client(access_data):
@@ -176,7 +197,7 @@ def get_sahara_client(access_data):
                 service_type=service_type)
 
     client_data['input_auth_token'] = keystone_client.auth_token
-    client = sahara.Client(
+    client = saharaclient.client.Client(
         '1.0',
         service_type=service_type,
         **client_data)
@@ -198,6 +219,8 @@ class FuelClientProxy(_ClientProxyBase):
     release = utils.LazyAttribute()
     task = utils.LazyAttribute()
     vip = utils.LazyAttribute()
+
+    exc = fuelclient.cli.error
 
     _instance_ref = None
 
