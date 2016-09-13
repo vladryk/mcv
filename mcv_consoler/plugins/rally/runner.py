@@ -729,6 +729,7 @@ class RallyOnDockerRunner(RallyRunner):
         return result
 
     def run_individual_task(self, task, *args, **kwargs):
+        self.skip = False
         try:
             task_failed = self._run_rally_on_docker(task, *args, **kwargs)
         except subprocess.CalledProcessError as e:
