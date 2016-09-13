@@ -61,7 +61,7 @@ class SSHClient(object):
                 socket.error) as e:
 
             if exc:
-                raise exceptions.AccessError(message)
+                raise exceptions.AccessError(e.message)
 
             if not quiet:
                 LOG.error('SSH connect {}: {}'.format(self.identity, e))
