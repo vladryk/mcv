@@ -350,7 +350,8 @@ class CRouter(Router):
             self.ctx.work_dir_global.RES_OS_SSH_KEY)
 
         exclude = (self.os_data['fuel']['nailgun'], '127.0.0.1')
-        cmd = ['sshuttle'] + ['--exclude={}'.format(x) for x in exclude] + [
+        cmd = ['sshuttle'] + ['--listen=0.0.0.0:0', '-H'] + [
+            '--exclude={}'.format(x) for x in exclude] + [
             '-vv',
             '--dns',
             '--auto-nets',
