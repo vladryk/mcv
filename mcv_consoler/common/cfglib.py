@@ -38,7 +38,7 @@ fuel = cfg.OptGroup(name='fuel',
                     title='Fuel master node configuration')
 
 fuel_opts = [
-    cfg.StrOpt('username', required=True,
+    cfg.StrOpt('username', required=True, secret=True,
                help='Fuel username'),
     cfg.StrOpt('password', required=True, secret=True,
                help='Fuel password'),
@@ -54,13 +54,13 @@ auth = cfg.OptGroup(name='auth',
                     title='MOS configuration')
 
 auth_opts = [
-    cfg.StrOpt('os_username', required=True,
+    cfg.StrOpt('os_username', required=True, secret=True,
                help='MOS user name'),
-    cfg.StrOpt('os_tenant_name', required=True,
+    cfg.StrOpt('os_tenant_name', required=True, secret=True,
                help='MOS tenant name'),
     cfg.StrOpt('os_password', required=True, secret=True,
                help='MOS password'),
-    cfg.StrOpt('region_name', default='RegionOne',
+    cfg.StrOpt('region_name', default='RegionOne', secret=True,
                help='MOS region name'),
     cfg.StrOpt('auth_endpoint_ip', default='1.1.1.3',
                help='MOS auth endpoint ip'),
@@ -68,7 +68,7 @@ auth_opts = [
                help='MOS auth domain name'),
     cfg.StrOpt('controller_ip', default='1.1.1.4',
                help='MOS controller ip'),
-    cfg.StrOpt('controller_uname', required=True,
+    cfg.StrOpt('controller_uname', required=True, secret=True,
                help='MOS controller user name'),
     cfg.StrOpt('controller_pwd', required=True, secret=True,
                help='MOS controller password'),
@@ -305,4 +305,3 @@ def init_config(name_config=None):
     name_configs = [name_config if name_config else
                     config.DEFAULT_CONFIG_FILE]
     CONF(default_config_files=name_configs, args='')
-    return CONF

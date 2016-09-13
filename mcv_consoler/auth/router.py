@@ -225,7 +225,8 @@ class CRouter(Router):
         fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
 
         proc = fuel.exec_cmd(
-            'python', stdin=REMOTE_GRAB_FUEL_CREDENTIALS, exc=True)
+            'python', stdin=REMOTE_GRAB_FUEL_CREDENTIALS, exc=True,
+            hide_stdout=True)
 
         # overwrite fuelmaster host address, because we can receive address
         # from different interface
@@ -266,7 +267,7 @@ class CRouter(Router):
         fuel = self._ssh_connect(self.SSH_DEST_FUELMASTER, connect=True)
         proc = fuel.exec_cmd(
             "cat {}".format(self.os_data['fuel']['cert']),
-            exc=True)
+            exc=True, hide_stdout=True)
 
         path = work_dir.resource(work_dir.RES_OS_SSH_KEY, lookup=False)
         ssh.save_private_key(path, proc.stdout)
@@ -412,7 +413,8 @@ class CRouter(Router):
 
                 try:
                     payload = connect.exec_cmd('cat /root/openrc',
-                                               exc=True).stdout
+                                               exc=True,
+                                               hide_stdout=True).stdout
                     openrc = self._unpack_openrc(payload)
                 except mcv_consoler.exceptions.RemoteError as e:
                     LOG.debug(

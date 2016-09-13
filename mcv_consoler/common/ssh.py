@@ -71,7 +71,7 @@ class SSHClient(object):
         self.connected = True
         return self.connected
 
-    def exec_cmd(self, cmd, stdin=None, exc=False):
+    def exec_cmd(self, cmd, stdin=None, exc=False, hide_stdout=False):
         if not self.connected:
             raise exceptions.RemoteError(
                 'SSH {} is not connected'.format(self.identity))
@@ -87,11 +87,15 @@ class SSHClient(object):
         args = (out.read(), err.read(), inp.channel.recv_exit_status())
         results = ProcOutput(*args)
 
-        LOG.debug('{identity} Results:\n'
-                  '\trcode: {0.rcode}\n'
-                  '\tstdout: {0.stdout}\n'
-                  '\tstderr: {0.stderr}'.format(
-            results, identity=self.creds.identity))
+        msg = '{identity} Results: ' \
+              '\n\t rcode: {rcode}'
+        if not hide_stdout:
+            msg += '\n\t stdout: {stdout}' \
+                   '\n\t stderr: {stderr}'
+        LOG.debug(msg.format(rcode=results.rcode,
+                             stdout=results.stdout.strip(),
+                             stderr=results.stderr.strip(),
+                             identity=self.creds.identity))
 
         if results.rcode and exc:
             raise exceptions.RemoteError(

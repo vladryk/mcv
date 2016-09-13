@@ -18,7 +18,6 @@ import threading
 import time
 import traceback
 import logging
-import datetime
 
 import yaml
 from oslo_config import cfg
