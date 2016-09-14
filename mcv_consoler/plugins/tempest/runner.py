@@ -180,7 +180,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         LOG.debug("Installing tempest...")
         cmd = ("docker exec -t {cid} "
-               "rally verify install "
+               "rally verify install --system-wide "
                "--deployment existing --source /tempest").format(
             cid=self.container_id)
 
@@ -200,15 +200,17 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         if run_by_name:
             cmd = ("docker exec -t {cid} rally "
                    "--log-file {home}/log/tempest.log --rally-debug"
-                   " verify start --regex {_set}").format(cid=self.container_id,
-                                                          home=self.home,
-                                                          _set=task)
+                   " verify start --system-wide "
+                   "--regex {_set}").format(cid=self.container_id,
+                                            home=self.home,
+                                            _set=task)
         else:
             cmd = ("docker exec -t {cid} rally "
                    "--log-file {home}/log/tempest.log --rally-debug"
-                   " verify start --set {_set}").format(cid=self.container_id,
-                                                        home=self.home,
-                                                        _set=task)
+                   " verify start --system-wide "
+                   "--set {_set}").format(cid=self.container_id,
+                                          home=self.home,
+                                          _set=task)
         utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify list".format(
