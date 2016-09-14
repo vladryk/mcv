@@ -18,18 +18,17 @@ import threading
 import time
 import traceback
 import logging
-
 import yaml
+
 from oslo_config import cfg
 
 from mcv_consoler.common.config import RUN_MODES
 from mcv_consoler.common import context
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.errors import CAError
-import mcv_consoler.consoler
 from mcv_consoler import log
-from mcv_consoler import consoler
 from mcv_consoler.common import cfglib
+from mcv_consoler import consoler
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -52,7 +51,9 @@ def load_scenario():
 
 
 def main():
-    cfglib.init_config(args.config)
+    if not cfglib.init_config(args.config):
+        return CAError.CONFIG_ERROR
+
     log.configure_logging(args.debug)
 
     LOG.debug('Consoler started by command: %s', ' '.join(sys.argv))
@@ -74,10 +75,10 @@ def main():
         args=args,
         scenario=load_scenario(),
         terminate_event=threading.Event())
-    consoler = mcv_consoler.consoler.Consoler(ctx)
+    app = consoler.Consoler(ctx)
 
     rcode = [None]
-    t = threading.Thread(target=thread_wrapper, args=[consoler, rcode])
+    t = threading.Thread(target=thread_wrapper, args=[app, rcode])
 
     try:
         t.start()

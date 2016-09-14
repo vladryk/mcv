@@ -12,6 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
+
 from oslo_config import cfg
 
 from mcv_consoler.common import config
@@ -98,7 +100,8 @@ certification = cfg.OptGroup(name='certification',
                              title='Certification configuration')
 
 certification_opts = [
-    cfg.ListOpt('services', default=['authentication', 'neutron', 'cinder', 'glance', 'nova', 'keystone'],
+    cfg.ListOpt('services', default=['authentication', 'neutron',
+                                     'cinder', 'glance', 'nova', 'keystone'],
                 help='List tested services'),
     cfg.IntOpt('controllers_amount', default=1,
                help='Controllers amount'),
@@ -294,13 +297,25 @@ cfg_for_reg = [
     (times, times_opts),
 ]
 
+LOG = logging.getLogger()
 CONF = cfg.CONF
 
 
-def init_config(name_config=None):
-    for group, opts in cfg_for_reg:
-        CONF.register_group(group)
-        CONF.register_opts(opts, group)
-    name_configs = [name_config if name_config else
-                    config.DEFAULT_CONFIG_FILE]
-    CONF(default_config_files=name_configs, args='')
+def init_config(config_file=None):
+    try:
+        for group, opts in cfg_for_reg:
+            CONF.register_group(group)
+            CONF.register_opts(opts, group)
+        config_files = [config_file if config_file else
+                        config.DEFAULT_CONFIG_FILE]
+        CONF(args='', default_config_files=config_files)
+        # try to take each value from CONF - if the
+        # value in the configuration file is incorrect
+        # will be thrown an error
+        for group, opts in cfg_for_reg:
+            for opt in opts:
+                _ = CONF[group.name][opt.name]
+        return True
+    except cfg.Error as e:
+        LOG.error(e)
+        return False
