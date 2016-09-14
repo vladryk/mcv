@@ -75,3 +75,7 @@ class ReadOutdatedFileError(MCVException):
 
 class ClientsError(MCVException):
     pass
+
+
+class MountError(MCVException):
+    pass

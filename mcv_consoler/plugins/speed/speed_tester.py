@@ -146,36 +146,40 @@ class BlockStorageSpeed(BaseStorageSpeed):
                 break
             time.sleep(3)
 
+        mount_path_start = self.ssh_connect.exec_cmd(
+            'lsblk -din --output=NAME', exc=True).stdout
+
         attach = self.novaclient.volumes.create_server_volume(
             target_vm.id,
-            self.vol.id,
-            device='/dev/vdb')
+            self.vol.id)
 
         LOG.debug('Result of creating volume: %s' % str(attach))
 
-        path = '/dev/vdb'
-        cmd = "test -e %s" % path
+        mount_path_end = ''
         for i in range(0, 20):
-            try:
-                self.ssh_connect.exec_cmd(cmd, exc=True)
-            except exceptions.RemoteError:
+            LOG.debug('Try to find new block device')
+            mount_path_end = self.ssh_connect.exec_cmd(
+                'lsblk -din --output=NAME', exc=True).stdout
+            if mount_path_end == mount_path_start:
                 time.sleep(3)
                 continue
-            self.device = path
+            LOG.debug('Founded new block device /dev/{}'.format(
+                mount_path_end))
             break
 
-        # NOTE: cirros or cinder work strange and sometimes attach volume
-        # not to specified device, so additional check for it
-        if not self.device:
-            path = '/dev/vdc'
-            cmd = "test -e %s" % path
-            try:
-                self.ssh_connect.exec_cmd(cmd, exc=True)
-                self.device = path
-            except exceptions.RemoteError:
-                raise exceptions.RemoteError(
-                    'Block device {} for volume {} on {} didn\'t '
-                    'appear'.format(path, self.vol.id, target_vm.id))
+        if mount_path_end == mount_path_start:
+            raise exceptions.MountError(
+                "Can't mount server volume {} to {}".format(
+                    self.vol.id, target_vm.id)
+            )
+
+        mounted_path = list(
+            set(mount_path_end.split('\n')
+                ) - set(mount_path_start.split('\n')))[0]
+
+        LOG.debug('Server volume was attached to {}'.format(mounted_path))
+
+        self.device = '/dev/' + mounted_path
 
         LOG.debug('Mounting volume to test VM')
         self.ssh_connect.exec_cmd(
