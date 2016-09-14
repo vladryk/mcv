@@ -65,7 +65,7 @@ class Cleanup(object):
                 i.name for i in nova.security_groups.findall()]
 
             resources['volumes'] = [
-                i.name for i in cinder.volumes.findall()]
+                i.name or i.id for i in cinder.volumes.findall()]
             resources['volume_snapshots'] = [
                 i.name or i.id for i in cinder.volume_snapshots.findall()]
 
