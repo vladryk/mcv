@@ -24,6 +24,7 @@ import traceback
 
 from oslo_config import cfg
 
+from mcv_consoler.common.config import DEFAULT_CIRROS_IMAGE
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.plugins.rally import runner as rrunner
@@ -48,6 +49,29 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def _verify_rally_container_is_up(self):
         self.verify_container_is_up("tempest")
+
+    def create_cirros_image(self):
+        i_list = self.glanceclient.images.list()
+        for im in i_list:
+            if im.name == 'mcv-test-functional-cirros':
+                return im.id
+
+        img_fp = None
+        try:
+            img_fp = open(DEFAULT_CIRROS_IMAGE)
+        except IOError as e:
+            LOG.debug('Cannot open file {path}: {err}'.format(
+                path=DEFAULT_CIRROS_IMAGE,
+                err=str(e)))
+            return
+        im = self.glanceclient.images.create(name='mcv-test-functional-cirros',
+                                             disk_format="qcow2",
+                                             is_public=True,
+                                             container_format="bare",
+                                             data=img_fp)
+
+    def cleanup_cirros_image(self):
+        self.cleanup_image('mcv-test-functional-cirros')
 
     def start_container(self):
         LOG.debug("Bringing up Tempest container with credentials")
@@ -324,6 +348,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         test_time = 0
         all_time -= elapsed_time
 
+        self.create_cirros_image()
         self._setup_rally_on_docker()
 
         # NOTE(ogrytsenko): only test-suites are discoverable for tempest
@@ -410,6 +435,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         self.cleanup_toolbox()
+        self.cleanup_cirros_image()
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found,
