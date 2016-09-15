@@ -81,6 +81,22 @@ custom_test_group_quick:
 custom_test_group_selfcheck:
   selfcheck:
     - BasicSelfCheck
+custom_test_group_functional:
+  tempest:
+    - baremetal
+    - compute
+    - database
+    - data_processing
+    - identity
+    - image
+    - messaging
+    - network
+    - object_storage
+    - orchestration
+    - scenario
+    - smoke
+    - telemetry
+    - volume
 custom_test_group_smoke:
   rally:
     - certification
