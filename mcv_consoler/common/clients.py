@@ -33,6 +33,8 @@ import neutronclient.neutron.client
 import novaclient.client
 import novaclient.exceptions
 import saharaclient.client
+from keystoneauth1 import session
+from keystoneauth1 import identity
 
 from mcv_consoler import exceptions
 from mcv_consoler.common import config as mcv_config
@@ -92,116 +94,92 @@ class OSClientsProxy(_ClientProxyBase):
         return result
 
 
-keystone_keys = ('username',
-                 'password',
-                 'tenant_name',
-                 'auth_url',
-                 'region_name',
-                 'insecure',
-                 'debug',)
-
-nova_keys = ('username',
-             'api_key',
-             'project_id',
-             'auth_url',
-             'region_name',
-             'insecure',)
-
-cinder_keys = ('username',
-               'api_key',
-               'project_id',
-               'auth_url',
-               'region_name',
-               'insecure',)
-
-glance_keys = ('insecure',)
-
-neutron_keys = ('insecure',
-                'auth_url',)
-
-heat_keys = ('insecure',)
-
-sahara_keys = ('api_key',
-               'project_id',
-               'insecure',
-               'username',
-               'auth_url')
-
-
-def _filter_keys(data_dict, keys):
-    """Returns items with keys from the preset tuple."""
-
-    results = {}
-    for key in keys:
-        if key in data_dict:
-            results[key] = data_dict[key]
-    return results
-
-
 def get_keystone_client(access_data):
     # @TODO(albartash): implement Keystone v3
-    client_data = _filter_keys(access_data, keystone_keys)
-    return keystoneclient.v2_0.Client(**client_data)
+    return keystoneclient.v2_0.Client(
+        region_name=access_data['region_name'],
+        session=KeystoneSession(access_data).session)
 
 
 def get_nova_client(access_data):
-    client_data = _filter_keys(access_data, nova_keys)
-    client_data['timeout'] = 10
-    return novaclient.client.Client('2', **client_data)
+    return novaclient.client.Client(
+        '2',
+        region_name=access_data['region_name'],
+        session=KeystoneSession(access_data).session)
 
 
 def get_cinder_client(access_data):
-    client_data = _filter_keys(access_data, cinder_keys)
-    return cinderclient.client.Client('2', **client_data)
+    return cinderclient.client.Client(
+        '2',
+        region_name=access_data['region_name'],
+        session=KeystoneSession(access_data).session)
 
 
 def get_glance_client(access_data):
-    keystone_client = get_keystone_client(access_data)
-    client_data = _filter_keys(access_data, glance_keys)
-    client_data['endpoint'] = keystone_client.service_catalog.url_for(
-        service_type="image")
-    client_data['token'] = keystone_client.auth_token
-    return glanceclient.Client('1', **client_data)
+    endpoint = KeystoneSession(access_data).session.get_endpoint(
+        service_type='image', region_name=access_data['region_name'])
+    return glanceclient.Client(
+        '1',
+        endpoint=endpoint,
+        session=KeystoneSession(access_data).session)
 
 
 def get_neutron_client(access_data):
-    keystone_client = get_keystone_client(access_data)
-    client_data = _filter_keys(access_data, neutron_keys)
-    client_data['endpoint_url'] = keystone_client.service_catalog.url_for(
-        service_type="network")
-    client_data['token'] = keystone_client.auth_token
-    return neutronclient.neutron.client.Client('2.0', **client_data)
+    return neutronclient.neutron.client.Client(
+        '2.0',
+        region_name=access_data['region_name'],
+        session=KeystoneSession(access_data).session)
 
 
 def get_heat_client(access_data):
-    keystone_client = get_keystone_client(access_data)
-    client_data = _filter_keys(access_data, heat_keys)
-    client_data['endpoint'] = keystone_client.service_catalog.url_for(
-        service_type='orchestration')
-    client_data['token'] = keystone_client.auth_token
-
-    return heatclient.client.Client('1', **client_data)
+    endpoint = KeystoneSession(access_data).session.get_endpoint(
+        service_type='orchestration', region_name=access_data['region_name'])
+    return heatclient.client.Client(
+        '1',
+        endpoint,
+        session=KeystoneSession(access_data).session)
 
 
 def get_sahara_client(access_data):
-    keystone_client = get_keystone_client(access_data)
-    client_data = _filter_keys(access_data, sahara_keys)
-    # Better use service_list and name, but it requires admin user
-    service_type = 'data_processing'
+    service_type = 'data-processing'
     try:
-        client_data['sahara_url'] = keystone_client.service_catalog.url_for(
-                service_type=service_type)
+        KeystoneSession(access_data).session.get_endpoint(
+            service_type=service_type, region_name=access_data['region_name'])
     except Exception:
-        service_type = 'data-processing'
-        client_data['sahara_url'] = keystone_client.service_catalog.url_for(
-                service_type=service_type)
+        service_type = 'data_processing'
+        KeystoneSession(access_data).session.get_endpoint(
+            service_type=service_type, region_name=access_data['region_name'])
 
-    client_data['input_auth_token'] = keystone_client.auth_token
     client = saharaclient.client.Client(
         '1.0',
         service_type=service_type,
-        **client_data)
+        session=KeystoneSession(access_data).session,
+        region_name=access_data['region_name'])
     return client
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args)
+        return cls._instances[cls]
+
+
+class KeystoneSession(object):
+    __metaclass__ = Singleton
+
+    def __init__(self, access_data):
+        client_data = {
+            'auth_url': access_data['auth_url'],
+            'username': access_data['username'],
+            'password': access_data['password'],
+            'tenant_name': access_data['tenant_name']
+        }
+        identity_plugin = identity.Password(**client_data)
+        verify = not access_data.get('insecure', True)
+        self.session = session.Session(auth=identity_plugin, verify=verify)
 
 
 class FuelClientProxy(_ClientProxyBase):

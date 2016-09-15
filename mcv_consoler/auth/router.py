@@ -469,8 +469,7 @@ class CRouter(Router):
 
     def populate_etc_hosts(self):
         keystone = clients.get_keystone_client(self.os_data)
-        auth_url = keystone.service_catalog.get_endpoints('identity')
-        auth_url = auth_url['identity'][0]['publicURL']
+        auth_url = keystone.session.get_endpoint(service_type='identity')
         self.os_data['insecure'] = auth_url.startswith('https')
 
         ip = re.findall('[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',
