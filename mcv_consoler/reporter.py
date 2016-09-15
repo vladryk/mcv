@@ -69,7 +69,6 @@ class _Dispatcher(object):
     def __call__(self, key, file_location=None):
         inner_func = 'fix_' + key
         if not hasattr(self, inner_func):
-            LOG.debug('Fix for \'%s\' report is not implemented.' % key)
             return
         LOG.debug("Applying fix for '%s' report" % key)
         if file_location and not os.path.isfile(file_location):
