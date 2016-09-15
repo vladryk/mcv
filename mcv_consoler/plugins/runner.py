@@ -34,7 +34,7 @@ from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.common.test_discovery import discovery
-from mcv_consoler.utils import seconds_to_humantime
+from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -185,11 +185,11 @@ class Runner(object):
                     current_time = 0
 
                 msg = "Expected time to complete %s: %s"
-                time_str = seconds_to_humantime(current_time * multiplier)
+                t = utils.seconds_to_humantime(current_time * multiplier)
                 if not current_time:
-                    LOG.debug(msg, task, time_str)
+                    LOG.debug(msg, task, t)
                 else:
-                    LOG.info(msg, task, time_str)
+                    LOG.info(msg, task, t)
 
             # FIXME(dbogun): sort out exceptions handling
             try:
@@ -225,8 +225,8 @@ class Runner(object):
 
                 line = 'Completed {} %'.format(percent)
                 if all_time and multiplier:
-                    time_str = seconds_to_humantime(all_time * multiplier)
-                    line = '{} and remaining time {}'.format(line, time_str)
+                    t = utils.seconds_to_humantime(all_time * multiplier)
+                    line = '{} and remaining time {}'.format(line, t)
                 LOG.info(line)
                 LOG.info("-" * 60)
 
