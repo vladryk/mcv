@@ -120,6 +120,10 @@ class OSTFOnDockerRunner(runner.Runner):
             self.start_container()
         self._do_config_extraction()
 
+        # store ostfcfg.conf if exists
+        self.store_config(os.path.join(self.homedir, "conf",
+                                       self.config_filename))
+
     def _run_ostf_on_docker(self, task):
 
         # The task can be either a test or suite

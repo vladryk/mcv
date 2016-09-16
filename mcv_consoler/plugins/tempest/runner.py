@@ -162,6 +162,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         utils.run_cmd(cmd.format(cid=self.container_id, out_dir=details_dir),
                       quiet=True)
 
+        # store tempest.conf
+        self.store_config(os.path.join(self.homedir,
+                                       "for-deployment-{ID}/tempest.conf"
+                                       .format(ID=deployment_id)))
+
+        self.store_config(os.path.join(self.homedir, "conf/existing.json"))
+
         # Note(ogrytsenko): tool subunit2pyunit returns exit code '1' if
         # at leas one test failed in a test suite. It also returns exit
         # code '1' if some error occurred during processing a file, like:

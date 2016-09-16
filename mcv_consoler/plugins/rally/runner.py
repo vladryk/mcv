@@ -189,6 +189,9 @@ class RallyOnDockerRunner(RallyRunner):
         self.novaclient = Clients.get_nova_client(self.access_data)
         self.net_id = None
 
+        # store rally.conf
+        self.store_config(os.path.join(self.homedir, "rally.conf"))
+
     def create_fedora_image(self):
         i_list = self.glanceclient.images.list()
         for im in i_list:

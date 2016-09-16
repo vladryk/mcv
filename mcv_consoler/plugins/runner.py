@@ -16,8 +16,6 @@ import datetime
 import json
 import logging
 import os
-import re
-import subprocess
 import time
 import traceback
 
@@ -60,9 +58,33 @@ class Runner(object):
         self.test_skipped = []
         self.time_of_tests = {}
 
+        # store mcv.conf
+        for conf_path in CONF.default_config_files:
+            self.store_config(os.path.abspath(conf_path))
+
     @property
     def discovery(self):
         return discovery.use(self.identity)
+
+    def store_config(self, copy_from):
+        # TODO(vkaznacheiev): move it to a separate module later.
+        if not os.path.exists(copy_from):
+            LOG.debug("Config by the following path does not exist and will "
+                      "not be copied in the results folder: %s", copy_from)
+            return
+
+        config_store_dir = os.path.join(
+            self.ctx.work_dir_global.base_dir, "config")
+
+        if not os.path.exists(config_store_dir):
+            os.makedirs(config_store_dir)
+
+        cfg_name = os.path.basename(copy_from)
+
+        copy_to = os.path.join(config_store_dir, cfg_name)
+        utils.run_cmd("cp {} {}".format(copy_from, copy_to))
+        LOG.debug("Config by the following path has been copied to the results "
+                  "dir: %s", copy_from)
 
     def dump_raw_results(self, task, raw_results):
         # FIXME(dbogun): define corresponding resource in WorkDir
