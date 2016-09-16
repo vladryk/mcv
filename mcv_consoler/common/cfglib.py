@@ -217,8 +217,7 @@ speed_opts = [
                help='Speed image size'),
     cfg.StrOpt('volume_size', default='1G',
                help='Speed volume size'),
-    # threshold is optional, default value is None
-    cfg.FloatOpt('threshold',
+    cfg.FloatOpt('threshold', default=50.0,
                  help='Speed threshold'),
     cfg.IntOpt('max_failed_tests', default=10,
                help='Speed max failed tests count'),
