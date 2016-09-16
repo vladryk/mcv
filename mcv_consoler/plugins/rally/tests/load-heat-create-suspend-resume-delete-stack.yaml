@@ -8,9 +8,7 @@
         times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
-        users:
-          tenants: 3
-          users_per_tenant: 2
+        {{ users }}
       sla:
         failure_rate:
           max: 0

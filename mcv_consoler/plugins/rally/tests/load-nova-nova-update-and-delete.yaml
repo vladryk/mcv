@@ -8,9 +8,10 @@
         times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
-        users:
-          tenants: 3
-          users_per_tenant: 2
+        {{ users }}
+        network:
+          start_cidr: {{ "100.1.0.0/25" if gre_enabled else "1.0.0.0/25" }}
+          networks_per_tenant: 1
       sla:
         failure_rate:
           max: 0

@@ -6,14 +6,24 @@
         times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
-        users:
-          tenants: 2
-          users_per_tenant: 3
+        {{ users }}
         images:
           image_url: "/mcv/images/cirros-0.3.1-x86_64-disk.img"
           image_type: "qcow2"
           image_container: "bare"
           images_per_tenant: 3
+        quotas:
+          nova:
+            instances: -1
+            cores: -1
+            ram: -1
+            floating_ips: -1
+            security_groups: -1
+            security_group_rules: -1
+          neutron:
+            network: -1
+            subnet: -1
+            port: -1
       sla:
         failure_rate:
           max: 0

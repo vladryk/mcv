@@ -16,9 +16,7 @@
         times: {{ compute }}
         concurrency: {{ concurrency }}
       context:
-        users:
-          tenants: 1
-          users_per_tenant: 1
+        {{ users }}
         quotas:
           nova:
             instances: -1

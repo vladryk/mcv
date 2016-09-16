@@ -19,9 +19,7 @@
           router_id: {{ router_id }}
 
       context:
-        users:
-          tenants: 1
-          users_per_tenant: 1
+        {{ users }}
         flavors:
           - name: gig
             ram: 1024

@@ -93,7 +93,9 @@ rally_opts = [
     cfg.IntOpt('max_failed_tests', default=10,
                help='Rally max failed tests count'),
     cfg.StrOpt('network_name', default='admin_internal_net',
-               help='Rally network name')
+               help='Rally network name'),
+    cfg.BoolOpt('existing_users', default=False,
+                help='Rally use pre-configured user')
 ]
 
 certification = cfg.OptGroup(name='certification',

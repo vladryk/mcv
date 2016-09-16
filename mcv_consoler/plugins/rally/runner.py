@@ -47,8 +47,22 @@ rally_json_template = """{
     },
 "https_insecure": %(insecure)s,
 "https_cacert": "",
+%(users)s
 }"""
 
+
+existing_users = """
+"users": [{
+    "username": "rally",
+    "password": "rally",
+    "tenant_name": "rally"
+    }],
+"""
+users_context = """
+        users:
+          tenants: 2
+          users_per_tenant: 2
+"""
 
 class RallyRunner(runner.Runner):
     identity = 'rally'
@@ -185,6 +199,7 @@ class RallyOnDockerRunner(RallyRunner):
         self.neutronclient = Clients.get_neutron_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
         self.net_id = None
+        self.users = '' if CONF.rally.existing_users else users_context
 
         # store rally.conf
         self.store_config(os.path.join(self.homedir, "rally.conf"))
@@ -437,7 +452,7 @@ class RallyOnDockerRunner(RallyRunner):
 
     def create_rally_json(self):
         auth_protocol = 'https' if self.access_data['insecure'] else 'http'
-
+        users = existing_users if CONF.rally.existing_users else ''
         credentials = {"ip_address": self.access_data["ips"]["endpoint"],
                        "region": self.access_data["region_name"],
                        "uname": self.access_data["username"],
@@ -445,11 +460,11 @@ class RallyOnDockerRunner(RallyRunner):
                        "uten": self.access_data["tenant_name"],
                        "auth_protocol": auth_protocol,
                        "insecure": str(self.access_data['insecure']).lower(),
-                       "auth_url": self.access_data['auth_url']}
+                       "auth_url": self.access_data['auth_url'],
+                       "users": users}
 
-        f = open(os.path.join(self.homedir, "conf", "existing.json"), "w")
-        f.write(rally_json_template % credentials)
-        f.close()
+        with open(os.path.join(self.homedir, "conf", "existing.json")) as f:
+            f.write(rally_json_template % credentials)
 
     def _rally_deployment_check(self):
         LOG.debug("Checking if Rally deployment is present.")
@@ -495,7 +510,7 @@ class RallyOnDockerRunner(RallyRunner):
             'controllers_amount': CONF.certification.controllers_amount,
             'network_amount': CONF.certification.network_amount,
             'smoke': True,
-            'use_existing_users': False,
+            'use_existing_users': CONF.rally.existing_users,
             'flavor_name': 'm1.tiny',
             'image_name': '^(cirros.*uec|TestVM)$',
             'glance_image_location': os.path.join(
@@ -517,7 +532,9 @@ class RallyOnDockerRunner(RallyRunner):
             'router_id': rou,
             'concurrency': concurrency,
             'instance_count': instance_count,
-            'image_id': image_id
+            'image_id': image_id,
+            'users': self.users
+
         }
 
         return task_args
@@ -550,6 +567,7 @@ class RallyOnDockerRunner(RallyRunner):
             'sahara_image_uuid': image_id,
             'terasort_jar_path': TERASORT_JAR_PATH,
             'hadoop_version': MOS_HADOOP_MAP[mos_version],
+            'users': self.users
         }
 
         return task_args
@@ -602,7 +620,8 @@ class RallyOnDockerRunner(RallyRunner):
                          "gre_enabled": CONF.rally.gre_enabled,
                          "vlan_amount": CONF.rally.vlan_amount,
                          'network': network,
-                         'parameters': {'public_net': ext_net}
+                         'parameters': {'public_net': ext_net},
+                         'users': self.users
                          }
 
             cmd = self.create_cmd_for_task(location, task_args)
