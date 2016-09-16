@@ -55,6 +55,7 @@ class Runner(object):
         self.test_without_report = []
         self.test_success = []
         self.test_not_found = []
+        self.test_skipped = []
         self.time_of_tests = {}
 
     @property
@@ -245,6 +246,7 @@ class Runner(object):
         return {"test_failures": self.test_failures,
                 "test_success": self.test_success,
                 "test_not_found": self.test_not_found,
+                "test_skipped": self.test_skipped,
                 "time_of_tests": self.time_of_tests,
                 "test_without_report": self.test_without_report}
 

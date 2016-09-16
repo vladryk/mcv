@@ -277,6 +277,7 @@ class Consoler(object):
             test_failures = get('test_failures', [])
             test_not_found = get('test_not_found', [])
             test_without_report = get('test_without_report', [])
+            test_skipped = get('test_skipped', [])
             time_of_tests = get('time_of_tests', {})
 
             tempest_tests_details = get('tempest_tests_details', {})
@@ -302,6 +303,9 @@ class Consoler(object):
                 if test_not_found:
                     msg_parts.append("Not found: {}"
                                      .format(len(test_not_found)))
+                if test_skipped:
+                    msg_parts.append("Skipped: {}"
+                                     .format(len(test_skipped)))
 
                 msg = ", ".join(msg_parts)
 
@@ -316,6 +320,9 @@ class Consoler(object):
                 for test in test_not_found:
                     res_table.add_row(
                         ["", "", test, time_of_test(test), " NOT FOUND "])
+                for test in test_skipped:
+                    res_table.add_row(
+                        ["", "", test, time_of_test(test), " SKIPPED "])
             res_table.add_row(["", "", "", "", ""])
 
         res_table.align = "l"

@@ -598,7 +598,7 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self.prepare_workload_task()
             if not task_args:
                 self.skip = True
-                self.test_not_found.append(task)
+                self.test_skipped.append(task)
                 return
             location = os.path.join(self.home, "tests/workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
@@ -608,7 +608,7 @@ class RallyOnDockerRunner(RallyRunner):
             task_args = self.prepare_big_data_task()
             if not task_args:
                 self.skip = True
-                self.test_not_found.append(task)
+                self.test_skipped.append(task)
                 return
             location = os.path.join(self.home, "tests/big-data-workload.yaml")
             cmd = self.create_cmd_for_task(location, task_args)
@@ -630,7 +630,7 @@ class RallyOnDockerRunner(RallyRunner):
 
             cmd = self.create_cmd_for_task(location, task_args)
         if self.skip:
-            self.test_not_found.append(task)
+            self.test_skipped.append(task)
             return
         utils.run_cmd(cmd)
 
