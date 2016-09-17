@@ -180,7 +180,6 @@ class RallyOnDockerRunner(RallyRunner):
 
         self.access_data = self.ctx.access_data
         self.path = self.ctx.work_dir.base_dir
-        self.container = None
         self.skip = False
         self.homedir = "/home/mcv/toolbox/rally"
         self.home = "/mcv"
@@ -189,15 +188,6 @@ class RallyOnDockerRunner(RallyRunner):
         self.neutronclient = Clients.get_neutron_client(self.access_data)
         self.novaclient = Clients.get_nova_client(self.access_data)
         self.net_id = None
-
-    def check_computes(self):
-        # TODO(albartash): Do we really need this method?
-        services = self.novaclient.services.list()
-        self.compute = 0
-        for service in services:
-            if service.binary == 'nova-compute':
-                self.compute += 1
-        LOG.debug("Found " + str(self.compute) + " computes.")
 
     def create_fedora_image(self):
         i_list = self.glanceclient.images.list()
@@ -353,7 +343,7 @@ class RallyOnDockerRunner(RallyRunner):
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["public_endpoint_ip"])
 
-        res = subprocess.Popen(
+        p = subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
             [add_host] * (add_host != "") +
             ["-p", "6000:6000",
@@ -366,12 +356,17 @@ class RallyOnDockerRunner(RallyRunner):
              "-v", ':'.join([self.homedir, self.home]), "-w", self.home,
              "-t", "mcv-rally"],
             stdout=subprocess.PIPE,
-            preexec_fn=utils.ignore_sigint).stdout.read()
+            stderr=subprocess.PIPE,
+            preexec_fn=utils.ignore_sigint)
+        p.wait()
 
         LOG.debug('Finish starting Rally container. Result: {result}'.format(
-            result=str(res)))
+            result=p.stdout.read()))
+        if p.returncode != 0:
+            LOG.debug('Exit code: %s', p.returncode)
+            LOG.debug('Stderr: %s', p.stderr.read())
 
-        self._verify_rally_container_is_up()
+        self.verify_container_is_up()
 
         cmd = "chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
         utils.run_cmd(cmd)
@@ -436,9 +431,6 @@ class RallyOnDockerRunner(RallyRunner):
 
         res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
-
-    def _verify_rally_container_is_up(self):
-        self.verify_container_is_up("rally")
 
     def _check_and_fix_flavor(self):
         LOG.debug("Searching for proper flavor.")
@@ -505,8 +497,9 @@ class RallyOnDockerRunner(RallyRunner):
         self._rally_deployment_check()
 
     def _setup_rally_on_docker(self):
-        self.check_computes()
-        self._verify_rally_container_is_up()
+        cid = self.lookup_existing_container()
+        if not cid:
+            self.start_container()
         self._check_rally_setup()
 
     def _prepare_certification_task_args(self):

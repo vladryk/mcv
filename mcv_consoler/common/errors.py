@@ -33,6 +33,7 @@ class CAError(BaseError):
     WRONG_CREDENTIALS = 14
     WRONG_RUNNER = 15
     CONFIG_ERROR = 16
+    FAILED_TEST_LIMIT_EXCESS = 19
 
     @staticmethod
     def range():

@@ -48,7 +48,6 @@ class OSTFOnDockerRunner(runner.Runner):
         self.success = []
         self.failures = []
         self.not_found = []
-        self.container = None
 
         self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
@@ -113,25 +112,13 @@ class OSTFOnDockerRunner(runner.Runner):
             preexec_fn=utils.ignore_sigint).stdout.read()
 
         LOG.debug('Finish starting OSTF container. Result: %s' % str(res))
-
-        return True
-
-    def _verify_ostf_container_is_up(self):
-        self.verify_container_is_up("ostf")
+        return self.verify_container_is_up()
 
     def _setup_ostf_on_docker(self):
-        # Find docker container:
-        self._verify_ostf_container_is_up()
+        cid = self.lookup_existing_container()
+        if not cid:
+            self.start_container()
         self._do_config_extraction()
-        p = utils.run_cmd("docker ps")
-        p = p.split('\n')
-        for line in p:
-            elements = line.split()
-            if elements[1].find("ostf") != -1:
-                self.container = elements[0]
-                status = elements[4]
-                LOG.debug("OSTF container status: " + status)
-                break
 
     def _run_ostf_on_docker(self, task):
 
@@ -150,7 +137,7 @@ class OSTFOnDockerRunner(runner.Runner):
                '--config-file={home}/conf/{conf_fname} '
                'cloud-health-check {cmd} '
                '--validation-plugin-name fuel_health {arg} {task}"'
-               ).format(cid=self.container,
+               ).format(cid=self.container_id,
                         mos_version=self.mos_version,
                         home=self.home,
                         conf_fname=self.config_filename,

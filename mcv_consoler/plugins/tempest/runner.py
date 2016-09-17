@@ -101,7 +101,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         LOG.debug('Finish bringing up Tempest container.'
                   'ID = %s' % str(res))
 
-        self._verify_rally_container_is_up()
+        self.verify_container_is_up()
         self._patch_rally()
 
         # Hotfix. set rally's permission for .rally/ folder

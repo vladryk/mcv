@@ -35,6 +35,7 @@ from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.common.test_discovery import discovery
+from mcv_consoler.exceptions import ProgramError
 from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ CONF = cfg.CONF
 
 class Runner(object):
     identity = None
+    container_id = None
     failure_indicator = CAError.NO_RUNNER_ERROR
 
     def __init__(self, ctx):
@@ -88,42 +90,43 @@ class Runner(object):
     def run_individual_task(self, task, *args, **kwargs):
         raise NotImplementedError
 
-    def verify_container_is_up(self, container_name):
-        # TODO(albartash): We need to re-investigate this method.
-        # It looks unsafe a little.
+    def start_container(self):
+        raise NotImplementedError
 
-        LOG.debug("Checking %s container..." % container_name)
-        res = subprocess.Popen(
-            ["docker", "ps"],
-            stdout=subprocess.PIPE,
-            preexec_fn=utils.ignore_sigint).stdout.read()
-        detector = re.compile("mcv-" + container_name)
-        if re.search(detector, res) is not None:
-            # TODO(albartash): This does not relly belongs here,
-            # better be moved someplace
-            self.container_id = self._extract_container_id(container_name, res)
-            LOG.debug("Container %s is fine" % container_name)
+    def verify_container_is_up(self, plugin=None, attempts=3, interval=10,
+                               quiet=False):
+
+        plugin = plugin or self.identity
+        LOG.debug("Checking %s container...", plugin)
+
+        docker_image = 'mcv-{}'.format(plugin)
+        cmd = 'docker ps ' \
+              '--filter "ancestor=%(image)s" ' \
+              '--format "{{.ID}}\t{{.Status}}" ' \
+              '| tail -1' % dict(image=docker_image)
+        for _ in range(attempts):
+            out = utils.run_cmd(cmd)
+            if not out:
+                LOG.debug('Container is not running')
+                interval and time.sleep(interval)
+                continue
+            cid, status = out.strip().split('\t')
+            break
         else:
-            LOG.debug("It has to be started.")
-            getattr(self, "start_container")()
-            time.sleep(10)
-            return self.verify_container_is_up(container_name)
+            if quiet:
+                return
+            err = 'Failed to start docker container: {}'.format(plugin)
+            raise ProgramError(err)
+        self.container_id = cid
+        LOG.debug("Container %s is fine. Status: %s", plugin, status)
+        return cid
 
-    def _extract_container_id(self, container_name, output):
-        output = output.split('\n')
-        container_name = "mcv-" + container_name
-        container_id = ""
-        for line in output:
-            if re.search(container_name, line) is not None:
-                container_id = line[0:12]
+    def lookup_existing_container(self, plugin=None):
+        return self.verify_container_is_up(plugin, attempts=1, interval=0,
+                                           quiet=True)
 
-        if not container_id:
-            LOG.critical('Cannot extract container ID. '
-                         'Please check container name.')
-
-        return container_id
-
-    def get_error_code(self, tool_name):
+    @staticmethod
+    def get_error_code(tool_name):
 
         codes = {'ostf': OSTFError.FAILED_TEST_LIMIT_EXCESS,
                  'rally': RallyError.FAILED_TEST_LIMIT_EXCESS,
@@ -132,8 +135,9 @@ class Runner(object):
                  'shaker': ShakerError.FAILED_TEST_LIMIT_EXCESS,
                  'speed': SpeedError.FAILED_TEST_LIMIT_EXCESS,
                  'tempest': TempestError.FAILED_TEST_LIMIT_EXCESS}
+        default = CAError.FAILED_TEST_LIMIT_EXCESS
 
-        return codes[tool_name]
+        return codes.get(tool_name, default)
 
     @staticmethod
     def _validate_test_params(**params):

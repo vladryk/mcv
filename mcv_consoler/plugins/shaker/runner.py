@@ -150,7 +150,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                 fqdn=self.access_data["auth_fqdn"],
                 endpoint=self.access_data["public_endpoint_ip"])
 
-        res = subprocess.Popen(
+        subprocess.Popen(
             ["docker", "run", "-d", "-P=true"] +
             [add_host] * (add_host != "") +
             ["-p", "5999:5999",
@@ -169,21 +169,13 @@ class ShakerOnDockerRunner(ShakerRunner):
             stdout=subprocess.PIPE,
             preexec_fn=utils.ignore_sigint).stdout.read()
 
-        LOG.debug('Finish bringing up Shaker container. '
-                  'ID = %s' % str(res))
+        return self.verify_container_is_up()
 
     def _setup_shaker_on_docker(self):
-        self.verify_container_is_up("shaker")
+        cid = self.lookup_existing_container()
+        if not cid:
+            self.start_container()
         self._check_shaker_setup()
-        p = utils.run_cmd("docker ps")
-        p = p.split('\n')
-        for line in p:
-            elements = line.split()
-            if elements[1].find("shaker") != -1:
-                self.container = elements[0]
-                status = elements[4]
-                LOG.debug('Container status: %s' % str(status))
-                break
 
     def _run_shaker_on_docker(self, task):
         LOG.debug("Starting task %s" % task)
@@ -204,7 +196,7 @@ class ShakerOnDockerRunner(ShakerRunner):
                "--report-template json "
                "--report {task}.json "
                "--log-file {home}/log/shaker.log"
-               ).format(cid=self.container,
+               ).format(cid=self.container_id,
                         tout=timeout,
                         agent_tout=agents_timeout,
                         image=self.image_name,
@@ -235,7 +227,7 @@ class ShakerOnDockerRunner(ShakerRunner):
             return []
 
         cmd = ("docker exec -t %s shaker-report --input %s.out --report "
-               "%s.html") % (self.container, task, task)
+               "%s.html") % (self.container_id, task, task)
         p = utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.json {path}".format(
@@ -272,7 +264,7 @@ class ShakerOnDockerRunner(ShakerRunner):
 
     def _get_task_result_from_docker(self, task_id):
         LOG.info("Retrieving task results for %s" % task_id)
-        cmd = "docker exec -t %s %s" % (self.container, task_id)
+        cmd = "docker exec -t %s %s" % (self.container_id, task_id)
         p = utils.run_cmd(cmd)
 
         if task_id.find("detailed") == -1:
