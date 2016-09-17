@@ -62,10 +62,10 @@ class NWSpeedTestRunner(run.Runner):
 
         res = list()
         for node in all_nodes:
-            mgmt_ip = fuel.get_node_address(
-                node, network=app_conf.FUEL_MANAGEMENT_NETWORK_NAME)
+            admin_ip = fuel.get_node_address(
+                node, network=app_conf.FUEL_ADMIN_NETWORK_NAME)
             roles = tuple(node['roles'])
-            res.append(Node(node['id'], node['fqdn'], roles, mgmt_ip))
+            res.append(Node(node['id'], node['fqdn'], roles, admin_ip))
         res.sort(key=lambda x: x.id)
 
         limit = CONF.nwspeed.nodes_limit
