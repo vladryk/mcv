@@ -116,10 +116,6 @@ class Router(object):
                    'insecure': insecure,
                    'mos_version': CONF.basic.mos_version,
                    'auth_fqdn': CONF.auth.auth_fqdn,
-                   # nova tenant
-                   'project_id': tenant_name,
-                   # nova and cinder passwd
-                   'api_key': password
                    }
 
         return os_data
@@ -434,10 +430,6 @@ class CRouter(Router):
                 dst = dst[3:]
             self.os_data[dst] = openrc[src]
 
-        # FIXME(dbogun): remove "duplicated" records from os_data
-        self.os_data['api_key'] = self.os_data['password']
-        self.os_data['project_id'] = self.os_data['tenant_name']
-
         fuel_version_info = self.ctx.fuel.fuel_version.get_all()
         self.os_data['mos_version'] = fuel_version_info['release']
 
@@ -701,7 +693,7 @@ class IRouter(Router):
                   "using provided credentials...")
         self.make_sure_controller_name_could_be_resolved()
         try:
-            self.novaclient.authenticate()
+            self.novaclient.servers.list()
         except nexc.ConnectionRefused:
             LOG.error("Apparently authentication endpoint address is invalid."
                       " Current value is %s" % self.os_data["ips"]["endpoint"])

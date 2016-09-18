@@ -20,9 +20,6 @@ import time
 import datetime
 
 from keystoneclient import exceptions as k_exc
-from glanceclient import exc as g_exc
-from neutronclient.common import exceptions as n_exc
-from novaclient import exceptions as no_exc
 from oslo_config import cfg
 
 from mcv_consoler.common import clients as Clients
@@ -217,18 +214,11 @@ class RallyOnDockerRunner(RallyRunner):
 
     def cleanup_image(self, name):
         LOG.debug('Cleaning up test image')
-        try:
-            i_list = self.glanceclient.images.list()
-            for im in i_list:
-                if im.name == name:
-                    self.glanceclient.images.delete(im.id)
-        except g_exc.HTTPUnauthorized:
-            # Exception means that token expired, so we need to refresh client
-            self.glanceclient = Clients.get_glance_client(self.access_data)
-            i_list = self.glanceclient.images.list()
-            for im in i_list:
-                if im.name == name:
-                    self.glanceclient.images.delete(im.id)
+        i_list = self.glanceclient.images.list()
+        for im in i_list:
+            if im.name == name:
+                self.glanceclient.images.delete(im.id)
+
 
     def cleanup_fedora_image(self):
         self.cleanup_image('mcv-test-fedora')
@@ -295,12 +285,8 @@ class RallyOnDockerRunner(RallyRunner):
 
     def cleanup_test_flavor(self):
         LOG.debug('Cleaning up test flavor')
-        try:
-            flavors = self.novaclient.flavors.list()
-        except no_exc.Unauthorized:
-            # Exception means that token expired, so we need to refresh client
-            self.novaclient = Clients.get_nova_client(self.access_data)
-            flavors = self.novaclient.flavors.list()
+
+        flavors = self.novaclient.flavors.list()
         for flav in flavors:
             if flav.name == 'mcv-workload-test-flavor':
                 self.novaclient.flavors.delete(flav.id)
@@ -331,12 +317,7 @@ class RallyOnDockerRunner(RallyRunner):
     def cleanup_network(self):
         if self.net_id is not None:
             LOG.debug('Removing previously created network: %s' % self.net_id)
-            try:
-                self.neutronclient.delete_network(self.net_id)
-            except n_exc.Unauthorized:
-                # Exception means that token expired, so we need to refresh client
-                self.neutronclient = Clients.get_neutron_client(self.access_data)
-                self.neutronclient.delete_network(self.net_id)
+            self.neutronclient.delete_network(self.net_id)
 
     def start_container(self):
         LOG.debug("Starting Rally container")
