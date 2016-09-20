@@ -15,6 +15,7 @@
 import logging
 import re
 from operator import truediv
+import socket
 
 from oslo_config import cfg
 
@@ -28,8 +29,9 @@ LOG = logging.getLogger(__name__)
 
 class Node2NodeSpeed(object):
 
-    def __init__(self, ctx, nodes):
+    def __init__(self, ctx, computes, nodes):
         self.ctx = ctx
+        self.computes = computes
         self.nodes = nodes
         self.ssh_conns = dict()
         # Port for testing speed between nodes
@@ -38,12 +40,13 @@ class Node2NodeSpeed(object):
         self.data_size = CONF.nwspeed.data_size
 
     def init_ssh_conns(self):
-        if not self.nodes:
+        all_test_nodes = set(self.computes) | set(self.nodes)
+        if not all_test_nodes:
             return
         work_dir = self.ctx.work_dir_global
         rsa_path = work_dir.resource(work_dir.RES_OS_SSH_KEY)
         login = app_conf.OS_NODE_SSH_USER
-        for node in self.nodes:
+        for node in all_test_nodes:
             conn = self._ssh_connect(login, node.ip, rsa_path)
             self.ssh_conns[node.fqdn] = conn
 
@@ -63,32 +66,50 @@ class Node2NodeSpeed(object):
             res[target.fqdn] = node_res
         return res
 
-    def _do_measure(self, node1, node2, attempts=3):
-        cmd_listen = 'nc -l -k -p {port} > /dev/null'
-        cmd_send = 'LC_ALL=C ' \
-                   'dd if=/dev/zero bs=1M count={count} | ' \
-                   'nc {fqdn} {port}'
+    def _do_once(self, node1, cmd1, node2, cmd2):
         ctrl_c = chr(3)  # Ctrl+C pressed
 
         ssh_node1 = self.ssh_conns[node1.fqdn]
         ssh_node2 = self.ssh_conns[node2.fqdn]
+        out, sin = None, None
 
         LOG.debug('Starting netcat server on node %s', node2.fqdn)
-        cmd = cmd_listen.format(port=self.test_port)
-        LOG.debug('%s Running SSH command: %s', ssh_node2.identity, cmd)
-        sin, _, _ = ssh_node2.client.exec_command(cmd, get_pty=True)
-
-        cmd = cmd_send.format(count=self.data_size, fqdn=node2.fqdn,
-                              port=self.test_port)
-        res = list()
+        LOG.debug('%s Running SSH command: %s', ssh_node2.identity, cmd2)
         try:
-            for _ in xrange(attempts):
-                out = ssh_node1.exec_cmd(cmd)
-                speed_mb = self._parse_speed(out.stderr)
-                res.append(speed_mb)
+            sin, _, _ = ssh_node2.client.exec_command(cmd2, get_pty=True)
+            out = ssh_node1.exec_cmd(cmd1)
         finally:
-            # terminate netcat server
-            sin.write(ctrl_c)
+            LOG.debug('Stopping netcat server on node %s', node2.fqdn)
+            try:
+                # terminate netcat server
+                sin.write(ctrl_c)
+            except (socket.error, AttributeError):
+                pass
+        return out
+
+    def _do_measure(self, node1, node2, attempts=3):
+        params = {
+            'count': self.data_size,
+            'fqdn': node2.fqdn,
+            'port': self.test_port,
+            'timeout': app_conf.DEFAULT_SSH_TIMEOUT,
+        }
+        cmd_listen = 'nc -v -l -p {port} > /dev/null'.format(**params)
+        cmd_send = 'LC_ALL=C ' \
+                   'dd if=/dev/zero bs=1M count={count} | ' \
+                   'nc -v -w {timeout} {fqdn} {port}'.format(**params)
+        res = list()
+        for _ in xrange(attempts):
+            out = self._do_once(node1, cmd_send, node2, cmd_listen)
+            if out is None:
+                res.append(None)
+                continue
+            try:
+                speed_mb = self._parse_speed(out.stderr)
+            except (exceptions.ParseError, ValueError) as e:
+                LOG.debug('Error: %s', e.message, exc_info=True)
+                speed_mb = None
+            res.append(speed_mb)
         return res
 
     @staticmethod

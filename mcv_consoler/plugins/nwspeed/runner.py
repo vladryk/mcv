@@ -48,17 +48,28 @@ class NWSpeedTestRunner(run.Runner):
         self.access_data = self.ctx.access_data
         self.path = self.ctx.work_dir.base_dir
         self.test_failures = []
-        self.hw_nodes = []
+        self.nodes = list()
+        self.controllers = list()
         self.attempts = CONF.nwspeed.attempts
         self.thr = CONF.nwspeed.threshold
         self.pr = CONF.nwspeed.range
 
     def _prepare_nodes(self):
+        # see https://mirantis.jira.com/browse/MCV-228 for mode details
+
         cluster_id = CONF.fuel.cluster_id
         fuel = self.ctx.access.fuel
+
         all_nodes = fuel.node.get_all(environment_id=cluster_id)
         all_nodes = fuel.filter_nodes_by_status(all_nodes)
         LOG.debug('Discovered %s nodes', len(all_nodes))
+
+        roles = CONF.nwspeed.roles
+        if roles is not None:
+            LOG.debug('Filtering nodes by role: %s', ', '.join(roles))
+            all_nodes = fuel.filter_nodes_by_role(all_nodes, *roles)
+            LOG.debug('%s nodes were filtered by role %s',
+                      len(all_nodes), roles)
 
         res = list()
         for node in all_nodes:
@@ -68,20 +79,32 @@ class NWSpeedTestRunner(run.Runner):
             res.append(Node(node['id'], node['fqdn'], roles, admin_ip))
         res.sort(key=lambda x: x.id)
 
-        limit = CONF.nwspeed.nodes_limit
-        if limit is None:
-            return res
+        # FIXME(ogrytsenko): role 'controller' is hardcoded
+        # Although it does exactly what was asked in task #MCV-228, it
+        # still makes sense to move this to an 'mcv.conf'
+        is_controller = lambda n: n.roles.__contains__('controller')
+        self.controllers = filter(is_controller, res)
+        LOG.debug('Discovered %s controllers', len(self.controllers))
 
-        res = res[:limit]
-        LOG.debug('Node limit is %s', limit)
-        LOG.debug('Following nodes were selected for tests: %s', res)
-        return res
+        ctr_limit = CONF.nwspeed.controllers_limit
+        if ctr_limit is not None:
+            LOG.debug('Controllers limit is %s', ctr_limit)
+            self.controllers = self.controllers[:ctr_limit]
+        LOG.debug('Following controllers nodes were selected for test: %s',
+                  self.controllers)
+
+        node_limit = CONF.nwspeed.nodes_limit
+        if node_limit is not None:
+            LOG.debug('Node limit is %s', node_limit)
+            self.nodes = res[:node_limit]
+        else:
+            self.nodes = res
+        LOG.debug('Following nodes were selected for tests: %s', self.nodes)
 
     def run_batch(self, tasks, *args, **kwargs):
         tasks, missing = self.discovery.match(tasks)
         self.test_not_found.extend(missing)
-
-        self.hw_nodes = self._prepare_nodes()
+        self._prepare_nodes()
         return super(NWSpeedTestRunner, self).run_batch(tasks, *args, **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
@@ -92,9 +115,10 @@ class NWSpeedTestRunner(run.Runner):
         runner_obj = None
         try:
             runner_cls = getattr(st, task)
-            runner_obj = runner_cls(self.ctx, self.hw_nodes)
+            runner_obj = runner_cls(self.ctx, self.controllers, self.nodes)
             runner_obj.init_ssh_conns()
-        except AttributeError:
+        except AttributeError as e:
+            LOG.debug('Error: %s', e.message, exc_info=True)
             LOG.error('Incorrect task: %s', task)
             self.test_not_found.append(task)
             return False
@@ -108,13 +132,13 @@ class NWSpeedTestRunner(run.Runner):
 
         raw_results = dict()
         try:
-            for node in self.hw_nodes:
-                LOG.info("Measuring network speed on node %s" % node.fqdn)
-                res = runner_obj.measure_speed(node, self.attempts)
-                raw_results[node] = res
+            for controller in self.controllers:
+                LOG.info("Measuring network speed on node: %s", controller.fqdn)
+                res = runner_obj.measure_speed(controller, self.attempts)
+                raw_results[controller] = res
         except Exception:
             LOG.error('Failed to measure speed, caught unexpected error. '
-                      'Please check mcvconsoler logs', exc_info=1)
+                      'Please check mcvconsoler logs', exc_info=True)
             self.test_failures.append(task)
             return False
         finally:
@@ -143,8 +167,11 @@ class NWSpeedTestRunner(run.Runner):
         ro = partial(round, ndigits=2)
 
         nodes = dict()
-        for node in self.hw_nodes:
+        all_nodes = set(self.nodes) | set(self.controllers)
+        for node in all_nodes:
             nodes[node.fqdn] = dict(node._asdict())
+
+        from_nodes, to_nodes = set(), set()
 
         tests = list()
         for from_node, items in raw_results.iteritems():
@@ -158,9 +185,11 @@ class NWSpeedTestRunner(run.Runner):
                     'attempts': attempts,
                     'avg': avg,
                     'avg_gbs': ro(avg / 125),
-                    'success': avg >= self.thr
+                    'success': avg >= self.thr and None not in attempts
                 })
                 tmp.append(avg)
+                to_nodes.add(to_node)
+            from_nodes.add(from_node.fqdn)
             node_avg = len(tmp) and ro(sum(tmp) / len(tmp))
             nodes[from_node.fqdn]['avg_speed'] = node_avg
         avg = len(tests) and ro(sum(map(lambda s: s['avg'], tests))/len(tests))
@@ -168,6 +197,8 @@ class NWSpeedTestRunner(run.Runner):
         result_dict = {
             'nodes': nodes,
             'tests': tests,
+            'from_nodes': list(from_nodes),
+            'to_nodes': list(to_nodes),
             'total_avg': avg,
             'threshold': self.thr,
             'percent_range': self.pr,
@@ -190,13 +221,15 @@ class NWSpeedTestRunner(run.Runner):
 
         msg = "Node '%s' average speed is %s MB/s"
         warn_msg = msg + ', less than threshold range'
-        for fqdn, node in results_dict['nodes'].iteritems():
-            node_avg = node['avg_speed']
+        for node in self.controllers:
+            node_avg = results_dict['nodes'][node.fqdn].get('avg_speed')
+            if node_avg is None:
+                continue
             if node_avg < th_range:
-                LOG.warn(warn_msg, fqdn, node_avg)
+                LOG.warn(warn_msg, node.fqdn, node_avg)
                 ret_code = NWSpeedError.LOW_NODE_SPEED
             else:
-                LOG.debug(msg, fqdn, node_avg)
+                LOG.debug(msg, node.fqdn, node_avg)
         return ret_code
 
     def generate_report(self, task, result_dict):

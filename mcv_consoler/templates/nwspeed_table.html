@@ -11,17 +11,17 @@
         <thead>
              <tr>
                  <td class="text-center panel-title"><strong>AVG Speed NodeToNode: MB/s(Gb/s)</strong></td>
-                 {%- for node in nodes %}
+                 {%- for node in to_nodes %}
                  <td class="text-center panel-title"><strong>{{ node }} ({{ nodes[node]['roles']|join(', ') }})</strong></td>
                  {%- endfor %}
              </tr>
         </thead>
 
         <tbody>
-        {%- for node1fqdn, node1 in nodes.iteritems() %}
+        {%- for node1fqdn in from_nodes %}
         <tr>
-            <td class="text-center panel-title"><strong>{{ node1fqdn }} ({{ node1['roles']|join(', ') }})</strong></td>
-        {%- for node2fqdn, node2 in nodes.iteritems() -%}
+            <td class="text-center panel-title"><strong>{{ node1fqdn }} ({{ nodes[node1fqdn]['roles']|join(', ') }})</strong></td>
+        {%- for node2fqdn in to_nodes -%}
             {%- set loop_index = loop.index -%}
             {%- set record = tests|selectattr("from", "equalto", node1fqdn)|selectattr("to", "equalto", node2fqdn)|list|first -%}
             {%- if not record %}

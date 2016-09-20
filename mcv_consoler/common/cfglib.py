@@ -247,11 +247,15 @@ nwspeed_opts = [
                help='NWSpeed test port'),
     cfg.IntOpt('data_size', default=100,
                help='NWSpeed data size'),
-    # nodes_limit is optional, default value is None
     cfg.IntOpt('nodes_limit',
                help='NWSpeed nodes limit'),
+    cfg.IntOpt('controllers_limit',
+               help='NWSpeed controllers limit'),
     cfg.IntOpt('attempts', default=3,
                help='NWSpeed attempts count'),
+    cfg.ListOpt('roles',
+                help='Comma-separated list of roles to be used to filter '
+                     'nodes before starting speed test'),
 ]
 
 selfcheck = cfg.OptGroup(name='selfcheck',

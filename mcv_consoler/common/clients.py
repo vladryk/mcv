@@ -16,6 +16,7 @@ import functools
 import os
 import urlparse
 import weakref
+from itertools import imap
 
 import cinderclient.client
 import cinderclient.exceptions
@@ -236,8 +237,12 @@ class FuelClientProxy(_ClientProxyBase):
         return [node for node in node_set if status == node['status']]
 
     @staticmethod
-    def filter_nodes_by_role(node_set, role):
-        return [node for node in node_set if role in node['roles']]
+    def filter_nodes_by_role(node_set, *roles):
+        res = list()
+        for node in node_set:
+            if any(imap(node['roles'].__contains__, roles)):
+                res.append(node)
+        return res
 
     @staticmethod
     def get_node_network(node, network):
