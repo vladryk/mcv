@@ -27,6 +27,7 @@ import paramiko
 import yaml
 from requests.exceptions import ConnectionError
 from requests.exceptions import Timeout
+import keystoneclient
 from novaclient import exceptions as nexc
 from oslo_config import cfg
 
@@ -555,8 +556,11 @@ class IRouter(Router):
         (it is internalURL in Keystone)
         InternalURL - is always the same for any service.
         """
-        full_url = self.keystoneclient.service_catalog.get_endpoints(
-            'identity')['identity'][0]['internalURL']
+        full_url = self.keystoneclient.session.get_endpoint(
+            service_type='identity',
+            interface='internal',
+            region_name=self.os_data['region_name']
+        )
         return str(full_url.split('/')[2].split(':')[0])
 
     def verify_access_data_is_set(self):
