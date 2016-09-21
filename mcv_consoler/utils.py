@@ -21,6 +21,8 @@ import re
 import signal
 import subprocess
 
+import dateutil.parser
+
 from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
@@ -152,7 +154,7 @@ class TokenFactory(object):
             payload = json.loads(proc.stdout)
             self._token = payload['access']['token']['id']
             expires = payload['access']['token']['expires']
-            expires = datetime.datetime.strptime(expires, '%Y-%m-%dT%H:%M:%SZ')
+            expires = dateutil.parser.parse(expires, ignoretz=True)
         except (KeyError, ValueError, TypeError, exceptions.RemoteError) as e:
             raise exceptions.AccessError(
                 'Unable to allocate OpenStack auth token: {}'.format(e))

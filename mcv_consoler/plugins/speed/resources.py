@@ -130,11 +130,11 @@ class Allocator(object):
         nova = self.ctx.access.nova
 
         for flavor in nova.flavors.list():
-            flavor = OSFlavor.new_from_os(flavor)
-            if flavor != self.minimal_flavor:
+            os_flavor = OSFlavor.new_from_os(flavor)
+            if os_flavor != self.minimal_flavor:
                 continue
 
-            LOG.debug('Use existing flavor: %s', flavor.identity)
+            LOG.debug('Use existing flavor: %s', os_flavor.identity)
             return flavor
 
         LOG.debug('No suitable flavor was found. Creating new one.')

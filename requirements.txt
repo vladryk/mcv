@@ -3,6 +3,7 @@ Jinja2>=2.8
 flask_table
 oslo.config==3.17.0
 paramiko>=1.0
+python-dateutil==2.5.3
 python-novaclient>=3.0.0
 python-glanceclient>=0.18.0
 python-keystoneclient>=1.6.0

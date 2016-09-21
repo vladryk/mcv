@@ -216,7 +216,7 @@ speed_opts = [
     cfg.StrOpt('speed_image_path',
                default=config.FEDORA_IMAGE_PATH,
                help='Speed image path'),
-    cfg.StrOpt('flavor_req', default='ram:1024,vcpus:1',
+    cfg.StrOpt('flavor_req', default='ram:1024,vcpus:1,disk:0',
                help='Speed flavour requirements'),
     cfg.StrOpt('image_size', default='1G',
                help='Speed image size'),
