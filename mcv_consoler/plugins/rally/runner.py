@@ -463,7 +463,7 @@ class RallyOnDockerRunner(RallyRunner):
                        "auth_url": self.access_data['auth_url'],
                        "users": users}
 
-        with open(os.path.join(self.homedir, "conf", "existing.json")) as f:
+        with open(os.path.join(self.homedir, "conf", "existing.json"), 'w') as f:
             f.write(rally_json_template % credentials)
 
     def _rally_deployment_check(self):
