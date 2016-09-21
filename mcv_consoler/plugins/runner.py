@@ -16,6 +16,7 @@ import datetime
 import json
 import logging
 import os
+import shutil
 import time
 import traceback
 
@@ -66,6 +67,26 @@ class Runner(object):
     def discovery(self):
         return discovery.use(self.identity)
 
+    def store_logs(self, copy_from):
+        # TODO(vkaznacheiev): move it to a separate module later.
+        if not os.path.exists(copy_from):
+            LOG.debug("Log file by the following path does not exist and will "
+                      "not be copied in the results folder: %s", copy_from)
+            return
+
+        path_to_store = os.path.join(self.ctx.work_dir_global.base_dir,
+                                     "logs", self.identity)
+
+        if not os.path.exists(path_to_store):
+            os.makedirs(path_to_store)
+
+        path_to_store = os.path.join(path_to_store,
+                                     os.path.basename(copy_from))
+        shutil.copy2(copy_from, path_to_store)
+
+        LOG.debug("Log by the following path has been copied to the results "
+                  "dir: %s", copy_from)
+
     def store_config(self, copy_from):
         # TODO(vkaznacheiev): move it to a separate module later.
         if not os.path.exists(copy_from):
@@ -73,16 +94,17 @@ class Runner(object):
                       "not be copied in the results folder: %s", copy_from)
             return
 
-        config_store_dir = os.path.join(
-            self.ctx.work_dir_global.base_dir, "config")
+        config_store_dir = os.path.join(self.ctx.work_dir_global.base_dir,
+                                        "config")
 
         if not os.path.exists(config_store_dir):
             os.makedirs(config_store_dir)
 
         cfg_name = os.path.basename(copy_from)
-
         copy_to = os.path.join(config_store_dir, cfg_name)
-        utils.run_cmd("cp {} {}".format(copy_from, copy_to))
+
+        shutil.copy2(copy_from, copy_to)
+
         LOG.debug("Config by the following path has been copied to the results "
                   "dir: %s", copy_from)
 

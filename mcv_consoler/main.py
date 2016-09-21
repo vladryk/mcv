@@ -13,27 +13,30 @@
 #    under the License.
 
 import fcntl
+import logging
 import sys
 import threading
 import time
 import traceback
-import logging
-import yaml
 
+import yaml
 from oslo_config import cfg
 
-from mcv_consoler.common.config import RUN_MODES
-from mcv_consoler.common import context
-from mcv_consoler.common.cmd import argparser
-from mcv_consoler.common.errors import CAError
+from mcv_consoler import consoler
 from mcv_consoler import log
 from mcv_consoler.common import cfglib
-from mcv_consoler import consoler
+from mcv_consoler.common import context
+from mcv_consoler.common.cmd import argparser
+from mcv_consoler.common.config import RUN_MODES
+from mcv_consoler.common.errors import CAError
+from mcv_consoler.utils import copy_mcvconsoler_log
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 args = argparser.parse_args()
+
+app = None
 
 
 def acquire_lock():
@@ -51,6 +54,8 @@ def load_scenario():
 
 
 def main():
+    global app
+
     if not cfglib.init_config(args.config):
         return CAError.CONFIG_ERROR
 
@@ -113,4 +118,7 @@ def thread_wrapper(worker, rcode_holder):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    ret = main()
+    copy_mcvconsoler_log(app.results_dir)
+    app.make_results_archive()
+    sys.exit(ret)

@@ -13,7 +13,6 @@
 #    under the License.
 
 import copy
-from datetime import datetime
 import imp
 import json
 import logging
@@ -21,33 +20,34 @@ import os
 import shutil
 import subprocess
 import traceback
+from datetime import datetime
 
-import ruamel.yaml
 import prettytable
+import ruamel.yaml
 from oslo_config import cfg
 
-from mcv_consoler.accessor import AccessSteward
-from mcv_consoler.common.config import PLUGINS_DIR_NAME
-from mcv_consoler.common.config import TIMES_DB_PATH
-from mcv_consoler.common import context
-from mcv_consoler.common import clients
-from mcv_consoler.common.errors import CAError
-from mcv_consoler.common.errors import ComplexError
-from mcv_consoler.common import resource
-from mcv_consoler.common import ssh
-from mcv_consoler.common.test_discovery import discovery
 from mcv_consoler import exceptions
 from mcv_consoler import reporter
-from mcv_consoler.reporter import validate_section
 from mcv_consoler import utils
+from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common import cleanup
+from mcv_consoler.common import clients
+from mcv_consoler.common import context
+from mcv_consoler.common import resource
+from mcv_consoler.common import ssh
+from mcv_consoler.common.config import PLUGINS_DIR_NAME
+from mcv_consoler.common.config import TIMES_DB_PATH
+from mcv_consoler.common.errors import CAError
+from mcv_consoler.common.errors import ComplexError
+from mcv_consoler.common.test_discovery import discovery
+from mcv_consoler.reporter import validate_section
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
-TEMPEST_OUTPUT_TEMPLATE = "Total: {tests}, Success: {test_succeed}, " \
-                          "Failed: {test_failed}, Skipped: {test_skipped}, " \
-                          "Expected failures: {expected_failures}"
+TEMPEST_OUTPUT_TEMPLATE = ("Total: {tests}, Success: {test_succeed}, "
+                           "Failed: {test_failed}, Skipped: {test_skipped}, "
+                           "Expected failures: {expected_failures}")
 
 
 class Consoler(object):
@@ -349,7 +349,8 @@ class Consoler(object):
                 yaml[failed_test_section] = group
             if yaml != yaml_copy:
                 f.seek(0)
-                ruamel.yaml.dump(yaml, f, ruamel.yaml.RoundTripDumper, block_seq_indent=2)
+                ruamel.yaml.dump(yaml, f, ruamel.yaml.RoundTripDumper,
+                                 block_seq_indent=2)
                 f.truncate()
 
     def _do_finalization(self, run_results):
@@ -366,7 +367,7 @@ class Consoler(object):
             LOG.debug(traceback.format_exc())
             return
 
-        LOG.debug('Creating a .tar.gz archive with test reports')
+    def make_results_archive(self):
         try:
             archive_file = '%s.tar.gz' % self.results_dir
             cmd = "tar -zcf {arch_file} -C {results_dir} .".format(
@@ -376,14 +377,7 @@ class Consoler(object):
             cmd = "rm -rf %s" % self.results_dir
             utils.run_cmd(cmd)
         except subprocess.CalledProcessError:
-            LOG.warning('Creation of .tar.gz archive has failed. See log '
-                        'for details. You can still get your files from: '
-                        '%s' % self.results_dir)
-            LOG.debug(traceback.format_exc())
             return
-
-        LOG.debug("Finished creating a report.")
-        LOG.info("One page report could be found in %s\n" % archive_file)
 
     def __call__(self):
         # FIXME(dbogun): implement acceptable way to run different cli commands

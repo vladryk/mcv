@@ -26,6 +26,12 @@ handlers:
     formatter: complex
     filename: /home/mcv/toolbox/mcvconsoler.log
     encoding: utf-8
+  mcvconsoler_current_run:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: complex
+    filename: /tmp/mcvconsoler.log
+    encoding: utf-8
 
 loggers:
   requests:
@@ -35,4 +41,4 @@ loggers:
 
 root:
   level: NOTSET
-  handlers: [console, file]
+  handlers: [console, file, mcvconsoler_current_run]

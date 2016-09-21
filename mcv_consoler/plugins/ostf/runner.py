@@ -222,6 +222,11 @@ class OSTFOnDockerRunner(runner.Runner):
                 break
 
         time_end = datetime.datetime.utcnow()
+
+        # store ostf logs
+        for log_to_store in ("ostf_adapter_debug.log", "ostf_adapter.log"):
+            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
+
         LOG.info("\nTime end: %s UTC", time_end)
 
         return {"test_failures": self.failures,

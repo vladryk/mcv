@@ -721,6 +721,10 @@ class RallyOnDockerRunner(RallyRunner):
         self.cleanup_fedora_image()
         self.cleanup_test_flavor()
         self.cleanup_network()
+
+        # store rally log
+        self.store_logs(os.path.join(self.homedir, "log/rally.log"))
+
         LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
         return result
 

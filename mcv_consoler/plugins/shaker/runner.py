@@ -228,11 +228,11 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         cmd = ("docker exec -t %s shaker-report --input %s.out --report "
                "%s.html") % (self.container_id, task, task)
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         cmd = "sudo cp {homedir}/{task}.json {path}".format(
             homedir=self.homedir, task=task, path=self.path)
-        p = utils.run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         temp = open('%s/%s.json' % (self.path, task), 'r')
         p = temp.read()
@@ -421,6 +421,10 @@ class ShakerOnDockerRunner(ShakerRunner):
                                             'network_speed',
                                             self.output)
         result['threshold'] = '{} Gb/s'.format(self.threshold)
+
+        # store shaker log
+        self.store_logs(os.path.join(self.homedir, "log/shaker.log"))
+
         LOG.info("\nTime end: %s UTC", datetime.datetime.utcnow())
         self.clear_shaker()
         return result

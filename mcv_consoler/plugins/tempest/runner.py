@@ -439,6 +439,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             with open(TIMES_DB_PATH, "w") as f:
                 json.dump(db, f)
 
+        # store tempest logs
+        for log_to_store in ("rally.log", "tempest.log"):
+            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
+
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         self.cleanup_toolbox()
         self.cleanup_cirros_image()

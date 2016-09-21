@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import signal
+import shutil
 import subprocess
 
 import dateutil.parser
@@ -34,6 +35,18 @@ warnings = ('SNIMissingWarning',
 
 def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def copy_mcvconsoler_log(results_dir):
+    results_log_dir = os.path.join(results_dir, "logs")
+
+    if not os.path.exists(results_log_dir):
+        os.makedirs(results_log_dir)
+
+    handler = filter(lambda x: x.get_name() == "mcvconsoler_current_run",
+                     LOG.parent.handlers)
+    if handler:
+        shutil.copy2(handler[0].baseFilename, results_log_dir)
 
 
 def run_cmd(cmd, quiet=False):
