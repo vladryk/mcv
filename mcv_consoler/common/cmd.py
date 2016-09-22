@@ -96,6 +96,12 @@ external -  Run MCV as a separate node in external network (L3)""")
         action="store_true",
         help="Show debug messages.")
 
+    parser.add_argument(
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Verbose debug messages.")
+
     return parser
 
 

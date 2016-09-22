@@ -22,7 +22,7 @@ import yaml
 CONF = cfg.CONF
 
 
-def configure_logging(debug=None):
+def configure_logging(debug=None, verbose=None):
     """Configure the logging system
 
     Load the logging configuration file and configure the
@@ -30,18 +30,21 @@ def configure_logging(debug=None):
 
     :param debug: allows to enable/disable the console
     debug mode
+    :param verbose: allows to verbose the debug messages
     """
 
     with open(CONF.basic.log_config, 'r') as f:
         logging.config.dictConfig(yaml.load(f))
 
+    logger = logging.getLogger()
     if not debug:
-        logger = logging.getLogger()
         for handler in logger.handlers:
             if handler.name == 'console':
                 handler.setLevel(logging.INFO)
                 handler.setFormatter(logging.Formatter())
                 break
+    if verbose:
+        logger.setLevel(logging.DEBUG)
 
     if CONF.basic.hide_ssl_warnings:
         urllib3.disable_warnings()

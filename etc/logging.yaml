@@ -37,11 +37,13 @@ handlers:
     encoding: utf-8
 
 loggers:
+  mcv_consoler:
+    level: DEBUG
   requests:
     level: CRITICAL
   paramiko.transport:
     level: CRITICAL
 
 root:
-  level: NOTSET
+  level: INFO
   handlers: [console, file, mcvconsoler_current_run]

@@ -55,7 +55,7 @@ def main():
     if not cfglib.init_config(args.config):
         return CAError.CONFIG_ERROR
 
-    log.configure_logging(args.debug)
+    log.configure_logging(args.debug, args.verbose)
 
     LOG.debug('Consoler started by command: %s', ' '.join(sys.argv))
     # show deprecation warning. Replace 'mode' with 'run_mode' if needed
