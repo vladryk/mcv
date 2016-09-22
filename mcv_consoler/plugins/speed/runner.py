@@ -71,8 +71,8 @@ class SpeedTestRunner(runner.Runner):
         flavor = CONF.speed.flavor_req
         avail_zone = CONF.speed.availability_zone
         tool_vm_image = CONF.speed.speed_image_path
-        network = CONF.network_speed.network_name
-        floating_net = CONF.network_speed.network_ext_name
+        network = CONF.networking.network_name
+        floating_net = CONF.networking.network_ext_name
         nodes_limit = CONF.speed.compute_nodes_limit
 
         with resources.Allocator(

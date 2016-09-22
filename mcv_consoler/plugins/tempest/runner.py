@@ -13,10 +13,11 @@
 #    under the License.
 
 
-import logging
+import ConfigParser
 import datetime
 import glob
 import json
+import logging
 import os.path
 import shlex
 import subprocess
@@ -34,6 +35,14 @@ from mcv_consoler import utils
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+tempest_additional_conf = {
+    'compute':
+        {'fixed_network_name': CONF.networking.network_ext_name},
+    'object-storage':
+        {'operator_role': 'admin',
+         'reseller_admin_role': 'admin'}
+
+}
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     failure_indicator = TempestError.NO_RUNNER_ERROR
@@ -211,6 +220,13 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         cirros = glob.glob(self.homedir + '/data/cirros-*')
         if not cirros:
             self.copy_tempest_image()
+
+        LOG.debug("Generating additional config")
+        with open(os.path.join(self.homedir, 'additional.conf'), 'wb') as conf_file:
+            config = ConfigParser.ConfigParser()
+            config._sections = tempest_additional_conf
+            config.write(conf_file)
+
         LOG.debug("Installing tempest...")
         cmd = ("docker exec -t {cid} "
                "rally verify install --system-wide "
@@ -218,8 +234,10 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cid=self.container_id)
 
         utils.run_cmd(cmd, quiet=True)
-        cmd = "docker exec -t %(container)s rally verify genconfig" % \
-              {"container": self.container_id}
+        cmd = "docker exec -t %(container)s rally verify genconfig " \
+              "--add-options %(conf_path)s" % \
+              {"container": self.container_id,
+               "conf_path": os.path.join(self.home, 'additional.conf')}
 
         utils.run_cmd(cmd, quiet=True)
 

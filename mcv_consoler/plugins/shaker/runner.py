@@ -162,7 +162,7 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "OS_USERNAME={}".format(self.access_data["username"]),
              "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
              "-e", "OS_REGION_NAME={}".format(self.access_data["region_name"]),
-             "-e", "SHAKER_EXTERNAL_NET={}".format(CONF.network_speed.network_ext_name or ""),
+             "-e", "SHAKER_EXTERNAL_NET={}".format(CONF.networking.network_ext_name or ""),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE={}".format(self.access_data["insecure"]),
              # TODO(vokhrimenko): temporarily not used

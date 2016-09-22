@@ -78,6 +78,16 @@ auth_opts = [
                help='Path to the SSH key to access cloud nodes')
 ]
 
+networking = cfg.OptGroup(name='networking',
+                     title='Cloud network names')
+
+networking_opts = [
+    cfg.StrOpt('network_name', default='admin_internal_net',
+               help='Internal network name'),
+    cfg.StrOpt('network_ext_name', default='admin_floating_net',
+               help='Floating network name'),
+]
+
 rally = cfg.OptGroup(name='rally',
                      title='Rally configuration')
 
@@ -92,8 +102,6 @@ rally_opts = [
                 help='Rally gre'),
     cfg.IntOpt('max_failed_tests', default=10,
                help='Rally max failed tests count'),
-    cfg.StrOpt('network_name', default='admin_internal_net',
-               help='Rally network name'),
     cfg.BoolOpt('existing_users', default=False,
                 help='Rally use pre-configured user')
 ]
@@ -196,10 +204,6 @@ network_speed = cfg.OptGroup(name='network_speed',
 network_speed_opts = [
     cfg.FloatOpt('threshold', default=7.0,
                  help='Network threshold'),
-    cfg.StrOpt('network_name', default='admin_internal_net',
-               help='Network name'),
-    cfg.StrOpt('network_ext_name', default='admin_floating_net',
-               help='Network name'),
     cfg.IntOpt('max_failed_tests', default=10,
                help='Network speed max failed tests count')
 
@@ -296,6 +300,7 @@ cfg_for_reg = [
     (basic, basic_opts),
     (fuel, fuel_opts),
     (auth, auth_opts),
+    (networking, networking_opts),
     (rally, rally_opts),
     (certification, certification_opts),
     (workload, workload_opts),
