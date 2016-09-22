@@ -264,20 +264,14 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cid=self.container_id, home=self.home, task=task)
         utils.run_cmd(cmd, quiet=True)
 
-        cmd = ('docker exec -t {cid} cp {home}/reports/{task}.html '
-               '/home/rally/.rally/tempest').format(cid=self.container_id,
-                                                    home=self.home,
-                                                    task=task)
-        utils.run_cmd(cmd, quiet=True)
-
         reports_dir = os.path.join(self.homedir, 'reports')
-        cmd = "cp {reports}/{task}.html {path} ". \
-            format(reports=reports_dir, task=task, path=self.path)
+        cmd = "cp {reports}/{task}.html {path} ".format(
+            reports=reports_dir, task=task, path=self.path)
         utils.run_cmd(cmd, quiet=True)
 
         try:
             self.make_detailed_report(task)
-        except:
+        except Exception:
             LOG.debug('ERROR: \n' + traceback.format_exc())
 
         cmd = "docker exec -t {cid} /bin/sh -c " \
