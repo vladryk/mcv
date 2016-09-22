@@ -313,3 +313,12 @@ class ComparableMixin(object):
         for obj in (self, other):
             data.append((obj.cmp_idnr, ) + obj.cmp_payload)
         return data
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args)
+        return cls._instances[cls]

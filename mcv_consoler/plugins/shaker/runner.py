@@ -21,11 +21,11 @@ import subprocess
 
 from oslo_config import cfg
 
-from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
+from mcv_consoler.common import quotas
 import mcv_consoler.common.config as app_conf
 
 LOG = logging.getLogger(__name__)
@@ -121,7 +121,10 @@ class ShakerOnDockerRunner(ShakerRunner):
         self.output = None
         self.success = None
         self.threshold = CONF.network_speed.threshold
-        self.heat = Clients.get_heat_client(self.access_data)
+        self.heat = self.ctx.access.heat
+        if CONF.quotas.neutron:
+            self.quotas = quotas.Quotas(ctx)
+            self.quotas.neutron.set_neutron_unlimit_quotas()
 
     def _check_shaker_setup(self):
         LOG.info("Start shaker-image-builder. Creating infrastructure. "
@@ -427,6 +430,8 @@ class ShakerOnDockerRunner(ShakerRunner):
 
         LOG.info("\nTime end: %s UTC", datetime.datetime.utcnow())
         self.clear_shaker()
+        if CONF.quotas.neutron:
+            self.quotas.neutron.set_start_quota()
         return result
 
     def run_individual_task(self, task, *args, **kwargs):

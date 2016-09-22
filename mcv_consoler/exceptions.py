@@ -79,3 +79,7 @@ class ClientsError(MCVException):
 
 class MountError(MCVException):
     pass
+
+
+class UpdateQuotasError(MCVException):
+    pass

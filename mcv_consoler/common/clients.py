@@ -158,17 +158,8 @@ def get_sahara_client(access_data):
     return client
 
 
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args)
-        return cls._instances[cls]
-
-
 class KeystoneSession(object):
-    __metaclass__ = Singleton
+    __metaclass__ = utils.Singleton
 
     def __init__(self, access_data):
         client_data = {

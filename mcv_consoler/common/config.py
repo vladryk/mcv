@@ -128,3 +128,9 @@ CLEANUP_TAGS = ('rally', 'ostf', 'ost1', 'tempest', 'shaker', 'speed', 'mcv')
 
 # Default max age of cleanup-files, in seconds
 CLEANUP_AGE_LIMIT = 86400
+
+# Path to quotas-files
+QUOTAS_FILES_PATH = '/home/mcv/toolbox/quotas/'
+
+# Unlimit quotas for Neutron
+NEUTRON_QUOTAS = {'subnet': -1, 'network': -1, 'floatingip': -1,  'router': -1,  'port': -1}

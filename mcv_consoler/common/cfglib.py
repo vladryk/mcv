@@ -280,6 +280,14 @@ times_opts = [
                 help='Times update')
 ]
 
+quotas = cfg.OptGroup(name='quotas',
+                      title='Quotas configuration')
+
+quotas_opts = [
+    cfg.BoolOpt('neutron', default=False,
+                help='Set unlimited quotas for Neutron'),
+]
+
 cfg_for_reg = [
     (basic, basic_opts),
     (fuel, fuel_opts),
@@ -297,6 +305,7 @@ cfg_for_reg = [
     (selfcheck, selfcheck_opts),
     (cleanup, cleanup_opts),
     (times, times_opts),
+    (quotas, quotas_opts),
 ]
 
 LOG = logging.getLogger()
