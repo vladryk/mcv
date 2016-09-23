@@ -26,6 +26,8 @@ handlers:
     formatter: complex
     filename: /home/mcv/toolbox/mcvconsoler.log
     encoding: utf-8
+# FIXME(vkaznacheiev): this handler should be dynamically added when
+# the app starts and we need prevent changing the name of this handler
   mcvconsoler_current_run:
     class: logging.FileHandler
     mode: w

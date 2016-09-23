@@ -368,6 +368,7 @@ class Consoler(object):
             return
 
     def make_results_archive(self):
+        LOG.debug('Creating a .tar.gz archive with test reports')
         try:
             archive_file = '%s.tar.gz' % self.results_dir
             cmd = "tar -zcf {arch_file} -C {results_dir} .".format(
@@ -377,7 +378,13 @@ class Consoler(object):
             cmd = "rm -rf %s" % self.results_dir
             utils.run_cmd(cmd)
         except subprocess.CalledProcessError:
+            LOG.warning('Creation of .tar.gz archive has failed. See log '
+                        'for details. You can still get your files from: '
+                        '%s', self.results_dir, exc_info=1)
             return
+
+        LOG.debug("Finished creating a report.")
+        LOG.info("One page report could be found in %s\n", archive_file)
 
     def __call__(self):
         # FIXME(dbogun): implement acceptable way to run different cli commands

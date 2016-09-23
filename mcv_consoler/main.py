@@ -36,8 +36,6 @@ CONF = cfg.CONF
 
 args = argparser.parse_args()
 
-app = None
-
 
 def acquire_lock():
     lockfile = open("/var/lock/consoler", "w")
@@ -54,8 +52,6 @@ def load_scenario():
 
 
 def main():
-    global app
-
     if not cfglib.init_config(args.config):
         return CAError.CONFIG_ERROR
 
@@ -103,6 +99,11 @@ def main():
         result = CAError.UNKNOWN_EXCEPTION
 
     LOG.debug('Consoler finished with exit code %s', result)
+
+    # copy mcvconsoler log for current run and pack results into archive
+    copy_mcvconsoler_log(app.results_dir)
+    app.make_results_archive()
+
     return result
 
 
@@ -118,7 +119,4 @@ def thread_wrapper(worker, rcode_holder):
 
 
 if __name__ == "__main__":
-    ret = main()
-    copy_mcvconsoler_log(app.results_dir)
-    app.make_results_archive()
-    sys.exit(ret)
+    sys.exit(main())
