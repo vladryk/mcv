@@ -28,6 +28,7 @@ handlers:
     encoding: utf-8
   mcvconsoler_current_run:
     class: logging.FileHandler
+    mode: w
     level: DEBUG
     formatter: complex
     filename: /tmp/mcvconsoler.log
