@@ -233,17 +233,11 @@ class FuelClientProxy(_ClientProxyBase):
 
     @staticmethod
     def filter_nodes_by_status(node_set, status='ready'):
-        for node in node_set:
-            if status != node['status']:
-                continue
-            yield node
+        return [node for node in node_set if status == node['status']]
 
     @staticmethod
     def filter_nodes_by_role(node_set, role):
-        for node in node_set:
-            if role not in node['roles']:
-                continue
-            yield node
+        return [node for node in node_set if role in node['roles']]
 
     @staticmethod
     def get_node_network(node, network):

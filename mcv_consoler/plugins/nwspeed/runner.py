@@ -57,7 +57,7 @@ class NWSpeedTestRunner(run.Runner):
         cluster_id = CONF.fuel.cluster_id
         fuel = self.ctx.access.fuel
         all_nodes = fuel.node.get_all(environment_id=cluster_id)
-        all_nodes = list(fuel.filter_nodes_by_status(all_nodes))
+        all_nodes = fuel.filter_nodes_by_status(all_nodes)
         LOG.debug('Discovered %s nodes', len(all_nodes))
 
         res = list()
