@@ -383,7 +383,10 @@ class Consoler(object):
 
     def __call__(self):
         # FIXME(dbogun): implement acceptable way to run different cli commands
-        if self.ctx.args.compare_resources:
+        if self.ctx.args.remove_trash is not False:
+            self._show_resources()
+            return
+        elif self.ctx.args.compare_resources:
             self._show_resources()
             return
 
@@ -411,12 +414,22 @@ class Consoler(object):
         return self.failure_indicator
 
     def _show_resources(self):
+        self.results_dir = self.get_results_dir('/tmp')
+        os.mkdir(self.results_dir)
+        context.add(
+            self.ctx, 'work_dir_global', utils.WorkDir(self.results_dir))
+        context.add(self.ctx, 'work_dir', self.ctx.work_dir_global)
+        self._collect_predefined_data()
         with self._make_access_helper() as access_helper:
             self._update_ctx_with_access_data(access_helper)
 
             cloud_cleanup = cleanup.Cleanup(self.ctx)
-            cloud_cleanup.compare_yaml_resources(
-                self.ctx.args.compare_resources[0])
+            if self.ctx.args.remove_trash is not False:
+                cloud_cleanup.find_show_resources()
+            else:
+                cloud_cleanup.compare_yaml_resources(
+                    self.ctx.args.compare_resources)
+        self.ctx.resources.terminate()
 
     def _make_access_helper(self):
         return AccessSteward(

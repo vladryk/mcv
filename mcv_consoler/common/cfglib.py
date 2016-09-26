@@ -285,7 +285,9 @@ cleanup_opts = [
     cfg.BoolOpt('show_trash', default=False,
                 help='Cleanup trash configuration'),
     cfg.IntOpt('days', default=5,
-               help='Cleanup days')
+               help='Cleanup days'),
+    cfg.BoolOpt('exclude_filter', default=True,
+                help='Exclude resources that need for MCV')
 ]
 
 times = cfg.OptGroup(name='times',

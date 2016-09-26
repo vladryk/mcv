@@ -37,6 +37,12 @@ def _get_parser():
         default=False,
         help="Compare current resources with yaml-file")
 
+    operation.add_argument(
+        "--remove-trash",
+        default=False,
+        nargs='?',
+        help="Find trash and remove it")
+
     parser.add_argument(
         "--config",
         help="Provide custom config file instead of the default one")

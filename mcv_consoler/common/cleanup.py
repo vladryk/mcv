@@ -12,13 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from datetime import datetime
 import logging
 import os
 import prettytable
 import time
 import traceback
 import yaml
+from copy import deepcopy
+from datetime import datetime
+from collections import namedtuple
+from collections import OrderedDict
 
 from oslo_config import cfg
 
@@ -27,6 +30,16 @@ from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+
+Resource = namedtuple('Resource', ('name', 'id'))
+Removing_Resources = (
+        ('heat', (('stacks', ''),)),
+        ('nova', (('servers', ''), ('keypairs', ''), ('security_groups', ''), ('flavors', ''))),
+        ('neutron', (('routers', 'delete_router'), ('networks', 'delete_network'))),
+        ('cinder', (('volume_snapshots',), ('volumes',))),
+        ('glance', (('images', ''),)),
+        ('keystone', (('users', ''), ('tenants', '')))
+    )
 
 
 class Cleanup(object):
@@ -47,38 +60,42 @@ class Cleanup(object):
         resources = {}
         try:
             # TODO(vokhrimenko): Need remove try-except after fix MCV-834
-            try:
-                resources['users'] = [
-                    i.name for i in keystone.users.findall()]
-                resources['projects'] = [
-                    i.name for i in keystone.tenants.findall()]
-            except Exception:
-                LOG.warning("Can't get resources from Keystone")
+            # try:
+            #     resources['users'] = [
+            #         i.name for i in keystone.users.findall()]
+            #     resources['tenants'] = [
+            #         i.name for i in keystone.tenants.findall()]
+            # except Exception:
+            #     LOG.warning("Can't get resources from Keystone")
 
             resources['flavors'] = [
-                i.name for i in nova.flavors.findall()]
+                Resource(i.name or i.id, i.id) for i in nova.flavors.findall()]
+
             resources['servers'] = [
-                i.name for i in nova.servers.findall()]
+                Resource(i.name or i.id, i.id) for i in nova.servers.findall()]
+
             resources['keypairs'] = [
-                i.name for i in nova.keypairs.findall()]
+                Resource(i.name or i.id, i.id) for i in nova.keypairs.findall()]
+
             resources['security_groups'] = [
-                i.name for i in nova.security_groups.findall()]
+                Resource(i.name or i.id, i.id) for i in nova.security_groups.findall()]
 
-            resources['volumes'] = [
-                i.name or i.id for i in cinder.volumes.findall()]
-            resources['volume_snapshots'] = [
-                i.name or i.id for i in cinder.volume_snapshots.findall()]
-
-            resources['images'] = [
-                i.name for i in glance.images.findall()]
-
-            resources['routers'] = [
-                i['name'] for i in neutron.list_routers()['routers']]
-            resources['networks'] = [
-                i['name'] for i in neutron.list_networks()['networks']]
-
-            resources['stacks'] = [
-                i.stack_name for i in heat.stacks.list()]
+            #
+            # resources['volumes'] = [
+            #     i.name or i.id for i in cinder.volumes.findall()]
+            # resources['volume_snapshots'] = [
+            #     i.name or i.id for i in cinder.volume_snapshots.findall()]
+            #
+            # resources['images'] = [
+            #     i.name for i in glance.images.findall()]
+            #
+            # resources['routers'] = [
+            #     i['name'] for i in neutron.list_routers()['routers']]
+            # resources['networks'] = [
+            #     i['name'] for i in neutron.list_networks()['networks']]
+            #
+            # resources['stacks'] = [
+            #     i.stack_name for i in heat.stacks.list()]
 
         except Exception:
             LOG.debug(traceback.format_exc())
@@ -94,20 +111,36 @@ class Cleanup(object):
         for resource in resources:
             set_result_tag = set()
             set_result = set()
-            for name in resources[resource]:
+            for obj in resources[resource]:
                 for t in tags:
-                    if t in name:
-                        set_result_tag.add(name)
+                    if t in obj.name:
+                        set_result_tag.add(obj)
                         break
                 else:
-                    set_result.add(name)
+                    set_result.add(obj)
             result_tag[resource] = list(set_result_tag)
             result[resource] = list(set_result)
         return result_tag, result
 
+    @staticmethod
+    def _namedtuple_to_tuple(data):
+        for key in data:
+            for pos in range(len(data[key])):
+                data[key][pos] = tuple(data[key][pos])
+        return data
+
+    @staticmethod
+    def _tuple_to_namedtuple(data):
+        for key in data:
+            for pos in range(len(data[key])):
+                data[key][pos] = Resource(*data[key][pos])
+        return data
+
     def get_started_resources(self):
         self.started_resources = self._get_list_of_resources()
-        self.store.save(self.started_resources)
+        data_to_save = self._namedtuple_to_tuple(
+            deepcopy(self.started_resources))
+        self.store.save(data_to_save)
         result_tag, result = self._filter_by_tags(self.started_resources)
         if result_tag:
             LOG.info("Before run tests, MCV found trash like as after tests")
@@ -137,8 +170,8 @@ class Cleanup(object):
         for key in resources.iterkeys():
             if resources[key]:
                 resource_table.add_row([key, ""])
-                for name in resources[key]:
-                    resource_table.add_row(["", name])
+                for obj in resources[key]:
+                    resource_table.add_row(["", obj.name])
         resource_table.add_row(["", ""])
         resource_table.align = "l"
         print(resource_table)
@@ -153,7 +186,7 @@ class Cleanup(object):
 
     def compare_yaml_resources(self, path):
         current_resources = self._get_list_of_resources()
-        old_resources = self.store.read(path)
+        old_resources = self._tuple_to_namedtuple(self.store.read(path))
         mcv_resources = self.compare_start_end_resources(old_resources,
                                                          current_resources)
         result_tag, result = self._filter_by_tags(mcv_resources)
@@ -169,6 +202,61 @@ class Cleanup(object):
         except Exception:
             LOG.debug("Can't remove old cleanup's files")
 
+    def find_show_resources(self):
+        if self.ctx.args.remove_trash is None:
+            LOG.debug("Try find and save resources. "
+                      "self.ctx.args.remove_trash == {}".format(
+                        self.ctx.args.remove_trash))
+            self.find_save_resources()
+        else:
+            LOG.debug("Try remove resources. "
+                      "self.ctx.args.remove_trash == {}".format(
+                        self.ctx.args.remove_trash))
+            self._removing_trash(self.ctx.args.remove_trash)
+
+    def find_save_resources(self):
+        path = os.path.join(config.CLEANUP_FILES_PATH, 'cleanup.yaml')
+        resources = self._get_list_of_resources()
+        result_tag, result = self._filter_by_tags(resources)
+        if CONF.cleanup.exclude_filter:
+            result_tag = self._exclude_filter(result_tag)
+        self.store.save(result_tag, path=path)
+        if [i for i in result_tag.values() if i]:
+            LOG.info("Resources below can be removed. You can change it in {}. "
+                     "For removing resources - use this file".format(path))
+            self.print_resources(result_tag)
+        else:
+            LOG.info("Trash hasn't been found" )
+
+    @staticmethod
+    def _exclude_filter(resources):
+        data = {}
+        for resource in resources:
+            resources_set = set()
+            for obj in resources[resource]:
+                for exclude_name in config.EXCLUDE_RESOURCES:
+                    if obj.name != exclude_name:
+                        resources_set.add(obj)
+            data[resource] = list(resources_set)
+        return data
+
+    def _removing_trash(self, path):
+        resources = self._tuple_to_namedtuple(self.store.read(path))
+        LOG.debug('Start removing of resources')
+        for name_resource in Removing_Resources:
+            name, _tuple = name_resource
+            client = getattr(self.ctx.access, name)
+            LOG.debug('Use {} - client for removing'.format(name))
+            for i in _tuple:
+                resource = getattr(client, i[0], client)
+                LOG.debug('Use {} - resource for removing'.format(resource))
+                remove = getattr(resource, i[1], 'delete')
+                for obj in resources[i[0]]:
+                    LOG.debug('Try remove: {}, {} '.format(obj.name, obj.id))
+                    remove(obj.id)
+                    time.sleep(1)
+
+
 
 class Store(object):
     def __init__(self, path=config.CLEANUP_FILES_PATH):
@@ -177,8 +265,9 @@ class Store(object):
         self.file_name = os.path.join(self.path, 'cleanup_%s.yaml' % time_now)
         self.cleanup_age_limit = CONF.cleanup.days * config.CLEANUP_AGE_LIMIT
 
-    def save(self, data):
-        with open(self.file_name, 'w') as fp:
+    def save(self, data, path=None):
+        file_name = path or self.file_name
+        with open(file_name, 'w') as fp:
             yaml.dump(data, stream=fp, default_flow_style=False)
 
     def read(self, path):

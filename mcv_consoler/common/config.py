@@ -133,6 +133,9 @@ CLEANUP_FILES_PATH = '/home/mcv/toolbox/cleanup/'
 # Tags for cleanup
 CLEANUP_TAGS = ('rally', 'ostf', 'ost1', 'tempest', 'shaker', 'speed', 'mcv')
 
+# Resources that should be skipped
+EXCLUDE_RESOURCES = ('shaker-image', 'shaker-flavor')
+
 # Default max age of cleanup-files, in seconds
 CLEANUP_AGE_LIMIT = 86400
 
