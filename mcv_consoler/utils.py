@@ -23,6 +23,7 @@ import shutil
 import subprocess
 
 import dateutil.parser
+import keystoneclient
 
 from mcv_consoler import exceptions
 
@@ -322,3 +323,16 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args)
         return cls._instances[cls]
+
+
+def get_keystone_basic_client(access_data):
+    # Keystone-client without Session
+    return keystoneclient.v2_0.Client(
+        username=access_data['username'],
+        password=access_data['password'],
+        tenant_name=access_data['tenant_name'],
+        auth_url=access_data['auth_url'],
+        region_name=access_data['region_name'],
+        insecure=access_data['insecure'],
+        debug=access_data['debug'],
+    )
