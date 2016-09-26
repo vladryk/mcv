@@ -83,3 +83,7 @@ class MountError(MCVException):
 
 class UpdateQuotasError(MCVException):
     pass
+
+
+class ResolveFqdn(MCVException):
+    pass

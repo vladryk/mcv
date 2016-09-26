@@ -489,9 +489,14 @@ class CRouter(Router):
                 rsa_key=work_dir.resource(work_dir.RES_OS_SSH_KEY))
             connect.connect(exc=True)
 
-            cmd = "cat /etc/hosts | grep %s| awk '{print $1}'" % fqdn
+            cmd = "getent ahostsv4 %s | head -1 | awk '{print $1}'" % fqdn
             proc = connect.exec_cmd(cmd)
-            self.os_data['public_endpoint_ip'] = proc.stdout.rstrip()
+            public_endpoint_ip = proc.stdout.rstrip()
+            if not public_endpoint_ip:
+                raise mcv_consoler.exceptions.ResolveFqdn(
+                    "Can't resolve {} name. Command returned {}".format(
+                        fqdn, proc))
+            self.os_data['public_endpoint_ip'] = public_endpoint_ip
 
         # NOTE(albartash): In some cases we need public endpoint URL, so better
         # to make it here and use in other places as-is.
