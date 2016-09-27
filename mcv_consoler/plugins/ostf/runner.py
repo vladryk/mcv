@@ -72,7 +72,28 @@ class OSTFRunner(runner.Runner):
                         '"ostf-config-extractor -o {}"'.format(path)])
         utils.run_cmd(cmd)
 
+    def _set_environ_variables(self):
+        """Set env variables for ostf-config-extractor"""
+
+        protocol = "https" if self.access_data["insecure"] else "http"
+        nailgun_port = self.access_data["fuel"]["nailgun_port"]
+        ostf_username = self.access_data["fuel"]["ostf"]["username"]
+        ostf_tenant = self.access_data["fuel"]["ostf"]["tenant"]
+        ostf_password = self.access_data["fuel"]["ostf"]["password"]
+
+        os.environ['OS_USERNAME'] = ostf_username
+        os.environ['OS_TENANT_NAME'] = ostf_tenant
+        os.environ['OS_PASSWORD'] = ostf_password
+        os.environ['NAILGUN_PORT'] = str(nailgun_port)
+        os.environ['NAILGUN_HOST'] = self.access_data["fuel"]["nailgun"]
+        os.environ['CLUSTER_ID'] = str(self.access_data["fuel"]["cluster_id"])
+        os.environ['KEYSTONE_ENDPOINT_TYPE'] = 'publicUrl'
+        os.environ['OS_REGION_NAME'] = self.access_data["region_name"]
+        os.environ['NAILGUN_PROTOCOL'] = protocol
+        os.environ['PYTHONWARNINGS'] = 'ignore'
+
     def _setup_ostf(self):
+        self._set_environ_variables()
         self._do_config_extraction()
         self.store_config(os.path.join(self.homedir, "conf",
                                        self.config_filename))
@@ -199,11 +220,13 @@ class OSTFRunner(runner.Runner):
 
 
 class OSTFOnDockerRunner(runner.Runner):
-    '''Runner for OSTF based on Docker container.
+    """Runner for OSTF based on Docker container.
+
     DEPRECATED since release 1.0.
     If you need to use OSTF from within Docker container,
     please make sure you set up all required paths according
-    to use mounted folders in all our related tools.'''
+    to use mounted folders in all our related tools.
+    """
 
     failure_indicator = OSTFError.NO_RUNNER_ERROR
     identity = 'ostf'
@@ -273,11 +296,14 @@ class OSTFOnDockerRunner(runner.Runner):
             ["docker", "run", "-d", "-P=true", ] +
             [add_host] * (add_host != "") +
             ["-p", "8080:8080",
-             "-e", "OS_TENANT_NAME={}".format(self.access_data["tenant_name"]),
-             "-e", "OS_USERNAME={}".format(self.access_data["username"]),
+             "-e", "OS_TENANT_NAME={}".format(
+                 self.access_data["fuel"]["ostf"]["tenant"]),
+             "-e", "OS_USERNAME={}".format(
+                 self.access_data["fuel"]["ostf"]["username"]),
              "-e", "PYTHONWARNINGS=ignore",
              "-e", "NAILGUN_PROTOCOL={}".format(protocol),
-             "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
+             "-e", "OS_PASSWORD={}".format(
+                 self.access_data["fuel"]["ostf"]["password"]),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "NAILGUN_HOST={}".format(nailgun_host),
              "-e", "NAILGUN_PORT={}".format(nailgun_port),

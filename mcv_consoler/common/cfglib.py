@@ -49,7 +49,14 @@ fuel_opts = [
     cfg.IntOpt('cluster_id', default=1,
                help='Fuel cluster id'),
     cfg.StrOpt('ssh_cert', default='/root/.ssh/id_rsa',
-               help='Fuel ssh certificate path')
+               help='Fuel ssh certificate path'),
+    cfg.StrOpt('ostf_username', required=True, secret=True,
+               default='admin',
+               help='User in FUEL\'s keystone for OSTF plugin needs'),
+    cfg.StrOpt('ostf_password', default='admin', required=True,
+               secret=True, help='Password of ostf user'),
+    cfg.StrOpt('ostf_tenant', required=True, secret=True,
+               default='admin', help='Tenant of ostf user'),
 ]
 
 auth = cfg.OptGroup(name='auth',

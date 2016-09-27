@@ -112,6 +112,11 @@ class Router(object):
                        # TODO(albartash): fix in router.py (None to "")
                        'ca_cert': "",
                        'cert': CONF.fuel.ssh_cert,
+                       'ostf': {
+                           'username': CONF.fuel.ostf_username,
+                           'password': CONF.fuel.ostf_password,
+                           'tenant': CONF.fuel.ostf_tenant
+                       },
                    },
                    'debug': mcv_config.DEBUG,
                    'insecure': insecure,
