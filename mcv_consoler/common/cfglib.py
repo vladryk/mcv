@@ -161,8 +161,10 @@ ostf = cfg.OptGroup(name='ostf',
                     title='OSTF configuration')
 
 ostf_opts = [
-    cfg.StrOpt('runner', default='OSTFOnDockerRunner',
+    cfg.StrOpt('runner', default='OSTFRunner',
                help='OSTF plugin name'),
+    cfg.BoolOpt('reload_config', default=False,
+                help='Reloading OSTF config file for each run'),
     cfg.IntOpt('max_failed_tests', default=10,
                help='OSTF max failed tests count')
 ]

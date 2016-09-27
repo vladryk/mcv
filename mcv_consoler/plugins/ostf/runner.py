@@ -30,7 +30,177 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 
+class OSTFRunner(runner.Runner):
+    failure_indicator = OSTFError.NO_RUNNER_ERROR
+    identity = 'ostf'
+    config_section = 'ostf'
+    envdir = '/home/mcv/venv'
+    homedir = '/home/mcv/toolbox/ostf'
+    config_filename = 'ostfcfg.conf'
+
+    def __init__(self, ctx):
+        super(OSTFRunner, self).__init__(ctx)
+        self.access_data = self.ctx.access_data
+        self.path = self.ctx.work_dir.base_dir
+        self.mos_version = self.ctx.access_data['mos_version']
+
+        # this object is supposed to live for one run
+        # so let's leave it as is for now.
+        self.test_failures = []
+
+        self.success = []
+        self.failures = []
+        self.not_found = []
+
+        self.max_failed_tests = CONF.ostf.max_failed_tests
+
+    def _do_config_extraction(self):
+        path = os.path.join(self.homedir, 'conf', self.config_filename)
+
+        if not CONF.ostf.reload_config:
+            LOG.debug("Checking for existing OSTF configuration file...")
+            if os.path.isfile(path):
+                LOG.debug("File '%s' exists. Skip extraction.",
+                          self.config_filename)
+                return
+            else:
+                LOG.debug("File '%s' does not exist", self.config_filename)
+
+        LOG.debug("Trying to obtain OSTF configuration file")
+        cmd = ' '.join([os.path.join(self.homedir, 'execute.sh'),
+                        'fuel-ostf.{}'.format(self.mos_version),
+                        '"ostf-config-extractor -o {}"'.format(path)])
+        utils.run_cmd(cmd)
+
+    def _setup_ostf(self):
+        self._do_config_extraction()
+        self.store_config(os.path.join(self.homedir, "conf",
+                                       self.config_filename))
+
+    def _run_ostf(self, task):
+        # The task can be either a test or suite
+        if ':' in task:
+            _cmd = 'run_test'
+            _arg = '--test'
+        else:
+            _cmd = 'run_suite'
+            _arg = '--suite'
+
+        cmd = ('{home}/execute.sh '
+               'fuel-ostf.{mos_version} '
+               '"cloudvalidation-cli '
+               '--output-file={home}/ostf_report.json '
+               '--config-file={home}/conf/{conf_fname} '
+               'cloud-health-check {cmd} '
+               '--validation-plugin-name fuel_health {arg} {task}"'
+               ).format(home=self.homedir,
+                        mos_version=self.mos_version,
+                        conf_fname=self.config_filename,
+                        cmd=_cmd,
+                        arg=_arg,
+                        task=task)
+        utils.run_cmd(cmd)
+
+        try:
+            results = []
+            try:
+                fpath = os.path.join(self.homedir, 'ostf_report.json')
+                with open(fpath) as fp:
+                    results = json.load(fp)
+                os.remove(fpath)
+            except OSError as e:
+                LOG.error('Error while removing report file: %s', str(e))
+            except ValueError as e:
+                LOG.error('Error while parsing report file: %s', str(e))
+
+            def fix_suite(result):
+                result['suite'] = result['suite'].split(':')[1]
+                return result
+
+            map(fix_suite, results)
+
+            # store raw results
+            self.dump_raw_results(task, results)
+            self.save_report(results)
+
+        except subprocess.CalledProcessError as e:
+            LOG.error("Task %s has failed with: %s", (task, e))
+            self.failures.append(task)
+            self.time_of_tests[task] = {'duration': '0s'}
+            return
+
+    def save_report(self, results):
+        for result in results:
+            if result['result'] == 'Passed':
+                self.success.append(result['suite'])
+            elif result['result'] == 'Failed':
+                self.failures.append(result['suite'])
+            self.time_of_tests[result['suite']] = {
+                'duration': result.get('duration', '0s')}
+            LOG.debug(" * %s --- %s", (result['result'], result['suite']))
+
+        reporter = Reporter(os.path.dirname(__file__))
+        for record in results:
+            reporter.save_report(
+                os.path.join(self.path, record['suite'] + '.html'),
+                'ostf_template.html',
+                {'reports': results}
+            )
+
+    def run_batch(self, tasks, *args, **kwargs):
+        self._setup_ostf()
+
+        time_start = datetime.datetime.utcnow()
+        LOG.info("Time start: %s UTC\n", str(time_start))
+
+        v = self.mos_version
+
+        tasks, missing = self.discovery(None, v).match(tasks)
+        self.not_found.extend(missing)
+
+        for task in tasks:
+            self.run_individual_task(task, *args, **kwargs)
+
+            if len(self.failures) >= self.max_failed_tests:
+                self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
+                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                break
+
+        time_end = datetime.datetime.utcnow()
+
+        # store ostf logs
+        for log_to_store in ("ostf_adapter_debug.log", "ostf_adapter.log"):
+            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
+
+        LOG.info("\nTime end: %s UTC", time_end)
+
+        return {"test_failures": self.failures,
+                "test_success": self.success,
+                "test_not_found": self.not_found,
+                "time_of_tests": self.time_of_tests}
+
+    def run_individual_task(self, task, *args, **kwargs):
+        LOG.info("-" * 60)
+        LOG.info("Starting task %s", task)
+        try:
+            test_time = kwargs['db'][kwargs['tool_name']][task]
+        except KeyError:
+            LOG.info("You must update the database time tests. "
+                     "There is no time for %s", task)
+        else:
+            exp_time = utils.seconds_to_humantime(test_time)
+            LOG.info("Expected time to complete the test: %s ", exp_time)
+        self._run_ostf(task)
+        LOG.info("-" * 60)
+
+
 class OSTFOnDockerRunner(runner.Runner):
+    '''Runner for OSTF based on Docker container.
+    DEPRECATED since release 1.0.
+    If you need to use OSTF from within Docker container,
+    please make sure you set up all required paths according
+    to use mounted folders in all our related tools.'''
+
     failure_indicator = OSTFError.NO_RUNNER_ERROR
     identity = 'ostf'
     config_section = 'ostf'
@@ -90,6 +260,9 @@ class OSTFOnDockerRunner(runner.Runner):
                 endpoint=self.access_data["public_endpoint_ip"])
 
         protocol = "https" if self.access_data["insecure"] else "http"
+        nailgun_port = self.access_data["fuel"]["nailgun_port"]
+        nailgun_host = self.access_data["fuel"]["nailgun"]
+        cluster_id = self.access_data["fuel"]["cluster_id"]
 
         LOG.debug('Trying to start OSTF container.')
         res = subprocess.Popen(
@@ -102,9 +275,9 @@ class OSTFOnDockerRunner(runner.Runner):
              "-e", "NAILGUN_PROTOCOL={}".format(protocol),
              "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
-             "-e", "NAILGUN_HOST={}".format(self.access_data["fuel"]["nailgun"]),
-             "-e", "NAILGUN_PORT={}".format(self.access_data["fuel"]["nailgun_port"]),
-             "-e", "CLUSTER_ID={}".format(self.access_data["fuel"]["cluster_id"]),
+             "-e", "NAILGUN_HOST={}".format(nailgun_host),
+             "-e", "NAILGUN_PORT={}".format(nailgun_port),
+             "-e", "CLUSTER_ID={}".format(cluster_id),
              "-e", "OS_REGION_NAME={}".format(self.access_data["region_name"]),
              "-v", "{}:{}".format(self.homedir, self.home), "-w", self.home,
              "-t", "mcv-ostf"],
@@ -184,7 +357,8 @@ class OSTFOnDockerRunner(runner.Runner):
                     self.success.append(result['suite'])
                 elif result['result'] == 'Failed':
                     self.failures.append(result['suite'])
-                self.time_of_tests[result['suite']] = {'duration': result.get('duration', '0s')}
+                self.time_of_tests[result['suite']] = {
+                    'duration': result.get('duration', '0s')}
                 LOG.info(" * %s --- %s" % (result['result'], result['suite']))
 
             reporter = Reporter(os.path.dirname(__file__))
