@@ -15,11 +15,9 @@
 
 import ConfigParser
 import datetime
-import glob
 import json
 import logging
 import os.path
-import shlex
 import subprocess
 import traceback
 
@@ -43,6 +41,7 @@ tempest_additional_conf = {
          'reseller_admin_role': 'admin'}
 
 }
+
 
 class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     failure_indicator = TempestError.NO_RUNNER_ERROR
@@ -127,11 +126,12 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         tempest_patch = '/mcv/custom_patches/requirements.patch'
         self._os_patch(dist, tempest_patch, self.container_id)
 
-        git_commit_cmd = 'cd /tempest && ' \
-                         'git config --global user.name  \"mcv-team\" && ' \
-                         'git config --global user.email \"mirantis-cloud-validation-support@mirantis.com\" && ' \
-                         'sudo git add . && ' \
-                         'sudo git commit -m \"added markupsafe to requirements, which is needed for pbr\"'
+        git_commit_cmd = (
+            'cd /tempest && git config --global user.name  \"mcv-team\" && '
+            'git config --global user.email '
+            '\"mirantis-cloud-validation-support@mirantis.com\" && '
+            'sudo git add . && sudo git commit -m \"added markupsafe to '
+            'requirements, which is needed for pbr\"')
         utils.run_cmd('docker exec -t {cid} sh -c "{cmd}"'.format(
             cid=self.container_id,
             cmd=git_commit_cmd))
@@ -172,8 +172,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         out = utils.run_cmd(cmd, quiet=True)
 
         cmd = 'docker exec -t {cid} test -e {out_file} ' \
-              '&& echo -n yes || echo -n no'.format(
-            cid=self.container_id, out_file=details_file)
+              '&& echo -n yes || echo -n no'.format(cid=self.container_id,
+                                                    out_file=details_file)
         exists = utils.run_cmd(cmd)
         if exists == 'no':
             LOG.debug('ERROR: Failed to create detailed report for '
@@ -198,7 +198,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         super(TempestOnDockerRunner, self)._rally_deployment_check()
 
         LOG.debug("Generating additional config")
-        with open(os.path.join(self.homedir, 'additional.conf'), 'wb') as conf_file:
+        path_to_conf = os.path.join(self.homedir, 'additional.conf')
+        with open(path_to_conf, 'wb') as conf_file:
             config = ConfigParser.ConfigParser()
             config._sections = tempest_additional_conf
             config.write(conf_file)
@@ -322,8 +323,8 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
 
     def cleanup_toolbox(self):
         LOG.info('Uninstalling tempest ...')
-        cmd = 'docker exec -t {cid} ' \
-              'rally verify uninstall --deployment existing'.format(cid=self.container_id)
+        cmd = ('docker exec -t {cid} ' 'rally verify uninstall '
+               '--deployment existing'.format(cid=self.container_id))
         utils.run_cmd(cmd, quiet=True)
 
     def run_batch(self, tasks, *args, **kwargs):

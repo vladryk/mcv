@@ -12,12 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
 import json
 import logging
 import os.path
 import subprocess
 import time
-import datetime
 
 from keystoneclient import exceptions as k_exc
 from oslo_config import cfg
@@ -25,8 +25,8 @@ from oslo_config import cfg
 from mcv_consoler.common import clients as Clients
 from mcv_consoler.common.config import FEDORA_IMAGE_PATH
 from mcv_consoler.common.config import MOS_HADOOP_MAP
-from mcv_consoler.common.config import SAHARA_IMAGE_PATH80
 from mcv_consoler.common.config import SAHARA_IMAGE_PATH70
+from mcv_consoler.common.config import SAHARA_IMAGE_PATH80
 from mcv_consoler.common.config import TERASORT_JAR_PATH
 from mcv_consoler.common.errors import RallyError
 from mcv_consoler.plugins import runner
@@ -63,6 +63,7 @@ users_context = """
           tenants: 2
           users_per_tenant: 2
 """
+
 
 class RallyRunner(runner.Runner):
     identity = 'rally'
@@ -234,7 +235,6 @@ class RallyOnDockerRunner(RallyRunner):
             if im.name == name:
                 self.glanceclient.images.delete(im.id)
 
-
     def cleanup_fedora_image(self):
         self.cleanup_image('mcv-test-fedora')
 
@@ -245,7 +245,8 @@ class RallyOnDockerRunner(RallyRunner):
         try:
             sahara = Clients.get_sahara_client(self.access_data)
         except k_exc.EndpointNotFound:
-            LOG.warning("Can't run BigData workload task without installed sahara")
+            LOG.warning(
+                "Can't run BigData workload task without installed sahara")
             self.skip = True
             return
         i_list = self.glanceclient.images.list()
@@ -322,11 +323,10 @@ class RallyOnDockerRunner(RallyRunner):
             body={'network': {'name': 'mcv-test-network'}})
         self.net_id = net['network']['id']
         self.neutronclient.create_subnet(
-            body={'subnet':
-                      {'network_id': self.net_id,
-                       'cidr': '10.5.0.0/24',
-                       'name': 'mcv-test-subnet',
-                       'ip_version': 4}})
+            body={'subnet': {'network_id': self.net_id,
+                             'cidr': '10.5.0.0/24',
+                             'name': 'mcv-test-subnet',
+                             'ip_version': 4}})
         return self.net_id
 
     def cleanup_network(self):
@@ -372,14 +372,15 @@ class RallyOnDockerRunner(RallyRunner):
     def copy_config(self):
         cmd = 'docker exec -t %s sudo mkdir -p /etc/rally' % self.container_id
         utils.run_cmd(cmd)
-        cmd = 'docker exec -t %s sudo cp %s/rally.conf /etc/rally/rally.conf' % (self.container_id,
-                                                                                 self.home)
+        cmd = ("docker exec -t {} sudo "
+               "cp {}/rally.conf /etc/rally/rally.conf".format(
+                   self.container_id, self.home))
         utils.run_cmd(cmd)
 
     @staticmethod
     def _os_patch(target, patch, container_id=None):
-        """
-        Silently patch a file. Errors are ignored
+        """Silently patch a file. Errors are ignored
+
         params:
          'target' - absolute system path to a file that needs to be changed
          'patch' - absolute system path to a .patch file
@@ -420,10 +421,10 @@ class RallyOnDockerRunner(RallyRunner):
                """sed -i "61s/.*/"""
                """            sudo sh -c 'echo %s %s >> """
                """\/etc\/hosts'/" %s""") % (
-                  self.container_id,
-                  self.access_data['ips']['endpoint'],
-                  self.access_data['auth_fqdn'],
-                  template_path)
+            self.container_id,
+            self.access_data['ips']['endpoint'],
+            self.access_data['auth_fqdn'],
+            template_path)
 
         res = utils.run_cmd(cmd)
         LOG.debug('Finish patching hosts. Result: {res}'.format(res=res))
@@ -459,8 +460,8 @@ class RallyOnDockerRunner(RallyRunner):
                        "insecure": str(self.access_data['insecure']).lower(),
                        "auth_url": self.access_data['auth_url'],
                        "users": users}
-
-        with open(os.path.join(self.homedir, "conf", "existing.json"), 'w') as f:
+        path_to_json = os.path.join(self.homedir, "conf", "existing.json")
+        with open(path_to_json, 'w') as f:
             f.write(rally_json_template % credentials)
 
     def _rally_deployment_check(self):
@@ -550,7 +551,7 @@ class RallyOnDockerRunner(RallyRunner):
             # Checking accessibility for JAR file
             tera_fp = open(TERASORT_JAR_PATH)
             tera_fp.close()
-        except IOError as e:
+        except IOError:
             LOG.debug('File "%s" is inaccessible!', TERASORT_JAR_PATH)
             return
 

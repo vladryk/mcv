@@ -13,32 +13,33 @@
 #    under the License.
 
 import functools
+from itertools import imap
 import os
+import six
 import urlparse
 import weakref
-from itertools import imap
 
 import cinderclient.client
 import cinderclient.exceptions
 import fuelclient
-import fuelclient.client
 import fuelclient.cli.error
+import fuelclient.client
 import fuelclient.fuelclient_settings
 import glanceclient
 import glanceclient.exc
 import heatclient.client
 import heatclient.exc
+from keystoneauth1 import identity
+from keystoneauth1 import session
 import keystoneclient
 import neutronclient.common.exceptions
 import neutronclient.neutron.client
 import novaclient.client
 import novaclient.exceptions
 import saharaclient.client
-from keystoneauth1 import session
-from keystoneauth1 import identity
 
-from mcv_consoler import exceptions
 from mcv_consoler.common import config as mcv_config
+from mcv_consoler import exceptions
 from mcv_consoler import utils
 
 
@@ -159,8 +160,8 @@ def get_sahara_client(access_data):
     return client
 
 
+@six.add_metaclass(utils.Singleton)
 class KeystoneSession(object):
-    __metaclass__ = utils.Singleton
 
     def __init__(self, access_data):
         client_data = {
@@ -262,7 +263,7 @@ class FuelClientProxy(_ClientProxyBase):
         net_info = cls.get_node_network(node, network)
         try:
             addr = net_info['ip']
-        except:
+        except Exception:
             raise exceptions.FrameworkError(
                 'There is no IP address on node {} in network {}'.format(
                     node['fqdn'], network))

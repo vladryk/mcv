@@ -12,8 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
 import datetime
+import logging
 
 from mcv_consoler.common.errors import ResourceError
 from mcv_consoler.plugins.resources import resource_reporter as resources

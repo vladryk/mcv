@@ -86,14 +86,16 @@ class _Dispatcher(object):
 
     @staticmethod
     def fix_rally(file_location):
-        block = """<div class="navcls" ng-click="location.path("")"><a href=../index.html>Back to Index</a></div>"""
-        cmd = ("sed -i '534 a \        %s' %s") % (block, file_location)
+        block = """<div class="navcls" ng-click="location.path("")">
+                <a href=../index.html>Back to Index</a></div>"""
+        cmd = "sed -i '534 a \        %s' %s" % (block, file_location)
         return utils.run_cmd(cmd)
 
     @staticmethod
     def fix_tempest(file_location):
-        block = """<span data-navselector=".status-skip"><a href=../index.html>Back to index</a></span>"""
-        cmd = ("sed -i '116 a \     %s' %s") % (block, file_location)
+        block = """<span data-navselector=".status-skip">
+                   <a href=../index.html>Back to index</a></span>"""
+        cmd = "sed -i '116 a \     %s' %s" % (block, file_location)
         return utils.run_cmd(cmd)
 
 fix_dispatcher = _Dispatcher()

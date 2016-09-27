@@ -13,13 +13,13 @@
 #    under the License.
 
 import datetime
-import json
 import itertools
+import json
 import logging
 import os
 import re
-import signal
 import shutil
+import signal
 import subprocess
 
 import dateutil.parser
@@ -263,7 +263,8 @@ class DummyContextWrapper(object):
 
 
 def seconds_to_humantime(s):
-    """
+    """Convert seconds to human-readable format
+
     s - type:int. Time in seconds
     Always returns a human-readable time string.
 

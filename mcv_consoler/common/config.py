@@ -70,7 +70,8 @@ SPEED_STORAGE_ATTEMPTS_DEFAULT = 3
 DEFAULT_SPEED_STORAGE = 50
 
 # Image used for speed tests
-DEFAULT_CIRROS_IMAGE = '/home/mcv/toolbox/rally/images/cirros-0.3.1-x86_64-disk.img'
+DEFAULT_CIRROS_IMAGE = ('/home/mcv/toolbox/rally/images/cirros-0.3.1-'
+                        'x86_64-disk.img')
 
 # Default threshold value for Shaker
 DEFAULT_SHAKER_THRESHOLD = 7
@@ -79,10 +80,13 @@ DEFAULT_SHAKER_THRESHOLD = 7
 SHAKER_REPORT_KEYS = ['tcp_download', 'bandwidth', 'tcp_upload']
 
 # Options for Rally Workload Tasks
-SAHARA_IMAGE_PATH80 = '/home/mcv/toolbox/rally/images/sahara-liberty-vanilla-2.7.1-ubuntu-14.04.qcow2'
-SAHARA_IMAGE_PATH70 = '/home/mcv/toolbox/rally/images/sahara-kilo-vanilla-2.6.0-ubuntu-14.04.qcow2'
+SAHARA_IMAGE_PATH80 = ('/home/mcv/toolbox/rally/images/sahara-liberty-'
+                       'vanilla-2.7.1-ubuntu-14.04.qcow2')
+SAHARA_IMAGE_PATH70 = ('/home/mcv/toolbox/rally/images/sahara-kilo-vanilla-'
+                       '2.6.0-ubuntu-14.04.qcow2')
 TERASORT_JAR_PATH = 'file:///mcv/images/hadoop-mapreduce-examples-2.7.1.jar'
-FEDORA_IMAGE_PATH = '/home/mcv/toolbox/rally/images/Fedora-Cloud-Base-23-20151030.x86_64.qcow2'
+FEDORA_IMAGE_PATH = ('/home/mcv/toolbox/rally/images/Fedora-Cloud-Base-23-'
+                     '20151030.x86_64.qcow2')
 MOS_HADOOP_MAP = {
     '7.0': '2.6.0',
     '8.0': '2.7.1'
@@ -133,4 +137,5 @@ CLEANUP_AGE_LIMIT = 86400
 QUOTAS_FILES_PATH = '/home/mcv/toolbox/quotas/'
 
 # Unlimit quotas for Neutron
-NEUTRON_QUOTAS = {'subnet': -1, 'network': -1, 'floatingip': -1,  'router': -1,  'port': -1}
+NEUTRON_QUOTAS = {'subnet': -1, 'network': -1, 'floatingip': -1, 'router': -1,
+                  'port': -1}

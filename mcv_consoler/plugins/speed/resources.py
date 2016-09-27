@@ -20,16 +20,16 @@ import novaclient.exceptions
 from mcv_consoler.common import resource
 from mcv_consoler.common import ssh
 from mcv_consoler import exceptions
-from mcv_consoler import utils
 from mcv_consoler.plugins.speed import config
+from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
 
 
 class Allocator(object):
-    """
-    This class it aimed to act as a helper for speed plugin runner. It
-    allocate resources and guarantee that this resources will be freed at
+    """Class it aimed to act as a helper for speed plugin runner.
+
+    It allocate resources and guarantee that this resources will be freed at
     the end. Despite any errors or exceptions.
 
     Main goal - create N VM, one on each compute host. Other resources

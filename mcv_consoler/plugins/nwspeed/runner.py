@@ -17,19 +17,19 @@ from __future__ import division
 import logging
 import os
 import traceback
+
 from collections import namedtuple
 from datetime import datetime
 from functools import partial
-
-from jinja2 import Environment, PackageLoader
-
+from jinja2 import Environment
+from jinja2 import PackageLoader
 from oslo_config import cfg
 
-import mcv_consoler.common.config as app_conf
-import mcv_consoler.plugins.runner as run
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.common.errors import NWSpeedError
-from mcv_consoler.plugins.nwspeed import speed_tester as st
 from mcv_consoler import exceptions
+from mcv_consoler.plugins.nwspeed import speed_tester as st
+from mcv_consoler.plugins import runner as run
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -133,7 +133,8 @@ class NWSpeedTestRunner(run.Runner):
         raw_results = dict()
         try:
             for controller in self.controllers:
-                LOG.info("Measuring network speed on node: %s", controller.fqdn)
+                LOG.info("Measuring network speed on node: %s",
+                         controller.fqdn)
                 res = runner_obj.measure_speed(controller, self.attempts)
                 raw_results[controller] = res
         except Exception:
@@ -192,7 +193,8 @@ class NWSpeedTestRunner(run.Runner):
             from_nodes.add(from_node.fqdn)
             node_avg = len(tmp) and ro(sum(tmp) / len(tmp))
             nodes[from_node.fqdn]['avg_speed'] = node_avg
-        avg = len(tests) and ro(sum(map(lambda s: s['avg'], tests))/len(tests))
+        avg = len(tests) and ro(sum(map(lambda s: s['avg'],
+                                        tests)) / len(tests))
 
         result_dict = {
             'nodes': nodes,
@@ -243,4 +245,3 @@ class NWSpeedTestRunner(run.Runner):
         LOG.debug('Generating report into file: %s', html_path)
         with open(html_path, 'w') as report:
             report.write(html)
-

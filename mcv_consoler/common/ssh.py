@@ -16,15 +16,14 @@ import collections
 import itertools
 import logging
 import os
+import paramiko
 import socket
 import subprocess
 import threading
 import time
 
-import paramiko
-
-from mcv_consoler import exceptions
 from mcv_consoler.common import config
+from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
 
@@ -279,7 +278,7 @@ class LocalPortForwarder(object):
 
 
 def save_private_key(dest, payload):
-    umask = os.umask(0177)
+    umask = os.umask(0o177)
     try:
         with open(dest, 'wt') as fp:
             fp.write(payload)
@@ -288,7 +287,7 @@ def save_private_key(dest, payload):
         # recreated and will keep it's old permission bits. We should make
         # chmod call to be sure that file get correct permission in all
         # cases.
-        os.chmod(dest, 0600)
+        os.chmod(dest, 0o600)
     except IOError as e:
         raise exceptions.FrameworkError(
             'Fail to store RSA key', e)

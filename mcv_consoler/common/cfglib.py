@@ -86,7 +86,7 @@ auth_opts = [
 ]
 
 networking = cfg.OptGroup(name='networking',
-                     title='Cloud network names')
+                          title='Cloud network names')
 
 networking_opts = [
     cfg.StrOpt('network_name', default='admin_internal_net',
@@ -343,7 +343,7 @@ def init_config(config_file=None):
         # will be thrown an error
         for group, opts in cfg_for_reg:
             for opt in opts:
-                _ = CONF[group.name][opt.name]
+                assert CONF[group.name][opt.name]
         return True
     except cfg.Error as e:
         LOG.error(e)

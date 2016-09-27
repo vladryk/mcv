@@ -13,6 +13,7 @@
 #    under the License.
 
 import copy
+from datetime import datetime
 import imp
 import json
 import logging
@@ -20,27 +21,26 @@ import os
 import shutil
 import subprocess
 import traceback
-from datetime import datetime
 
+from oslo_config import cfg
 import prettytable
 import ruamel.yaml
-from oslo_config import cfg
 
-from mcv_consoler import exceptions
-from mcv_consoler import reporter
-from mcv_consoler import utils
 from mcv_consoler.accessor import AccessSteward
 from mcv_consoler.common import cleanup
 from mcv_consoler.common import clients
-from mcv_consoler.common import context
-from mcv_consoler.common import resource
-from mcv_consoler.common import ssh
 from mcv_consoler.common.config import PLUGINS_DIR_NAME
 from mcv_consoler.common.config import TIMES_DB_PATH
+from mcv_consoler.common import context
 from mcv_consoler.common.errors import CAError
 from mcv_consoler.common.errors import ComplexError
+from mcv_consoler.common import resource
+from mcv_consoler.common import ssh
 from mcv_consoler.common.test_discovery import discovery
+from mcv_consoler import exceptions
+from mcv_consoler import reporter
 from mcv_consoler.reporter import validate_section
+from mcv_consoler import utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -108,8 +108,7 @@ class Consoler(object):
         return self._do_test_plan({test_group: test_name})
 
     def do_name(self, test_group, test_name):
-        """Run specific test by name.
-        """
+        """Run specific test by name. """
         self.group_name = test_group
         self._name_parts.append(test_group)
         self._name_parts.append(test_name.rsplit('.', 1)[-1])
@@ -294,7 +293,8 @@ class Consoler(object):
             else:
                 msg_parts = []
                 if test_success:
-                    msg_parts.append("Successful: {}".format(len(test_success)))
+                    msg_parts.append("Successful: {}".format(
+                        len(test_success)))
                 if test_failures or test_without_report:
                     msg_parts.append("Failed: {}"
                                      .format(len(test_failures +

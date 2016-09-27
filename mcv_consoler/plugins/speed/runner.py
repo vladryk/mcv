@@ -19,13 +19,14 @@ import os.path
 # TODO(albartash): replace with traceback2
 import traceback
 
-from flask_table import Table, Col
+from flask_table import Col
+from flask_table import Table
 from jinja2 import Template
 from oslo_config import cfg
 
-from mcv_consoler import exceptions
 from mcv_consoler.common import context
 from mcv_consoler.common.errors import SpeedError
+from mcv_consoler import exceptions
 from mcv_consoler.plugins import runner
 from mcv_consoler.plugins.speed import resources
 from mcv_consoler.plugins.speed import speed_tester as st

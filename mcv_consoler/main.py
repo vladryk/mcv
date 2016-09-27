@@ -18,17 +18,17 @@ import sys
 import threading
 import time
 import traceback
-
 import yaml
+
 from oslo_config import cfg
 
-from mcv_consoler import consoler
-from mcv_consoler import log
 from mcv_consoler.common import cfglib
-from mcv_consoler.common import context
 from mcv_consoler.common.cmd import argparser
 from mcv_consoler.common.config import RUN_MODES
+from mcv_consoler.common import context
 from mcv_consoler.common.errors import CAError
+from mcv_consoler import consoler
+from mcv_consoler import log
 from mcv_consoler.utils import copy_mcvconsoler_log
 
 LOG = logging.getLogger(__name__)

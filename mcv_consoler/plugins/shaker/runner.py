@@ -21,12 +21,12 @@ import subprocess
 
 from oslo_config import cfg
 
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.common.errors import ShakerError
 from mcv_consoler.common.errors import SpeedError
+from mcv_consoler.common import quotas
 from mcv_consoler.plugins import runner
 from mcv_consoler import utils
-from mcv_consoler.common import quotas
-import mcv_consoler.common.config as app_conf
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -162,7 +162,8 @@ class ShakerOnDockerRunner(ShakerRunner):
              "-e", "OS_USERNAME={}".format(self.access_data["username"]),
              "-e", "OS_PASSWORD={}".format(self.access_data["password"]),
              "-e", "OS_REGION_NAME={}".format(self.access_data["region_name"]),
-             "-e", "SHAKER_EXTERNAL_NET={}".format(CONF.networking.network_ext_name or ""),
+             "-e", "SHAKER_EXTERNAL_NET={}".format(
+                 CONF.networking.network_ext_name or ""),
              "-e", "KEYSTONE_ENDPOINT_TYPE=publicUrl",
              "-e", "OS_INSECURE={}".format(self.access_data["insecure"]),
              # TODO(vokhrimenko): temporarily not used
@@ -220,7 +221,8 @@ class ShakerOnDockerRunner(ShakerRunner):
             self.failure_indicator = ShakerError.TIMEOUT_EXCESS
             LOG.info('Process {} killed after {} seconds.\n'
                      'Report for this scenario was lost. '
-                     'For more details - please see logs '.format(proc.pid, timeout))
+                     'For more details - please see logs '.format(proc.pid,
+                                                                  timeout))
             LOG.info(' * FAILED')
             LOG.info('-' * 60)
             LOG.debug('Timeout error occurred trying to execute shaker')
@@ -447,7 +449,8 @@ class ShakerOnDockerRunner(ShakerRunner):
                 # NOTE(albartash): Maybe, refactor this later
                 task_result = None
             time_end = datetime.datetime.utcnow()
-            time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+            time_of_tests = str(round(
+                (time_end - time_start).total_seconds(), 3)) + 's'
             self.time_of_tests[task] = {'duration': time_of_tests}
 
             if task_result == []:

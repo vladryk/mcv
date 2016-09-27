@@ -15,28 +15,27 @@
 import itertools
 import logging
 import os
+import paramiko
 import re
-import socket
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
 import traceback
-
-import paramiko
 import yaml
-from requests.exceptions import ConnectionError
-from requests.exceptions import Timeout
-import keystoneclient
+
 from novaclient import exceptions as nexc
 from oslo_config import cfg
+from requests.exceptions import ConnectionError
+from requests.exceptions import Timeout
 
-import mcv_consoler.exceptions
-from mcv_consoler.common import context
 from mcv_consoler.common import clients
-from mcv_consoler.common import ssh
 from mcv_consoler.common import config as mcv_config
+from mcv_consoler.common import context
 from mcv_consoler.common import resource
+from mcv_consoler.common import ssh
+import mcv_consoler.exceptions
 from mcv_consoler import utils
 from mcv_consoler.utils import run_cmd
 
@@ -565,6 +564,7 @@ class IRouter(Router):
 
     def get_private_endpoint_ip(self):
         """Get Private endpoint-ip from Keystone.
+
         (it is internalURL in Keystone)
         InternalURL - is always the same for any service.
         """
@@ -582,13 +582,13 @@ class IRouter(Router):
         # NOTE(albartash): This method is commented out, as it's dangerous
         # and can cause troubles. Needs to be fixed later.
 
-        #access = True
-        #for key, value in self.os_data.iteritems():
+        # access = True
+        # for key, value in self.os_data.iteritems():
         #    if value is None:
         #        LOG.error('Config value %s is not set, please provide '
         #                  'required data in /etc/mcv/mcv.conf' % key)
         #        access = False
-        #return access
+        # return access
         return True
 
     def make_sure_controller_name_could_be_resolved(self):
@@ -641,7 +641,8 @@ class IRouter(Router):
     def check_mcv_secgroup(self):
         if not self.is_cloud_instance():
             LOG.debug("Looks like mcv image is not running as an instance "
-                      "of a cloud. Skipping creation of %s" % self.secure_group_name)
+                      "of a cloud. Skipping creation of %s",
+                      self.secure_group_name)
             return
 
         servers = self.novaclient.servers.list()
@@ -668,8 +669,8 @@ class IRouter(Router):
         LOG.debug("Created new security group %s. "
                   "Group id: %s" % (self.secure_group_name, self.mcvgroup.id))
         self.novaclient.security_group_rules.create(
-            parent_group_id=self.mcvgroup.id, ip_protocol='tcp', from_port=5999,
-            to_port=6001, cidr='0.0.0.0/0')
+            parent_group_id=self.mcvgroup.id, ip_protocol='tcp',
+            from_port=5999, to_port=6001, cidr='0.0.0.0/0')
         LOG.debug("Finished creating a group and adding rules")
 
         LOG.debug('Trying to attach our mcv-instance to created group')
@@ -685,11 +686,12 @@ class IRouter(Router):
             return
 
         LOG.debug("Removing created security group %s "
-                  "from the server %s" % (self.secure_group_name, self.server.id))
+                  "from the server %s", self.secure_group_name, self.server.id)
         try:
             self.server.remove_security_group(self.mcvgroup.id)
         except nexc.NotFound:
-            LOG.debug("Failed to remove security group. It's not associated with instance.")
+            LOG.debug("Failed to remove security group. "
+                      "It's not associated with instance.")
             return
         self.novaclient.security_groups.delete(self.mcvgroup.id)
 
@@ -904,5 +906,5 @@ class EtcHosts(object):
             return
         try:
             self.restore()
-        except:
+        except Exception:
             pass

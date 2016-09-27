@@ -12,15 +12,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
+from datetime import datetime
 import logging
+import os
+import prettytable
 import time
 import traceback
-from datetime import datetime
+import yaml
 
 from oslo_config import cfg
-import yaml
-import prettytable
 
 from mcv_consoler.common import config
 from mcv_consoler import exceptions
@@ -115,8 +115,8 @@ class Cleanup(object):
 
     def get_finished_resources(self):
         self.finished_resources = self._get_list_of_resources()
-        mcv_resources = self.compare_start_end_resources(self.started_resources,
-                                                         self.finished_resources)
+        mcv_resources = self.compare_start_end_resources(
+            self.started_resources, self.finished_resources)
         result_tag, result = self._filter_by_tags(mcv_resources)
         if [i for i in result.values() if i]:
             LOG.info("MCV found new resources")

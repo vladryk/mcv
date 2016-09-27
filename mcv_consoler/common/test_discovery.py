@@ -12,10 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import json
 import fnmatch
-from functools32 import lru_cache
+import json
 import os
+
+from functools32 import lru_cache
+
 from mcv_consoler import utils
 
 
@@ -124,7 +126,8 @@ def get_tempest(cid):
 
 
 def get_ostf(cid, mos_version):
-    """
+    """Discover OSTF tests.
+
     :param cid: docker container id
     :param mos_version: 'mos_version' from config file
 
@@ -180,7 +183,7 @@ class CacheProxy(object):
         return self._res or self.__call__()._res
 
     def filter(self, *filters):
-        """ Get a list of available tests and apply """
+        """Get a list of available tests and apply """
         res = self.get()
         if res is None:
             return
@@ -189,7 +192,8 @@ class CacheProxy(object):
         return res
 
     def match(self, items):
-        """
+        """Find matches between elements.
+
         :param items: tests to be validated against a list of all available
         tests for this particular runner
 
@@ -245,5 +249,3 @@ class _Discovery(object):
 
 
 discovery = _Discovery()
-
-

@@ -15,9 +15,10 @@
 import json
 import logging
 import os
-from jinja2 import Template
 
-from flask_table import Table, Col
+from flask_table import Col
+from flask_table import Table
+from jinja2 import Template
 
 from mcv_consoler.common import clients as Clients
 

@@ -14,14 +14,14 @@
 
 import logging
 import re
-from operator import truediv
 import socket
 
+from operator import truediv
 from oslo_config import cfg
 
-import mcv_consoler.common.config as app_conf
-from mcv_consoler import exceptions
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import ssh
+from mcv_consoler import exceptions
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)

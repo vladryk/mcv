@@ -12,9 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-import logging
 from datetime import datetime
+import logging
+import os
+import six
 import traceback
 import yaml
 
@@ -28,8 +29,8 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 
+@six.add_metaclass(utils.Singleton)
 class Quotas(object):
-    __metaclass__ = utils.Singleton
 
     def __init__(self, ctx):
         self.tenant_id = ctx.access.keystone.session.get_project_id()

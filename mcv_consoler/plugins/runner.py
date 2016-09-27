@@ -105,8 +105,8 @@ class Runner(object):
 
         shutil.copy2(copy_from, copy_to)
 
-        LOG.debug("Config by the following path has been copied to the results "
-                  "dir: %s", copy_from)
+        LOG.debug("Config by the following path has been copied to the "
+                  "results dir: %s", copy_from)
 
     def dump_raw_results(self, task, raw_results):
         # FIXME(dbogun): define corresponding resource in WorkDir

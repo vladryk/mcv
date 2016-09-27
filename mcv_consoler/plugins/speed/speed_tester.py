@@ -12,17 +12,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
 import collections
 import functools
 import json
+import logging
 import math
 import time
 
 from oslo_config import cfg
 
-from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import clients
+from mcv_consoler.common import config as app_conf
 from mcv_consoler.common import ssh
 from mcv_consoler import exceptions
 from mcv_consoler.plugins.speed import config
