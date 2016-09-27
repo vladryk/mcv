@@ -50,7 +50,7 @@
 # You can uncomment them if your cloud satisfy requirements related to such
 # tests.
 #
-custom_test_group_quick:
+quick:
   resources:
     - ErrorResourceSearch
     - GeneralResourceSearch
@@ -78,10 +78,10 @@ custom_test_group_quick:
 # Uncomment if you have Ceilometer installed
 #   - CeilometerApiTests
 #
-custom_test_group_selfcheck:
+selfcheck:
   selfcheck:
     - BasicSelfCheck
-custom_test_group_functional:
+functional:
   tempest:
     - baremetal
     - compute
@@ -97,10 +97,10 @@ custom_test_group_functional:
     - smoke
     - telemetry
     - volume
-custom_test_group_smoke:
+smoke:
   rally:
     - certification
-custom_test_group_speed:
+speed:
   speed:
     - ObjectStorageSpeed
     - BlockStorageSpeed
@@ -112,11 +112,11 @@ custom_test_group_speed:
     - full_l3_east_west.yaml
   nwspeed:
     - Node2NodeSpeed
-custom_test_group_workload:
+workload:
   rally:
     - workload.yaml
     - big-data-workload.yaml
-custom_test_group_scale:
+scale:
   rally:
     - load-ceilometer-create-alarm.yaml
     - load-ceilometer-create-and-delete-alarm.yaml

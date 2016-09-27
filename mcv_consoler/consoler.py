@@ -65,9 +65,8 @@ class Consoler(object):
             datetime.utcnow().strftime('%Y-%b-%d~%H-%M-%S')]
 
     def prepare_tests(self, test_group):
-        section = "custom_test_group_" + test_group
         try:
-            return self.scenario[section]
+            return self.scenario[test_group]
         except KeyError:
             raise exceptions.MissingDataError(
                 "Test group {group} doesn't seem to exist in config!"
@@ -330,7 +329,7 @@ class Consoler(object):
 
     @staticmethod
     def update_scenario(run_results):
-        failed_test_section = 'custom_test_group_failed'
+        failed_test_section = 'failed'
         test_failures = 'test_failures'
         results = 'results'
         with open(CONF.basic.scenario, 'r+') as f:
