@@ -159,6 +159,10 @@ class OSTFRunner(runner.Runner):
         self.not_found.extend(missing)
 
         for task in tasks:
+            if self.ctx.terminate_event.is_set():
+                LOG.info("Caught keyboard interrupt. "
+                         "Task %s won't start", task)
+                break
             self.run_individual_task(task, *args, **kwargs)
 
             if len(self.failures) >= self.max_failed_tests:
@@ -388,6 +392,10 @@ class OSTFOnDockerRunner(runner.Runner):
         self.not_found.extend(missing)
 
         for task in tasks:
+            if self.ctx.terminate_event.is_set():
+                LOG.info("Caught keyboard interrupt. "
+                         "Task %s won't start", task)
+                break
             self.run_individual_task(task, *args, **kwargs)
 
             if len(self.failures) >= self.max_failed_tests:
