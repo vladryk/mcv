@@ -101,8 +101,9 @@ def main():
     LOG.debug('Consoler finished with exit code %s', result)
 
     # copy mcvconsoler log for current run and pack results into archive
-    copy_mcvconsoler_log(app.results_dir)
-    app.make_results_archive()
+    if app.results_dir:
+        copy_mcvconsoler_log(app.results_dir)
+        app.make_results_archive()
 
     return result
 
