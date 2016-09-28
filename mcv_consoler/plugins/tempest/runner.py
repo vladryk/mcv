@@ -38,8 +38,8 @@ tempest_additional_conf = {
         {'fixed_network_name': CONF.networking.network_ext_name},
     'object-storage':
         {'operator_role': 'admin',
-         'reseller_admin_role': 'admin'}
-
+         'reseller_admin_role': 'admin'},
+    'auth': {}
 }
 
 
@@ -193,10 +193,17 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             "File: {details_file}".format(task=task, details_file=details_file)
         )
 
+    def fill_additional_conf(self):
+        if CONF.rally.existing_users:
+            tempest_additional_conf['auth'].update(
+                test_accounts_file=os.path.join(
+                    self.home, 'additional_users.yaml'),
+                use_dynamic_credentials=False)
+
     def install_tempest(self):
         LOG.debug("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
-
+        self.fill_additional_conf()
         LOG.debug("Generating additional config")
         path_to_conf = os.path.join(self.homedir, 'additional.conf')
         with open(path_to_conf, 'wb') as conf_file:

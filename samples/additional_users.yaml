@@ -1,0 +1,8 @@
+
+- username: 'tempest1'
+  tenant_name: 'tempest1'
+  password: 'tempest1'
+
+- username: 'tempest2'
+  tenant_name: 'tempest2'
+  password: 'tempest2'
