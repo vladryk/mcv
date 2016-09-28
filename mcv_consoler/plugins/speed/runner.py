@@ -80,10 +80,19 @@ class SpeedTestRunner(runner.Runner):
                 self.ctx, flavor, avail_zone, tool_vm_image,
                 network, floating_net,
                 nodes_limit=nodes_limit) as allocator:
-            context.add(self.ctx, 'allocator', allocator)
-            results = super(SpeedTestRunner, self).run_batch(
-                tasks, *args, **kwargs)
-
+            if allocator.error_during_allocation:
+                # do not run tests if error appeared during resource allocation
+                results = {
+                    "test_failures": [],
+                    "test_success": [],
+                    "test_not_found": [],
+                    "test_skipped": tasks,
+                    "time_of_tests": {},
+                    "test_without_report": []}
+            else:
+                context.add(self.ctx, 'allocator', allocator)
+                results = super(SpeedTestRunner, self).run_batch(
+                    tasks, *args, **kwargs)
         results['threshold'] = '{} Mb/s'.format(CONF.speed.threshold)
         LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
         return results

@@ -13,6 +13,7 @@
 #    under the License.
 
 import logging
+import os
 import time
 
 import novaclient.exceptions
@@ -54,13 +55,18 @@ class Allocator(object):
         self.target_vms = []
 
         self.resource_pool = resource.Pool()
+        # variable to handle exceptions during resource allocation
+        self.error_during_allocation = False
 
     def __enter__(self):
         try:
             self._allocate()
-        except Exception:
+        except Exception as e:
+            LOG.error("Unhandled exception '%s' appeared during resource "
+                      "allocating. Please inspect logs for more details. "
+                      "All tests from this group will be skipped. ", e)
             self.resource_pool.terminate()
-            raise
+            self.error_during_allocation = True
 
         return self
 
@@ -119,6 +125,11 @@ class Allocator(object):
             return image[0]
 
         LOG.info('Uploading image to glance...')
+        # raise exception if image does not exist
+        if not os.path.exists(self.tool_vm_image):
+            raise exceptions.FileResourceNotFoundError(
+                "Image %s not found" % self.tool_vm_image)
+
         with open(self.tool_vm_image, 'rb') as payload:
             vm_image = glance.images.create(
                 name=config.tool_vm_image_name, data=payload,
