@@ -27,7 +27,25 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
+# Issue with 'netcat': whenever it is failed to do something - it always
+# returns exit code '1'. Error details are are written to stderr.
+# To determine a particular error 'port is busy' - we need to parse that
+# error message
+RE_PORT_IN_USE = r'.*[Aa]ddress already in use.*'
+
+NETCAT_SEND_BYTES = 'LC_ALL=C ' \
+                    'dd if=/dev/zero bs=1M count={count} | ' \
+                    'nc -w {timeout} {destination} {port}'
+
+NETCAT_LISTEN = 'nc -v -l -p {port} > /dev/null'
+
+
 class Node2NodeSpeed(object):
+
+    # FIXME(ogrytsenko): remove hardcoded value when this patch
+    # https://review.openstack.org/#/c/339787/9/oslo_config/types.py
+    # became available in 'oslo_config' (probably oslo.config==3.18.0)
+    MAX_VNC_PORT = 6100
 
     def __init__(self, ctx, computes, nodes):
         self.ctx = ctx
@@ -38,6 +56,10 @@ class Node2NodeSpeed(object):
         self.test_port = CONF.nwspeed.test_port
         # Data size for testing in megabytes
         self.data_size = CONF.nwspeed.data_size
+
+    @property
+    def port_range(self):
+        return (p for p in xrange(self.test_port, self.MAX_VNC_PORT))
 
     def init_ssh_conns(self):
         all_test_nodes = set(self.computes) | set(self.nodes)
@@ -62,55 +84,73 @@ class Node2NodeSpeed(object):
         for target in self.nodes:
             if target is node:
                 continue
-            node_res = self._do_measure(node, target, attempts)
+            node_res = list()
+            for _ in xrange(attempts):
+                attempt = self._measure_speed_between_nodes(node, target)
+                node_res.append(attempt)
             res[target.fqdn] = node_res
         return res
 
-    def _do_once(self, node1, cmd1, node2, cmd2):
-        ctrl_c = chr(3)  # Ctrl+C pressed
+    def _measure_speed_between_nodes(self, node1, node2):
 
+        ctrl_c = chr(3)  # Ctrl+C pressed
         ssh_node1 = self.ssh_conns[node1.fqdn]
         ssh_node2 = self.ssh_conns[node2.fqdn]
-        out, sin = None, None
 
-        LOG.debug('Starting netcat server on node %s', node2.fqdn)
-        LOG.debug('%s Running SSH command: %s', ssh_node2.identity, cmd2)
-        try:
-            sin, _, _ = ssh_node2.client.exec_command(cmd2, get_pty=True)
-            out = ssh_node1.exec_cmd(cmd1)
-        finally:
-            LOG.debug('Stopping netcat server on node %s', node2.fqdn)
-            try:
-                # terminate netcat server
-                sin.write(ctrl_c)
-            except (socket.error, AttributeError):
-                pass
-        return out
+        msg_running = 'SSH %s. Running command: %s'
+        msg_output = 'SSH %s. Output: %s'
+        pretty_output = lambda text: '\n' + text.strip('\n') if text else text
 
-    def _do_measure(self, node1, node2, attempts=3):
-        params = {
-            'count': self.data_size,
-            'fqdn': node2.fqdn,
-            'port': self.test_port,
-            'timeout': app_conf.DEFAULT_SSH_TIMEOUT,
-        }
-        cmd_listen = 'nc -v -l -p {port} > /dev/null'.format(**params)
-        cmd_send = 'LC_ALL=C ' \
-                   'dd if=/dev/zero bs=1M count={count} | ' \
-                   'nc -v -w {timeout} {fqdn} {port}'.format(**params)
-        res = list()
-        for _ in xrange(attempts):
-            out = self._do_once(node1, cmd_send, node2, cmd_listen)
-            if out is None:
-                res.append(None)
-                continue
+        output = None
+        for port in self.port_range:
+            sin = None
+            server_running = False
+
+            cmd1 = NETCAT_SEND_BYTES.format(
+                destination=node2.fqdn, port=port, count=self.data_size,
+                timeout=app_conf.DEFAULT_SSH_TIMEOUT)
+            cmd2 = NETCAT_LISTEN.format(port=port)
+
             try:
-                speed_mb = self._parse_speed(out.stderr)
-            except (exceptions.ParseError, ValueError) as e:
+                # start netcat server on node2
+                LOG.debug(msg_running, node2.fqdn, cmd2)
+                sin, _, serr = ssh_node2.client.exec_command(cmd2)
+
+                # safely read one line. Check if this is a an error message.
+                # Repeat test with new port, if required
+                line = serr.readline(size=1024)
+                LOG.debug(msg_output, node2.fqdn, pretty_output(line))
+                if re.match(RE_PORT_IN_USE, line, re.M):
+                    continue
+                server_running = True
+
+                # run speed measure from node1 to node2
+                LOG.debug(msg_running, node1.fqdn, cmd1)
+                _, _, dd_serr = ssh_node1.client.exec_command(cmd1)
+                output = dd_serr.read()
+                LOG.debug(msg_output, node1.fqdn, pretty_output(output))
+            except ssh.paramiko.SSHException as e:
                 LOG.debug('Error: %s', e.message, exc_info=True)
-                speed_mb = None
-            res.append(speed_mb)
-        return res
+                break
+            finally:
+                try:
+                    # terminate netcat server
+                    server_running and sin.write(ctrl_c)
+                except (socket.error, AttributeError):
+                    # channel was already closed or 'sin' is None.
+                    # Both cases are expected and should be treated as
+                    # a correct behaviour
+                    pass
+            break
+
+        if output is None:
+            return
+        try:
+            speed_mb = self._parse_speed(output)
+        except (exceptions.ParseError, ValueError) as e:
+            LOG.debug('Error: %s', e.message, exc_info=True)
+            speed_mb = None
+        return speed_mb
 
     @staticmethod
     def _units_to_mb(speed, unit):
