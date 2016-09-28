@@ -136,6 +136,23 @@ class OSSecGroupRemove(object):
         self.ctx.access.neutron.delete_security_group(target['id'])
 
 
+class OSFloatingIPResource(ResourceAbstract):
+
+    def __init__(self, target, server, neutron):
+        self.target = target
+        self.server = server
+        self.neutron = neutron
+
+    def terminate(self, is_last_request):
+
+        ip_addr = self.target['floatingip']['floating_ip_address']
+        LOG.debug('Remove floating IP %s', ip_addr)
+        self.server.remove_floating_ip(ip_addr)
+
+        self.neutron.delete_floatingip(self.target['floatingip']['id'])
+        super(OSFloatingIPResource, self).terminate(is_last_request)
+
+
 class Pool(object):
     def __init__(self):
         self._space = []

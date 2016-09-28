@@ -100,7 +100,7 @@ class Allocator(object):
             vms[vm_details.id] = vm_details
 
         vms_ok, vms_fail = self._wait_for_vms(vms)
-        vms_ok, vms_fail_floating = self._assign_floating_ips(
+        vms_ok, vms_fail_floating, floating_ips = self._assign_floating_ips(
             vms_ok, network_ext)
 
         vms_fail.update(vms_fail_floating)
@@ -108,7 +108,9 @@ class Allocator(object):
             nova.servers.delete(vm)
         for vm in vms_ok.values():
             self.resource_pool.add(resource.OSObjectResource(vm), True)
-
+        for vm, addr in floating_ips.iteritems():
+            self.resource_pool.add(resource.OSFloatingIPResource(
+                addr, vm, self.ctx.access.neutron), True)
         if not vms_ok:
             raise exceptions.AccessError('There is no any usable compute host')
 
@@ -316,30 +318,32 @@ class Allocator(object):
         access = self.ctx.access
 
         fail = set()
+        floating_ips = dict()
         for vm in vms_all.values():
             try:
-                # TODO(dbogun): replace with neutron equivalent, because
-                # floating ip management in nova is deprecated
-                addr = access.nova.floating_ips.create(network.label)
-                self.resource_pool.add(resource.OSObjectResource(addr), True)
-
-                vm.add_floating_ip(addr)
+                # this try except catch EVERYTHING, be careful
+                body = {"floatingip": {'floating_network_id': network.id}}
+                addr = access.neutron.create_floatingip(body)
+                ip_addr = addr['floatingip']['floating_ip_address']
+                vm.add_floating_ip(ip_addr)
+                floating_ips.update({vm: addr})
             except access.nova_exc.ClientException as e:
-                # This is not very accurate exception type. ClientException is
-                # the top of exceptions hierarchy raised by novaclient in case
-                # of unexpected http status code in REST response.
-                #
+                # NOTE: This is not very accurate exception type.
+                # ClientException is the top of exceptions hierarchy raised
+                # by novaclient in case of unexpected http status code in
+                # REST response.
                 # But there are exception in novaclient defined outside of this
                 # exceptions hierarchy. I believe that best solution - allow
                 # them to raise, because they introduce serious problems in MCV
                 # configuration or cloud state.
                 LOG.error(
-                    'VM %s can\'t create/assign floating ip: %s', vm.id, e)
+                    'VM %s can\'t create/assign floating ip: %s',
+                    vm.id, str(e))
                 fail.add(vm.id)
 
         vm_ok = {x: vms_all[x] for x in vms_all if x not in fail}
         vm_fail = {x: vms_all[x] for x in fail}
-        return vm_ok, vm_fail
+        return vm_ok, vm_fail, floating_ips
 
 
 class OSFlavor(utils.ComparableMixin, object):
