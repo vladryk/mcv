@@ -145,7 +145,7 @@ class OSTFRunner(runner.Runner):
             self.save_report(results)
 
         except subprocess.CalledProcessError as e:
-            LOG.error("Task %s has failed with: %s", (task, e))
+            LOG.error("Task %s has failed with: %s", task, e)
             self.failures.append(task)
             self.time_of_tests[task] = {'duration': '0s'}
             return
@@ -158,7 +158,7 @@ class OSTFRunner(runner.Runner):
                 self.failures.append(result['suite'])
             self.time_of_tests[result['suite']] = {
                 'duration': result.get('duration', '0s')}
-            LOG.debug(" * %s --- %s", (result['result'], result['suite']))
+            LOG.debug(" * %s --- %s", result['result'], result['suite'])
 
         reporter = Reporter(os.path.dirname(__file__))
         for record in results:
