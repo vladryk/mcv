@@ -158,7 +158,7 @@ class OSTFRunner(runner.Runner):
                 self.failures.append(result['suite'])
             self.time_of_tests[result['suite']] = {
                 'duration': result.get('duration', '0s')}
-            LOG.debug(" * %s --- %s", result['result'], result['suite'])
+            LOG.info(" * %s --- %s", result['result'], result['suite'])
 
         reporter = Reporter(os.path.dirname(__file__))
         for record in results:
