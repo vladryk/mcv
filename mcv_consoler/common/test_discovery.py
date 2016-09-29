@@ -133,24 +133,11 @@ def get_ostf(cid, mos_version):
     Thus resulted list of all discovered tests will contain tests and suites
     as well.
     """
-    if cid is None:
-        py_exe = '/home/mcv/venv/fuel-ostf.{v}/bin/python'.format(v=mos_version)
-        cmd = '{} -c "{}" '.format(py_exe, ostf_py)
-        out = utils.run_cmd(cmd, quiet=True)
-        all_tests = json.loads(out)
-        tests = set()
-        suites = set()
-        for test_path in all_tests:
-            test_case = test_path.split('.')[-1]
-            tests.add(test_case)
-            if ':' in test_case:
-                suites.add(test_case.split(':')[0])
-        res = set(tests) | set(suites)
-        return list(res)
-
     py_exe = '/home/mcv/venv/fuel-ostf.{v}/bin/python'.format(v=mos_version)
-    cmd = 'docker exec {cid} 2>/dev/null {python} -c "{code}" '.format(
-        cid=cid, python=py_exe, code=ostf_py)
+    cmd = '2>/dev/null {python} -c "{code}" '
+    if cid is not None:
+        cmd = 'docker exec {cid} ' + cmd
+    cmd = cmd.format(cid=cid, python=py_exe, code=ostf_py)
     out = utils.run_cmd(cmd, quiet=True)
     all_tests = json.loads(out)
     tests = set()
