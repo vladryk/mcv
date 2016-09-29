@@ -136,27 +136,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             cid=self.container_id,
             cmd=git_commit_cmd))
 
-    def copy_tempest_image(self):
-        LOG.info('Copying image files required by tempest')
-        # here we fix glance image issues
-        subprocess.Popen(["sudo", "chmod", "a+r",
-                          os.path.join(self.home,
-                                       "images",
-                                       "cirros-0.3.4-x86_64-disk.img")],
-                         stdout=subprocess.PIPE,
-                         preexec_fn=utils.ignore_sigint).stdout.read()
-
-        cmd = "mkdir " + os.path.join(self.homedir, "data")
-        utils.run_cmd(cmd)
-
-        cmd = ("sudo ln -s {homedir}/images/cirros-0.3.4-x86_64-disk.img "
-               "{homedir}/data/").format(homedir=self.homedir)
-
-        cmd = shlex.split(cmd)
-
-        subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                         preexec_fn=utils.ignore_sigint).stdout.read()
-
     def make_detailed_report(self, task):
         LOG.debug('Generating detailed report')
         details_dir = os.path.join(self.home, 'reports/details/')
@@ -217,9 +196,6 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def install_tempest(self):
         LOG.debug("Searching for installed tempest")
         super(TempestOnDockerRunner, self)._rally_deployment_check()
-        cirros = glob.glob(self.homedir + '/data/cirros-*')
-        if not cirros:
-            self.copy_tempest_image()
 
         LOG.debug("Generating additional config")
         with open(os.path.join(self.homedir, 'additional.conf'), 'wb') as conf_file:

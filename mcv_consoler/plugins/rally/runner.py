@@ -366,9 +366,6 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.debug('Stderr: %s', p.stderr.read())
 
         self.verify_container_is_up()
-
-        cmd = "chmod a+r %s/images/cirros-0.3.1-x86_64-disk.img" % self.homedir
-        utils.run_cmd(cmd)
         self._patch_rally()
         self.copy_config()
 
