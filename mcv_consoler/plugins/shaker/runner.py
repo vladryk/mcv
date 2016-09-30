@@ -403,38 +403,36 @@ class ShakerOnDockerRunner(ShakerRunner):
         report.close()
 
     def run_batch(self, tasks, *args, **kwargs):
-        try:
-            self._setup_shaker_on_docker()
-        except RuntimeError:
-            LOG.debug('Caught RuntimeError. Probably Shaker failed to build '
-                      'its infrastructure. Please check if you have an access'
-                      ' to an Internet, or Shaker image is already '
-                      'uploaded to Glance with your own.')
-            tasks, missing = [], list(tasks)
-        else:
-            LOG.info('\nThreshold is %s Gb/s\n', self.threshold)
-            self.output = ''
-            LOG.info("Time start: %s UTC\n", datetime.datetime.utcnow())
+        with self.store('shaker.log'):
+            try:
+                self._setup_shaker_on_docker()
+            except RuntimeError:
+                LOG.debug('Caught RuntimeError. Probably Shaker failed to '
+                          'build its infrastructure. Please check if you '
+                          'have an access to an Internet, or Shaker image '
+                          'is already uploaded to Glance with your own.')
+                tasks, missing = [], list(tasks)
+            else:
+                LOG.info('\nThreshold is %s Gb/s\n', self.threshold)
+                self.output = ''
+                LOG.info("Time start: %s UTC\n", datetime.datetime.utcnow())
 
-            tasks, missing = self.discovery.match(tasks)
+                tasks, missing = self.discovery.match(tasks)
 
-        self.test_not_found.extend(missing)
+            self.test_not_found.extend(missing)
 
-        result = super(ShakerOnDockerRunner, self).run_batch(
-            tasks, *args, **kwargs)
-        self._generate_report_network_speed(self.threshold,
-                                            'network_speed',
-                                            self.output)
-        result['threshold'] = '{} Gb/s'.format(self.threshold)
+            result = super(ShakerOnDockerRunner, self).run_batch(
+                tasks, *args, **kwargs)
+            self._generate_report_network_speed(self.threshold,
+                                                'network_speed',
+                                                self.output)
+            result['threshold'] = '{} Gb/s'.format(self.threshold)
 
-        # store shaker log
-        self.store_logs(os.path.join(self.homedir, "log/shaker.log"))
-
-        LOG.info("\nTime end: %s UTC", datetime.datetime.utcnow())
-        self.clear_shaker()
-        if CONF.quotas.neutron:
-            self.quotas.neutron.set_start_quota()
-        return result
+            LOG.info("\nTime end: %s UTC", datetime.datetime.utcnow())
+            self.clear_shaker()
+            if CONF.quotas.neutron:
+                self.quotas.neutron.set_start_quota()
+            return result
 
     def run_individual_task(self, task, *args, **kwargs):
         self.success = True

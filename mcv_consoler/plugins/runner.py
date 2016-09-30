@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import contextlib
 import datetime
 import json
 import logging
@@ -59,6 +60,8 @@ class Runner(object):
         self.test_skipped = []
         self.time_of_tests = {}
 
+        self.homedir = '/home/mcv/toolbox'
+
         # store mcv.conf
         for conf_path in CONF.default_config_files:
             self.store_config(os.path.abspath(conf_path))
@@ -66,6 +69,21 @@ class Runner(object):
     @property
     def discovery(self):
         return discovery.use(self.identity)
+
+    @contextlib.contextmanager
+    def store(self, *file_paths):
+        file_paths = [os.path.join(self.homedir, 'log', file_path)
+                      for file_path in file_paths]
+        LOG.debug('Storing files: %s', ', '.join(file_paths))
+        try:
+            for file_path in file_paths:
+                if os.path.exists(file_path):
+                    with open(file_path, 'w'):
+                        pass
+            yield
+        finally:
+            for file_path in file_paths:
+                self.store_logs(file_path)
 
     def store_logs(self, copy_from):
         # TODO(vkaznacheiev): move it to a separate module later.
