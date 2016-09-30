@@ -74,10 +74,13 @@ class Node2NodeSpeed(object):
 
     @staticmethod
     def _ssh_connect(username, ip, auth_key):
-        connect = ssh.SSHClient(ip, username, rsa_key=auth_key)
-        if connect.connect():
-            return connect
-        raise exceptions.AccessError("Can't access node {} via SSH".format(ip))
+        agent = ssh.SSHClient(ip, username, rsa_key=auth_key)
+        try:
+            agent.connect()
+        except exceptions.AccessError:
+            LOG.error("Can't access node %s via SSH", ip)
+        if agent.connected:
+            return agent
 
     def measure_speed(self, node, attempts):
         res = dict()
@@ -96,6 +99,20 @@ class Node2NodeSpeed(object):
         ctrl_c = chr(3)  # Ctrl+C pressed
         ssh_node1 = self.ssh_conns[node1.fqdn]
         ssh_node2 = self.ssh_conns[node2.fqdn]
+
+        # FIXME(ogrytsenko): this is a temporary work-around which will work
+        # fine in most cases. But the main issue is still not resolved -
+        # we create and remember active SSH connection to each node. While
+        # tests running, some node may go to
+        # 'active -> error -> discovering -> active' state several times.
+        # Currently we do not handle such cases
+        # FIXME(ogrytsenko): issue #2 - fuel's 'node status' is quite
+        # far away from the the reality. Never trust this parameter
+        err_msg = 'No SSH connection to node: %s'
+        if ssh_node1 is None:
+            return LOG.error(err_msg, node1.fqdn)
+        if ssh_node2 is None:
+            return LOG.error(err_msg, node2.fqdn)
 
         msg_running = 'SSH %s. Running command: %s'
         msg_output = 'SSH %s. Output: %s'
