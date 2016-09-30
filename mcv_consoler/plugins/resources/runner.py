@@ -37,14 +37,14 @@ class ResourceReportRunner(run.Runner):
         return True
 
     def run_batch(self, tasks, *args, **kwargs):
-        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+        LOG.info("Time start: %s UTC\n", str(datetime.datetime.utcnow()))
 
         tasks, missing = self.discovery.match(tasks)
         self.test_not_found.extend(missing)
 
         result = super(ResourceReportRunner, self).run_batch(tasks, *args,
                                                              **kwargs)
-        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+        LOG.info("\nTime end: %s UTC", str(datetime.datetime.utcnow()))
         return result
 
     def generate_report(self, html, task):
@@ -58,7 +58,7 @@ class ResourceReportRunner(run.Runner):
         report.close()
 
     def run_individual_task(self, task, *args, **kwargs):
-        LOG.info('Running task %s' % task)
+        LOG.info('Running task %s', task)
         time_start = datetime.datetime.utcnow()
         reporter_class = getattr(resources, task)
         if not reporter_class:
@@ -66,14 +66,19 @@ class ResourceReportRunner(run.Runner):
             LOG.info(" * FAILED")
             return False
         reporter = reporter_class(self.access_data)
-        html, res = reporter.search_resources()
+        html, res, success = reporter.search_resources()
 
         # store raw results
         self.dump_raw_results(task, res)
 
         time_end = datetime.datetime.utcnow()
-        time_of_tests = str(round((time_end - time_start).total_seconds(), 3)) + 's'
+        time_of_tests = "{}s".format(round((time_end - time_start)
+                                           .total_seconds(), 3))
         self.time_of_tests[task] = {'duration': time_of_tests}
         self.generate_report(html, task)
-        LOG.info(" * PASSED")
-        return True
+        if success:
+            LOG.info(" * PASSED")
+        else:
+            LOG.info(" * FAILED")
+            self.test_failures.append(task)
+        return success

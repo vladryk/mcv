@@ -72,6 +72,7 @@ RESOURCE_MAP = {
 
 }
 
+
 class ErredTable(Table):
     type = Col('TYPE')
     name = Col('NAME')
@@ -84,6 +85,7 @@ class ResourceSearch(object):
 
     resources = None
     access_data = None
+    success = True
 
     def list_servers(self, list_servers):
         res = []
@@ -168,11 +170,12 @@ class ErrorResourceSearch(ResourceSearch):
 
         try:
             serv = self.novaclient.servers.list()
+            res = self.list_servers(serv)
         except Exception:
             LOG.error('Failed connection to nova, report will be incomplete')
+            self.success = False
             return
 
-        res = self.list_servers(serv)
         for s in res:
             if s['status'] == 'ERROR':
                 self.resources.append(s)
@@ -182,12 +185,13 @@ class ErrorResourceSearch(ResourceSearch):
 
         try:
             vol = self.cinderclient.volumes.list()
+            res = self.list_volumes(vol)
         except Exception:
             LOG.error('Failed connect to the cinder, '
                       'report will be incomplete')
+            self.success = False
             return
 
-        res = self.list_volumes(vol)
         for v in res:
             if v['status'] == 'error':
                 self.resources.append(v)
@@ -197,12 +201,13 @@ class ErrorResourceSearch(ResourceSearch):
 
         try:
             images = self.glanceclient.images.list()
+            res = self.list_images(images)
         except Exception:
             LOG.error('Failed obtain data from glance, '
                       'report will be incomplete')
+            self.success = False
             return
 
-        res = self.list_images(images)
         for i in res:
             if i['status'] == 'killed':
                 self.resources.append(i)
@@ -212,6 +217,7 @@ class ErrorResourceSearch(ResourceSearch):
         try:
             res = self.neutronclient.list_ports()
         except Exception:
+            self.success = False
             LOG.error('Failed connect to neutron, report will be incomplete')
             return
         for p in res['ports']:
@@ -233,7 +239,7 @@ class ErrorResourceSearch(ResourceSearch):
         self.search_error_volumes()
         self.search_error_images()
         self.search_down_ports()
-        return self.fill_the_template(), self.resources
+        return self.fill_the_template(), self.resources, self.success
 
     def fill_the_template(self):
         path = os.path.join(os.path.dirname(__file__), 'erred_template.html')
@@ -261,6 +267,7 @@ class GeneralResourceSearch(ResourceSearch):
             if v.flavor['id'] == flavor_id:
                 counter += 1
         return counter
+
     def _count_usage(self, usage):
         res = {}
         total = 0
@@ -276,7 +283,8 @@ class GeneralResourceSearch(ResourceSearch):
 
         return res
 
-    def repr_dict(self, rdict, s_comment='', m_comment='', e_comment='', direct_order=True):
+    def repr_dict(self, rdict, s_comment='', m_comment='', e_comment='',
+                  direct_order=True):
         res = ''
         for k, v in rdict.iteritems():
             if direct_order:
@@ -297,56 +305,69 @@ class GeneralResourceSearch(ResourceSearch):
 
     def get_flavor_data(self):
         LOG.debug('Collecting flavor data')
+
         try:
             flavors = self.novaclient.flavors.list()
         except Exception:
             LOG.error('Failed connection to nova, report will be incomplete')
+            self.success = False
             return
+
         vms = self.novaclient.servers.list()
         res = self.list_flavors(flavors)
-        self.resources['flavors'] = self.repr_dict(res,s_comment='ID')
+        self.resources['flavors'] = self.repr_dict(res, s_comment='ID')
         active_vms = [v for v in vms if v.status == 'ACTIVE']
         paused_vms = [v for v in vms if v.status == 'PAUSED']
+
         active_flavors = {f.name: self._count_vms(f.id, active_vms)
                           for f in flavors
                           if self._count_vms(f.id, active_vms)}
+
         self.resources['active_flavors'] = self.repr_dict(
-            active_flavors, s_comment='Flavor', m_comment='Used by', e_comment='VMs')
-        paused_flavors = {f.name: self._count_vms(f.id,
-                                                                    paused_vms)
-                                            for f in flavors
-                                            if self._count_vms(f.id,
-                                                               paused_vms)}
+            active_flavors, s_comment='Flavor', m_comment='Used by',
+            e_comment='VMs')
+
+        paused_flavors = {f.name: self._count_vms(f.id, paused_vms)
+                          for f in flavors
+                          if self._count_vms(f.id, paused_vms)}
+
         self.resources['paused_flavors'] = self.repr_dict(
-            active_flavors, s_comment='Flavor', m_comment='Used by', e_comment='VMs')
+            active_flavors, s_comment='Flavor', m_comment='Used by',
+            e_comment='VMs')
         all_keys = [k for k in active_flavors.keys() +
                     paused_flavors.keys()]
         total_usage = []
         for k in all_keys:
             total_usage.append({
-                k:active_flavors.get(k) or 0 + paused_flavors.get(k) or 0 })
+                k: active_flavors.get(k) or 0 + paused_flavors.get(k) or 0})
 
         most_used = self._count_usage(total_usage)
 
         self.resources['most_used_flavors'] = self.repr_dict(
-            most_used, s_comment='Flavor', m_comment='used by', e_comment='VMs')
+            most_used, s_comment='Flavor',
+            m_comment='used by', e_comment='VMs')
+
         LOG.debug('Flavor usage statistic successfully collected')
 
     def get_volume_data(self):
         LOG.debug('Collecting volume usage data')
+
         try:
             volumes = self.cinderclient.volumes.list()
         except Exception:
             LOG.error('Failed connect to the cinder, '
                       'report will be incomplete')
+            self.success = False
             return
+
         res_volumes = [
             {'10Gb': 0},
             {'50Gb': 0},
             {'100Gb': 0},
             {'500Gb': 0},
             {'500Gb': 0},
-         ]
+        ]
+
         for v in volumes:
             if v.status == 'in-use':
                 if v.size < 10:
@@ -359,20 +380,24 @@ class GeneralResourceSearch(ResourceSearch):
                     res_volumes[3]['500Gb'] += 1
                 else:
                     res_volumes[4]['500Gb'] += 1
+
         self.resources['volumes'] = self.repr_list_dict(
             res_volumes[:-1], m_comment=' volumes less than', e_comment='size')
-        self.resources['volumes'] += ' %s volumes is bigger than 500Gb size' % \
-                                     res_volumes[4]['500Gb']
+        self.resources['volumes'] += (' %s volumes is bigger than 500Gb size' %
+                                      res_volumes[4]['500Gb'])
 
         most_used = self._count_usage(res_volumes)
         self.resources['most_used_volumes'] = self.repr_dict(
-            most_used, m_comment='of volumes has size, less than', direct_order=False)
+            most_used, m_comment='of volumes has size, less than',
+            direct_order=False)
         unused = sum([v.size for v in volumes if v.status != 'in-use'])
         full_size = sum([v.size for v in volumes])
+
         if full_size:
             unattached = unused * 100 / full_size
         else:
             unattached = 100
+
         self.resources['unattached'] = '%d%%' % unattached
         LOG.debug('Volume usage statistic successfully collected')
 
@@ -384,18 +409,20 @@ class GeneralResourceSearch(ResourceSearch):
         except Exception:
             LOG.error('Failed obtain data from glance, '
                       'report will be incomplete')
+            self.success = False
             return
 
         vms = self.novaclient.servers.list()
         used_size_id = [v.image['id'] for v in vms if v.image]
         used_size = [i for i in all_images if i.id in used_size_id]
+
         res_images = [
             {'10Gb': 0},
             {'50Gb': 0},
             {'100Gb': 0},
             {'500Gb': 0},
             {'500Gb': 0},
-         ]
+        ]
 
         for i in used_size:
             if i.size < 10 * 1000000000:
@@ -408,15 +435,17 @@ class GeneralResourceSearch(ResourceSearch):
                 res_images[3]['500Gb'] += 1
             else:
                 res_images[4]['500Gb'] += 1
+
         self.resources['images'] = self.repr_list_dict(
             res_images[:-1], m_comment=' images less than', e_comment='size')
-        self.resources['images'] += ' %s images is bigger than 500Gb size' % \
-                                     res_images[4]['500Gb']
+        self.resources['images'] += (' %s images is bigger than 500Gb size' %
+                                     res_images[4]['500Gb'])
 
         most_used = self._count_usage(res_images)
 
         self.resources['most_used_images'] = self.repr_dict(
-            most_used, m_comment='of images has size, less than', direct_order=False)
+            most_used, m_comment='of images has size, less than',
+            direct_order=False)
         # Need it because glance returns generator
         all_images = self.glanceclient.images.list()
         full_size = sum([i.size for i in all_images if i.size])
@@ -434,6 +463,7 @@ class GeneralResourceSearch(ResourceSearch):
             networks = self.neutronclient.list_networks()['networks']
         except Exception:
             LOG.error('Failed connect to neutron, report will be incomplete')
+            self.success = False
             return
         self.resources['networks'] = len(networks)
         routers = self.neutronclient.list_routers()['routers']
@@ -457,7 +487,7 @@ class GeneralResourceSearch(ResourceSearch):
         self.get_image_data()
         self.get_network_data()
         html = self.fill_the_template()
-        return html, self.resources
+        return html, self.resources, self.success
 
     def fill_the_template(self):
         path = os.path.join(os.path.dirname(__file__),
@@ -466,7 +496,8 @@ class GeneralResourceSearch(ResourceSearch):
         general_temp = temp.read()
         temp.close()
         template = Template(general_temp)
-        resource_dict = dict((RESOURCE_MAP[k], v) for k, v in self.resources.iteritems())
+        resource_dict = dict((RESOURCE_MAP[k], v)
+                             for k, v in self.resources.iteritems())
         res = template.render(result=resource_dict)
 
         return res
