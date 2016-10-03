@@ -343,7 +343,7 @@ def init_config(config_file=None):
         # will be thrown an error
         for group, opts in cfg_for_reg:
             for opt in opts:
-                assert CONF[group.name][opt.name]
+                LOG.debug(CONF[group.name][opt.name])
         return True
     except cfg.Error as e:
         LOG.error(e)
