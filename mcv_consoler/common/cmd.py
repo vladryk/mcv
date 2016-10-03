@@ -42,12 +42,6 @@ def _get_parser():
         help="Provide custom config file instead of the default one")
 
     parser.add_argument(
-        "--no-tunneling",
-        action="store_true",
-        default=False,
-        help="Forbids setting up automatic tunnels. Used for L2 only.")
-
-    parser.add_argument(
         '--os-ssh-key', type=argparse.FileType('rt'),
         help='SSH key for OpenStack nodes. If not set fetched from FUEL '
              'master.')

@@ -424,8 +424,7 @@ class Consoler(object):
 
     def _make_access_helper(self):
         return AccessSteward(
-            self.ctx, self.ctx.args.run_mode,
-            port_forwarding=not self.ctx.args.no_tunneling)
+            self.ctx, self.ctx.args.run_mode)
 
     def _update_ctx_with_access_data(self, access_helper):
         access_data = access_helper.access_data()

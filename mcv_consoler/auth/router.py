@@ -515,7 +515,6 @@ class CRouter(Router):
 class IRouter(Router):
     def __init__(self, ctx, **kwargs):
         super(IRouter, self).__init__(ctx, **kwargs)
-        self.port_forwarding = kwargs.get('port_forwarding', False)
 
         self.fresh_floating_ips = []
 
@@ -550,14 +549,11 @@ class IRouter(Router):
             LOG.error('No MCV server found by ip for adding security group')
             return False
 
-        if self.port_forwarding:
-            LOG.debug('Port forwarding will be done automatically')
-            if self.check_and_fix_iptables_rule() == -1:
-                LOG.error('Fail to check iptables rules')
-                self.hosts.restore()
-                return False
-        else:
-            LOG.debug('No port forwarding required')
+        LOG.debug('Port forwarding will be done automatically')
+        if self.check_and_fix_iptables_rule() == -1:
+            LOG.error('Fail to check iptables rules')
+            self.hosts.restore()
+            return False
 
         self.check_and_fix_floating_ips()
         return True
