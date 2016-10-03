@@ -16,12 +16,6 @@
 DEBUG = False
 
 # Available modes to run MCV
-
-MODES = (1,  # L1 segment (as an instance)
-         2,  # L2 segment (separate node in admin network)
-         3,  # L3 segment (separate node in external network)
-         )
-
 RUN_MODES = (
     'instance',     # L1 segment (as an instance)
     'node',         # L2 segment (separate node in admin network)

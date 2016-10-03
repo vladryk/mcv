@@ -68,14 +68,10 @@ def _get_parser():
         version=version,
         help="Print out version of MCV Consoler and exit.")
 
-    operation = parser.add_mutually_exclusive_group(required=True)
-
-    operation.add_argument(
+    parser.add_argument(
         "--run-mode",
         choices=config.RUN_MODES,
-        # TODO(abochkarev): need to set required to 'True'
-        # after removing '--mode' from options
-        required=False,
+        required=True,
         help="""Choose mode in which Consoler is going to work.
 
 Possible values:
@@ -83,12 +79,6 @@ Possible values:
 instance -  Run MCV inside the cloud as an instance (L1)
 node -      Run MCV as a separate node with direct access to admin network (L2)
 external -  Run MCV as a separate node in external network (L3)""")
-
-    operation.add_argument(
-        "--mode",
-        type=int,
-        choices=config.MODES,
-        help="WARNING: This option is deprecated. Use '--run-mode' instead")
 
     parser.add_argument(
         "--debug",

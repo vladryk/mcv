@@ -24,7 +24,6 @@ from oslo_config import cfg
 
 from mcv_consoler.common import cfglib
 from mcv_consoler.common.cmd import argparser
-from mcv_consoler.common.config import RUN_MODES
 from mcv_consoler.common import context
 from mcv_consoler.common.errors import CAError
 from mcv_consoler import consoler
@@ -58,15 +57,6 @@ def main():
     log.configure_logging(args.debug, args.verbose)
 
     LOG.debug('Consoler started by command: %s', ' '.join(sys.argv))
-    # show deprecation warning. Replace 'mode' with 'run_mode' if needed
-    if args.mode is not None:
-        warn_msg = "\nDeprecation warning: option '--mode' is deprecated " \
-                   "and might be removed in the nearest future. " \
-                   "Use '--run-mode' instead\n"
-        LOG.warning(warn_msg)
-        if args.run_mode is None:
-            args.run_mode = RUN_MODES[args.mode - 1]
-
     if not acquire_lock():
         LOG.error("There is another instance of MCVConsoler! Stop.")
         return CAError.TOO_MANY_INSTANCES
