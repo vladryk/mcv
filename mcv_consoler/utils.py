@@ -45,7 +45,7 @@ def copy_mcvconsoler_log(results_dir):
         os.makedirs(results_log_dir)
 
     handler = filter(lambda x: x.get_name() == "mcvconsoler_current_run",
-                     LOG.parent.handlers)
+                     logging.getLogger(None).handlers)
     if handler:
         shutil.copy2(handler[0].baseFilename, results_log_dir)
 
