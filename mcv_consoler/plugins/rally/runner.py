@@ -724,6 +724,7 @@ class RallyOnDockerRunner(RallyRunner):
             LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
             return result
 
+    @utils.developer_mode
     def run_individual_task(self, task, *args, **kwargs):
         self.skip = False
         try:

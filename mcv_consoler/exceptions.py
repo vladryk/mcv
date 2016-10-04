@@ -87,3 +87,7 @@ class UpdateQuotasError(MCVException):
 
 class ResolveFqdn(MCVException):
     pass
+
+
+class ExitDevMode(MCVException):
+    pass

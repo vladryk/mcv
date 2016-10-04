@@ -22,12 +22,16 @@ import shutil
 import signal
 import subprocess
 
+from functools import wraps
+from oslo_config import cfg
+
 import dateutil.parser
 import keystoneclient
 
 from mcv_consoler import exceptions
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 warnings = ('SNIMissingWarning',
             'InsecurePlatformWarning',
@@ -337,3 +341,20 @@ def get_keystone_basic_client(access_data):
         insecure=access_data['insecure'],
         debug=access_data['debug'],
     )
+
+
+def developer_mode(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        inp = 'c'
+        if CONF.basic.developer_mode:
+            while inp:
+                inp = raw_input("You are in Developer-Mode. "
+                                "c (Continue) / q (Quit): ").lower()
+                if inp == 'c' or inp == 'q':
+                    break
+        if inp == 'c':
+            return func(*args, **kwargs)
+        elif inp == 'q':
+            raise exceptions.ExitDevMode('Exit from Developer-Mode.')
+    return wrapper

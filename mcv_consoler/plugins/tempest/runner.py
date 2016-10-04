@@ -449,6 +449,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     "tempest_tests_details": tempest_task_results_details,
                     }
 
+    @utils.developer_mode
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)
 

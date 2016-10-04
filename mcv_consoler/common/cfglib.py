@@ -33,7 +33,9 @@ basic_opts = [
     cfg.BoolOpt('hide_ssl_warnings', default=False,
                 help='MCV ssl warnings'),
     cfg.StrOpt('scenario', default='/etc/mcv/scenario.yaml',
-               help='MCV test groups scenario path')
+               help='MCV test groups scenario path'),
+    cfg.BoolOpt('developer_mode', default=False,
+                help='Developer mode'),
 ]
 
 fuel = cfg.OptGroup(name='fuel',
