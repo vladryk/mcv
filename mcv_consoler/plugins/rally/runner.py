@@ -709,22 +709,20 @@ class RallyOnDockerRunner(RallyRunner):
         return failed
 
     def run_batch(self, tasks, *args, **kwargs):
-        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
-        self._setup_rally_on_docker()
+        with self.store('rally.log'):
+            LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+            self._setup_rally_on_docker()
 
-        tasks, missing = self.discovery.match(tasks)
-        self.test_not_found.extend(missing)
+            tasks, missing = self.discovery.match(tasks)
+            self.test_not_found.extend(missing)
 
-        result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
-        self.cleanup_fedora_image()
-        self.cleanup_test_flavor()
-        self.cleanup_network()
+            result = super(RallyRunner, self).run_batch(tasks, *args, **kwargs)
+            self.cleanup_fedora_image()
+            self.cleanup_test_flavor()
+            self.cleanup_network()
 
-        # store rally log
-        self.store_logs(os.path.join(self.homedir, "log/rally.log"))
-
-        LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
-        return result
+            LOG.info("Time end: %s UTC" % str(datetime.datetime.utcnow()))
+            return result
 
     def run_individual_task(self, task, *args, **kwargs):
         self.skip = False

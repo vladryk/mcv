@@ -328,119 +328,119 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
         utils.run_cmd(cmd, quiet=True)
 
     def run_batch(self, tasks, *args, **kwargs):
-        tool_name = kwargs["tool_name"]
-        all_time = kwargs["all_time"]
-        elapsed_time = kwargs["elapsed_time"]
+        with self.store('rally.log', 'tempest.log'):
+            tool_name = kwargs["tool_name"]
+            all_time = kwargs["all_time"]
+            elapsed_time = kwargs["elapsed_time"]
 
-        # Note (ayasakov): the database execution time of each test.
-        # In the first run for each test tool calculate the multiplier,
-        # which shows the difference of execution time between testing
-        # on our cloud and the current cloud.
+            # Note (ayasakov): the database execution time of each test.
+            # In the first run for each test tool calculate the multiplier,
+            # which shows the difference of execution time between testing
+            # on our cloud and the current cloud.
 
-        db = kwargs.get('db')
-        first_run = True
-        multiplier = 1.0
-        test_time = 0
-        all_time -= elapsed_time
+            db = kwargs.get('db')
+            first_run = True
+            multiplier = 1.0
+            test_time = 0
+            all_time -= elapsed_time
 
-        self.create_cirros_image()
-        self._setup_rally_on_docker()
+            self.create_cirros_image()
+            self._setup_rally_on_docker()
 
-        # NOTE(ogrytsenko): only test-suites are discoverable for tempest
-        if not kwargs.get('run_by_name'):
-            cid = self.container_id
-            tasks, missing = self.discovery(cid).match(tasks)
-            self.test_not_found.extend(missing)
+            # NOTE(ogrytsenko): only test-suites are discoverable for tempest
+            if not kwargs.get('run_by_name'):
+                cid = self.container_id
+                tasks, missing = self.discovery(cid).match(tasks)
+                self.test_not_found.extend(missing)
 
-        t = []
-        tempest_task_results_details = {}
-        LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
-        for task in tasks:
-            LOG.info("-" * 60)
-            task = task.replace(' ', '')
-            if kwargs.get('event').is_set():
-                LOG.info("Keyboard interrupt. Set %s won't start" % task)
-                break
-            time_start = datetime.datetime.utcnow()
-            LOG.info('Running %s tempest set' % task)
+            t = []
+            tempest_task_results_details = {}
+            LOG.info("Time start: %s UTC\n" % str(datetime.datetime.utcnow()))
+            for task in tasks:
+                LOG.info("-" * 60)
+                task = task.replace(' ', '')
+                if kwargs.get('event').is_set():
+                    LOG.info("Keyboard interrupt. Set %s won't start" % task)
+                    break
+                time_start = datetime.datetime.utcnow()
+                LOG.info('Running %s tempest set' % task)
 
-            LOG.debug("Time start: %s UTC" % str(time_start))
-            if not CONF.times.update:
-                try:
-                    test_time = db[tool_name][task]
-                except KeyError:
-                    test_time = 0
+                LOG.debug("Time start: %s UTC" % str(time_start))
+                if not CONF.times.update:
+                    try:
+                        test_time = db[tool_name][task]
+                    except KeyError:
+                        test_time = 0
 
-                exp_time = utils.seconds_to_humantime(test_time * multiplier)
-                msg = "Expected time to complete %s: %s"
-                if not test_time:
-                    LOG.debug(msg, task, exp_time)
+                    exp_time = utils.seconds_to_humantime(test_time *
+                                                          multiplier)
+                    msg = "Expected time to complete %s: %s"
+                    if not test_time:
+                        LOG.debug(msg, task, exp_time)
+                    else:
+                        LOG.info(msg, task, exp_time)
+
+                self.run_individual_task(task, *args, **kwargs)
+
+                time_end = datetime.datetime.utcnow()
+                time = time_end - time_start
+                LOG.debug("Time end: %s UTC" % str(time_end))
+
+                if CONF.times.update:
+                    if tool_name in db.keys():
+                        db[tool_name].update({task: time.seconds})
+                    else:
+                        db.update({tool_name: {task: time.seconds}})
                 else:
-                    LOG.info(msg, task, exp_time)
+                    if first_run:
+                        first_run = False
+                        if test_time:
+                            multiplier = float(time.seconds) / float(test_time)
+                    all_time -= test_time
+                    persent = 1.0
+                    if kwargs["all_time"]:
+                        persent -= float(all_time) / float(kwargs["all_time"])
+                    persent = int(persent * 100)
+                    persent = 100 if persent > 100 else persent
 
-            self.run_individual_task(task, *args, **kwargs)
+                    line = 'Completed %s' % persent + '%'
+                    time_str = utils.seconds_to_humantime(all_time *
+                                                          multiplier)
+                    if all_time and multiplier:
+                        line += ' and remaining time %s' % time_str
 
-            time_end = datetime.datetime.utcnow()
-            time = time_end - time_start
-            LOG.debug("Time end: %s UTC" % str(time_end))
+                    LOG.info(line)
+                    LOG.info("-" * 60)
+
+                t.append(self.task['test_cases'].keys())
+
+                tempest_task_results_details[task] = {
+                    # overall number of tests in suit
+                    "tests": self.task.get("tests", 0),
+                    "test_succeed": self.task.get("success", 0),
+                    "test_failed": self.task.get("failures", 0),
+                    "test_skipped": self.task.get("skipped", 0),
+                    "expected_failures": self.task.get("expected_failures", 0)
+                }
+                if self.failed_cases > CONF.tempest.max_failed_tests:
+                    LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                    self.failure_indicator = \
+                        TempestError.FAILED_TEST_LIMIT_EXCESS
+                    break
 
             if CONF.times.update:
-                if tool_name in db.keys():
-                    db[tool_name].update({task: time.seconds})
-                else:
-                    db.update({tool_name: {task: time.seconds}})
-            else:
-                if first_run:
-                    first_run = False
-                    if test_time:
-                        multiplier = float(time.seconds) / float(test_time)
-                all_time -= test_time
-                persent = 1.0
-                if kwargs["all_time"]:
-                    persent -= float(all_time) / float(kwargs["all_time"])
-                persent = int(persent * 100)
-                persent = 100 if persent > 100 else persent
+                with open(TIMES_DB_PATH, "w") as f:
+                    json.dump(db, f)
 
-                line = 'Completed %s' % persent + '%'
-                time_str = utils.seconds_to_humantime(all_time * multiplier)
-                if all_time and multiplier:
-                    line += ' and remaining time %s' % time_str
-
-                LOG.info(line)
-                LOG.info("-" * 60)
-
-            t.append(self.task['test_cases'].keys())
-
-            tempest_task_results_details[task] = {
-                # overall number of tests in suit
-                "tests": self.task.get("tests", 0),
-                "test_succeed": self.task.get("success", 0),
-                "test_failed": self.task.get("failures", 0),
-                "test_skipped": self.task.get("skipped", 0),
-                "expected_failures": self.task.get("expected_failures", 0)
-            }
-            if self.failed_cases > CONF.tempest.max_failed_tests:
-                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                self.failure_indicator = TempestError.FAILED_TEST_LIMIT_EXCESS
-                break
-
-        if CONF.times.update:
-            with open(TIMES_DB_PATH, "w") as f:
-                json.dump(db, f)
-
-        # store tempest logs
-        for log_to_store in ("rally.log", "tempest.log"):
-            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
-
-        LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
-        self.cleanup_toolbox()
-        self.cleanup_cirros_image()
-        return {"test_failures": self.test_failures,
-                "test_success": self.test_success,
-                "test_not_found": self.test_not_found,
-                "time_of_tests": self.time_of_tests,
-                "tempest_tests_details": tempest_task_results_details,
-                }
+            LOG.info("\nTime end: %s UTC" % str(datetime.datetime.utcnow()))
+            self.cleanup_toolbox()
+            self.cleanup_cirros_image()
+            return {"test_failures": self.test_failures,
+                    "test_success": self.test_success,
+                    "test_not_found": self.test_not_found,
+                    "time_of_tests": self.time_of_tests,
+                    "tempest_tests_details": tempest_task_results_details,
+                    }
 
     def run_individual_task(self, task, *args, **kwargs):
         results = self._run_tempest_on_docker(task, *args, **kwargs)

@@ -35,7 +35,6 @@ class OSTFRunner(runner.Runner):
     identity = 'ostf'
     config_section = 'ostf'
     envdir = '/home/mcv/venv'
-    homedir = '/home/mcv/toolbox/ostf'
     config_filename = 'ostfcfg.conf'
 
     def __init__(self, ctx):
@@ -51,6 +50,8 @@ class OSTFRunner(runner.Runner):
         self.success = []
         self.failures = []
         self.not_found = []
+
+        self.homedir = '/home/mcv/toolbox/ostf'
 
         self.max_failed_tests = CONF.ostf.max_failed_tests
 
@@ -169,40 +170,37 @@ class OSTFRunner(runner.Runner):
             )
 
     def run_batch(self, tasks, *args, **kwargs):
-        self._setup_ostf()
+        with self.store('ostf_adapter_debug.log', 'ostf_adapter.log'):
+            self._setup_ostf()
 
-        time_start = datetime.datetime.utcnow()
-        LOG.info("Time start: %s UTC\n", str(time_start))
+            time_start = datetime.datetime.utcnow()
+            LOG.info("Time start: %s UTC\n", str(time_start))
 
-        v = self.mos_version
+            v = self.mos_version
 
-        tasks, missing = self.discovery(None, v).match(tasks)
-        self.not_found.extend(missing)
+            tasks, missing = self.discovery(None, v).match(tasks)
+            self.not_found.extend(missing)
 
-        for task in tasks:
-            if self.ctx.terminate_event.is_set():
-                LOG.info("Caught keyboard interrupt. "
-                         "Task %s won't start", task)
-                break
-            self.run_individual_task(task, *args, **kwargs)
+            for task in tasks:
+                if self.ctx.terminate_event.is_set():
+                    LOG.info("Caught keyboard interrupt. "
+                             "Task %s won't start", task)
+                    break
+                self.run_individual_task(task, *args, **kwargs)
 
-            if len(self.failures) >= self.max_failed_tests:
-                self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
-                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                break
+                if len(self.failures) >= self.max_failed_tests:
+                    self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
+                    LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                    break
 
-        time_end = datetime.datetime.utcnow()
+            time_end = datetime.datetime.utcnow()
 
-        # store ostf logs
-        for log_to_store in ("ostf_adapter_debug.log", "ostf_adapter.log"):
-            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
+            LOG.info("\nTime end: %s UTC", time_end)
 
-        LOG.info("\nTime end: %s UTC", time_end)
-
-        return {"test_failures": self.failures,
-                "test_success": self.success,
-                "test_not_found": self.not_found,
-                "time_of_tests": self.time_of_tests}
+            return {"test_failures": self.failures,
+                    "test_success": self.success,
+                    "test_not_found": self.not_found,
+                    "time_of_tests": self.time_of_tests}
 
     def run_individual_task(self, task, *args, **kwargs):
         LOG.info("-" * 60)
@@ -406,41 +404,38 @@ class OSTFOnDockerRunner(runner.Runner):
             return
 
     def run_batch(self, tasks, *args, **kwargs):
-        self._setup_ostf_on_docker()
+        with self.store('ostf_adapter_debug.log', 'ostf_adapter.log'):
+            self._setup_ostf_on_docker()
 
-        time_start = datetime.datetime.utcnow()
-        LOG.info("Time start: %s UTC\n" % str(time_start))
+            time_start = datetime.datetime.utcnow()
+            LOG.info("Time start: %s UTC\n" % str(time_start))
 
-        v = self.mos_version
-        cid = self.container_id
+            v = self.mos_version
+            cid = self.container_id
 
-        tasks, missing = self.discovery(cid, v).match(tasks)
-        self.not_found.extend(missing)
+            tasks, missing = self.discovery(cid, v).match(tasks)
+            self.not_found.extend(missing)
 
-        for task in tasks:
-            if self.ctx.terminate_event.is_set():
-                LOG.info("Caught keyboard interrupt. "
-                         "Task %s won't start", task)
-                break
-            self.run_individual_task(task, *args, **kwargs)
+            for task in tasks:
+                if self.ctx.terminate_event.is_set():
+                    LOG.info("Caught keyboard interrupt. "
+                             "Task %s won't start", task)
+                    break
+                self.run_individual_task(task, *args, **kwargs)
 
-            if len(self.failures) >= self.max_failed_tests:
-                self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
-                LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
-                break
+                if len(self.failures) >= self.max_failed_tests:
+                    self.failure_indicator = OSTFError.FAILED_TEST_LIMIT_EXCESS
+                    LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
+                    break
 
-        time_end = datetime.datetime.utcnow()
+            time_end = datetime.datetime.utcnow()
 
-        # store ostf logs
-        for log_to_store in ("ostf_adapter_debug.log", "ostf_adapter.log"):
-            self.store_logs(os.path.join(self.homedir, "log", log_to_store))
+            LOG.info("\nTime end: %s UTC", time_end)
 
-        LOG.info("\nTime end: %s UTC", time_end)
-
-        return {"test_failures": self.failures,
-                "test_success": self.success,
-                "test_not_found": self.not_found,
-                "time_of_tests": self.time_of_tests}
+            return {"test_failures": self.failures,
+                    "test_success": self.success,
+                    "test_not_found": self.not_found,
+                    "time_of_tests": self.time_of_tests}
 
     def run_individual_task(self, task, *args, **kwargs):
         LOG.info("-" * 60)
