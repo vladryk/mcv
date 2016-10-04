@@ -14,15 +14,15 @@
 
 import logging
 
-from mcv_consoler.common.errors import BaseSelfCheckError
-import mcv_consoler.plugins.runner as run
-from mcv_consoler.plugins.selfcheck import selfcheck_tester as st
+from mcv_consoler.common import errors
+from mcv_consoler.plugins import runner
+from mcv_consoler.plugins.selfcheck import selfcheck
 
 LOG = logging.getLogger(__name__)
 
 
-class SelfCheckRunner(run.Runner):
-    failure_indicator = BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
+class SelfCheckRunner(runner.Runner):
+    failure_indicator = errors.BaseSelfCheckError.SELF_CHECK_WRONG_RUNNER
     identity = 'selfcheck'
 
     def __init__(self, ctx):
@@ -43,13 +43,12 @@ class SelfCheckRunner(run.Runner):
                                                       **kwargs)
 
     def run_individual_task(self, task, *args, **kwargs):
-        selfcheck_class = getattr(st, task)
+        selfcheck_class = getattr(selfcheck, task)
         if not selfcheck_class:
             LOG.error('Incorrect selfcheck class')
             return False
         scheck = selfcheck_class()
         res = scheck.run()
-
         # store raw results
         self.dump_raw_results(task, res)
 

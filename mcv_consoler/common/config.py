@@ -45,6 +45,12 @@ PLUGINS_DIR_NAME = 'plugins'
 # Path to default config file for Consoler
 DEFAULT_CONFIG_FILE = "/etc/mcv/mcv.conf"
 
+# Path to the hosts file
+DEFAULT_HOSTS_FILE = '/etc/hosts'
+
+# Path to the mcv board directory
+DEFAULT_MCV_BOARD_DIR = '/opt/mcv-board'
+
 # Default value is max_failed_tests is missed in MCV configuration file
 DEFAULT_FAILED_TEST_LIMIT = 10
 

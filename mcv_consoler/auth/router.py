@@ -858,7 +858,7 @@ class IRouter(Router):
 
 
 class EtcHosts(object):
-    HOSTS_FILE = '/etc/hosts'
+    HOSTS_FILE = mcv_config.DEFAULT_HOSTS_FILE
     TEMP_FILE = '/tmp/etc-hosts.mcv~'
     COMMENT = "# added by MCV tool"
 

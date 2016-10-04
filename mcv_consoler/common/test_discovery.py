@@ -166,6 +166,10 @@ def get_resources():
     return ['GeneralResourceSearch', 'ErrorResourceSearch']
 
 
+def get_selfcheck():
+    return ['BasicSelfCheck']
+
+
 class CacheProxy(object):
 
     def __init__(self, func):
@@ -220,6 +224,7 @@ class _Discovery(object):
         self.nwspeed = CacheProxy(get_nwspeed)
         self.resources = CacheProxy(get_resources)
         self.ostf = CacheProxy(get_ostf)
+        self.selfcheck = CacheProxy(get_selfcheck)
 
     def use(self, plugin_name):
         return getattr(self, plugin_name)
@@ -240,6 +245,7 @@ class _Discovery(object):
             'nwspeed': self.nwspeed.get(),
             'resources': self.resources.get(),
             'ostf': ostf_suites,
+            'selfcheck': self.selfcheck.get()
         }
         # force cache cleaning as we used *_DUMMY objects
         # TODO(ogrytsenko): get rid of *_DUMMY lists. Do not clear cache here
