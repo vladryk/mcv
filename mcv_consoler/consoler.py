@@ -112,14 +112,14 @@ class Consoler(object):
         self.group_name = test_group
         self._name_parts.append(test_group)
         self._name_parts.append(test_name.rsplit('.', 1)[-1])
-        return self._do_test_plan({test_group: test_name})
+        return self._do_test_plan({test_group: test_name}, run_by_name=True)
 
     def do_full(self):
         self.group_name = "Full"
         LOG.info("Starting full check run.")
         return self._do_test_plan(discovery.get_all_tests())
 
-    def _do_test_plan(self, test_plan):
+    def _do_test_plan(self, test_plan, **kwargs):
         self.results_dir = self.get_results_dir('/tmp')
         os.mkdir(self.results_dir)
 
@@ -136,9 +136,9 @@ class Consoler(object):
         with self._make_access_helper() as access_helper:
             self._update_ctx_with_access_data(access_helper)
             with clean_up_wrapper(self.ctx):
-                return self._exec_tests(test_plan)
+                return self._exec_tests(test_plan, **kwargs)
 
-    def _exec_tests(self, test_plan):
+    def _exec_tests(self, test_plan, **kwargs):
         elapsed_time_by_group = dict()
         dispatch_result = {}
 
@@ -222,7 +222,9 @@ class Consoler(object):
                         tool_name=key,
                         db=db,
                         all_time=self.all_time,
-                        elapsed_time=elapsed_time_by_group[key])
+                        elapsed_time=elapsed_time_by_group[key],
+                        **kwargs
+                    )
 
                     if len(run_failures['test_failures']) > 0:
                         if self.failure_indicator == CAError.NO_ERROR:
