@@ -331,14 +331,14 @@ class Consoler(object):
 
     @staticmethod
     def update_scenario(run_results):
-        failed_test_section = 'failed'
+        failed = 'failed'
         test_failures = 'test_failures'
         results = 'results'
         with open(CONF.basic.scenario, 'r+') as f:
-            yaml = ruamel.yaml.load(f, ruamel.yaml.RoundTripLoader)
+            yaml = ruamel.yaml.round_trip_load(f)
             yaml_copy = copy.deepcopy(yaml)
-            if failed_test_section in yaml:
-                del yaml[failed_test_section]
+            if failed in yaml:
+                del yaml[failed]
             group = {}
             for key, value in run_results.iteritems():
                 if not validate_section(value, test_failures):
@@ -347,11 +347,10 @@ class Consoler(object):
                 if failures:
                     group[key] = failures
             if group:
-                yaml[failed_test_section] = group
+                yaml[failed] = group
             if yaml != yaml_copy:
                 f.seek(0)
-                ruamel.yaml.dump(yaml, f, ruamel.yaml.RoundTripDumper,
-                                 block_seq_indent=2)
+                ruamel.yaml.round_trip_dump(yaml, f, block_seq_indent=2)
                 f.truncate()
 
     def _do_finalization(self, run_results):

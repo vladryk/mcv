@@ -18,9 +18,9 @@ import sys
 import threading
 import time
 import traceback
-import yaml
 
 from oslo_config import cfg
+import ruamel.yaml
 
 from mcv_consoler.common import cfglib
 from mcv_consoler.common.cmd import argparser
@@ -47,7 +47,7 @@ def acquire_lock():
 
 def load_scenario():
     with open(CONF.basic.scenario, 'r') as f:
-        return yaml.load(f)
+        return ruamel.yaml.round_trip_load(f)
 
 
 def main():
