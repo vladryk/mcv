@@ -85,6 +85,7 @@ functional:
   tempest:
     - baremetal
     - compute
+    - clustering
     - database
     - data_processing
     - identity
@@ -93,8 +94,6 @@ functional:
     - network
     - object_storage
     - orchestration
-    - scenario
-    - smoke
     - telemetry
     - volume
 smoke:
