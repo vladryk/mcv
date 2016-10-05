@@ -12,11 +12,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from collections import OrderedDict
 import fnmatch
+from functools32 import lru_cache
 import json
 import os
-
-from functools32 import lru_cache
 
 from mcv_consoler import utils
 
@@ -29,7 +29,9 @@ TOOLBOX = '/home/mcv/toolbox'
 # validated later one-again, when docker container is Up. Some of them might
 # be excluded.
 # Basically this is a list of tests that we usually use for OSTF
-# TODO(ogrytsenko): remove hardcoded tests
+# FIXME(ogrytsenko): this seems not used anymore.
+# Should be removed after 'mcv-ostf' docker container is completely
+# removed from build
 OSTF_DUMMY = [
     'SanityIdentityTest',
     'SanityComputeTest',
@@ -230,23 +232,27 @@ class _Discovery(object):
         return getattr(self, plugin_name)
 
     def get_all_tests(self):
+        from mcv_consoler.common.cfglib import CONF
+        mos_version = CONF.basic.mos_version
+
         no_semicolon = lambda s: ':' not in s
-        ostf_tests = self.ostf(None, None).get()
+        ostf_tests = self.ostf(None, mos_version).get()
         ostf_suites = filter(no_semicolon, ostf_tests)
 
         # TODO(ogrytsenko): remove filter after workloads are fixed
         rally_load = lambda s: s.startswith(('load-', 'certification'))
 
-        res = {
-            'rally': self.rally.filter(rally_load),
-            'shaker': self.shaker.get(),
-            'tempest': self.tempest(cid=None).get(),
-            'speed': self.speed.get(),
-            'nwspeed': self.nwspeed.get(),
-            'resources': self.resources.get(),
-            'ostf': ostf_suites,
-            'selfcheck': self.selfcheck.get()
-        }
+        # tests should be run in a following order
+        res = OrderedDict([
+            ('selfcheck', self.selfcheck.get()),
+            ('ostf', ostf_suites),
+            ('rally', self.rally.filter(rally_load)),
+            ('tempest', self.tempest(cid=None).get()),
+            ('resources', self.resources.get()),
+            ('speed', self.speed.get()),
+            ('nwspeed', self.nwspeed.get()),
+            ('shaker', self.shaker.get()),
+        ])
         # force cache cleaning as we used *_DUMMY objects
         # TODO(ogrytsenko): get rid of *_DUMMY lists. Do not clear cache here
         self.tempest.cache_clear()

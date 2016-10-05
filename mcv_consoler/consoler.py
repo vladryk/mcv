@@ -72,6 +72,12 @@ class Consoler(object):
                 "Test group {group} doesn't seem to exist in config!"
                 .format(group=test_group))
 
+    @staticmethod
+    def pretty_print_tests(test_plan):
+        LOG.info("Amount of tests requested per available tools:")
+        for group, test_list in test_plan.iteritems():
+            LOG.info(" %s : %s", group, len(test_list))
+
     def get_results_dir(self, dst_dir=None):
         no_artifacts = lambda s: s.replace('.yaml', '').replace(':', '.')
         parts = map(no_artifacts, self._name_parts)
@@ -83,18 +89,8 @@ class Consoler(object):
     def do_group(self, test_group):
         self.group_name = test_group
         self._name_parts.append(test_group)
-
-        def pretty_print_tests(tests):
-            LOG.info("Amount of tests requested per available tools:")
-            for group, test_list in tests.iteritems():
-                LOG.info(" %s : %s", group, len(test_list))
-
         test_plan = self.prepare_tests(test_group)
-        if test_plan is None:
-            return None
-
-        pretty_print_tests(test_plan)
-
+        self.pretty_print_tests(test_plan)
         return self._do_test_plan(test_plan)
 
     def do_single(self, test_group, test_name):
@@ -117,7 +113,9 @@ class Consoler(object):
     def do_full(self):
         self.group_name = "Full"
         LOG.info("Starting full check run.")
-        return self._do_test_plan(discovery.get_all_tests())
+        test_plan = discovery.get_all_tests()
+        self.pretty_print_tests(test_plan)
+        return self._do_test_plan(test_plan)
 
     def _do_test_plan(self, test_plan, **kwargs):
         self.results_dir = self.get_results_dir('/tmp')
