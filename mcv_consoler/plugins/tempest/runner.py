@@ -24,6 +24,7 @@ import traceback
 from oslo_config import cfg
 
 from mcv_consoler.common.config import DEFAULT_CIRROS_IMAGE
+from mcv_consoler.common.config import MOS_TEMPEST_MAP
 from mcv_consoler.common.config import TIMES_DB_PATH
 from mcv_consoler.common.errors import TempestError
 from mcv_consoler.plugins.rally import runner as rrunner
@@ -212,10 +213,19 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
             config.write(conf_file)
 
         LOG.debug("Installing tempest...")
-        cmd = ("docker exec -t {cid} "
-               "rally verify install --system-wide "
-               "--deployment existing --source /tempest").format(
-            cid=self.container_id)
+        version = MOS_TEMPEST_MAP.get(self.access_data['mos_version'])
+        if not version:
+            cmd = ("docker exec -t {cid} "
+                   "rally verify install --system-wide "
+                   "--deployment existing --source /tempest ").format(
+                cid=self.container_id)
+        else:
+            cmd = ("docker exec -t {cid} "
+                   "rally verify install --system-wide "
+                   "--deployment existing --source /tempest "
+                   "--version {version} ").format(
+                cid=self.container_id,
+                version=version)
 
         utils.run_cmd(cmd, quiet=True)
         cmd = "docker exec -t %(container)s rally verify genconfig " \

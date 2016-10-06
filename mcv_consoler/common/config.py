@@ -91,6 +91,12 @@ MOS_HADOOP_MAP = {
     '7.0': '2.6.0',
     '8.0': '2.7.1'
 }
+# Tempest for different mos versions
+MOS_TEMPEST_MAP = {
+    '7.0': 'b39bbce80c69a57c708ed1b672319f111c79bdd5',
+    '8.0': 'b39bbce80c69a57c708ed1b672319f111c79bdd5',
+    '9.0': '63cb9a3718f394c9da8e0cc04b170ca2a8196ec2',
+}
 
 # Default timeout for SSH connection, sec
 DEFAULT_SSH_TIMEOUT = 10
