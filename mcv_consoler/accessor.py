@@ -74,9 +74,8 @@ class AccessSteward(object):
                 'One or more docker images are not present: "%s"',
                 '", "'.join(missing))
 
-            sleep_for = time_end - time.time()
-            sleep_for = max(sleep_for, 0)
-            sleep_for = min(sleep_for, 1)
+            sleep_for = app_conf.DOCKER_CHECK_INTERVAL
+            LOG.debug('Sleep for %s seconds', sleep_for)
             time.sleep(sleep_for)
 
             now = time.time()
