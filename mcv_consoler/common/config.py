@@ -51,9 +51,6 @@ DEFAULT_HOSTS_FILE = '/etc/hosts'
 # Path to the mcv board directory
 DEFAULT_MCV_BOARD_DIR = '/opt/mcv-board'
 
-# Default value is max_failed_tests is missed in MCV configuration file
-DEFAULT_FAILED_TEST_LIMIT = 10
-
 # List of supported MOS versions
 MOS_VERSIONS = ['6.1', '7.0', '8.0', '9.0']
 

@@ -22,7 +22,6 @@ import time
 import traceback
 
 from oslo_config import cfg
-from oslo_config.cfg import NoSuchOptError
 
 from mcv_consoler.common import config
 from mcv_consoler.common import context
@@ -51,6 +50,8 @@ class Runner(object):
         super(Runner, self).__init__()
         self.ctx = ctx
         context.add(self.ctx, 'runner', self)
+
+        self.max_failed_tests = ctx.max_failed_tests
 
         self.current_task = 1
         self.test_failures = []
@@ -216,10 +217,6 @@ class Runner(object):
         tool_name = kwargs["tool_name"]
         all_time = kwargs["all_time"]
         elapsed_time = kwargs["elapsed_time"]
-        try:
-            max_failed_tests = CONF[tool_name]['max_failed_tests']
-        except NoSuchOptError:
-            max_failed_tests = config.DEFAULT_FAILED_TEST_LIMIT
 
         LOG.debug("The following tests will be run:")
         LOG.debug("\n".join(tasks))
@@ -300,7 +297,7 @@ class Runner(object):
                 LOG.info(line)
                 LOG.info("-" * 60)
 
-            if failures >= max_failed_tests:
+            if failures >= self.max_failed_tests:
                 LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                 self.failure_indicator = self.get_error_code(tool_name)
                 break

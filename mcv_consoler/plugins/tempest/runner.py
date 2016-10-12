@@ -439,7 +439,7 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
                     "test_skipped": self.task.get("skipped", 0),
                     "expected_failures": self.task.get("expected_failures", 0)
                 }
-                if self.failed_cases > CONF.tempest.max_failed_tests:
+                if self.failed_cases > self.max_failed_tests:
                     LOG.info('*LIMIT OF FAILED TESTS EXCEEDED! STOP RUNNING.*')
                     self.failure_indicator = \
                         TempestError.FAILED_TEST_LIMIT_EXCESS

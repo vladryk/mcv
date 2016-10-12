@@ -101,7 +101,7 @@ class Consoler(object):
         self.group_name = test_group
         self._name_parts.append(test_group)
         self._name_parts.append(test_name)
-        return self._do_test_plan({test_group: test_name})
+        return self._do_test_plan({test_group: [test_name]})
 
     def do_name(self, test_group, test_name):
         """Run specific test by name. """
@@ -137,21 +137,18 @@ class Consoler(object):
                 return self._exec_tests(test_plan, **kwargs)
 
     def _exec_tests(self, test_plan, **kwargs):
-        elapsed_time_by_group = dict()
+        elapsed_time_by_group = {}
         dispatch_result = {}
 
         with open(TIMES_DB_PATH, 'r') as fd:
             db = json.load(fd)
 
         if not CONF.times.update:
-            for key in test_plan.keys():
-                batch = [x for x in (''.join(test_plan[key].split()
-                                             ).split(',')) if x]
-                elapsed_time_by_group[key] = self.all_time
-                for test in batch:
-                    test = test.replace(' ', '')
+            for name, tests in test_plan.iteritems():
+                elapsed_time_by_group[name] = self.all_time
+                for test in tests:
                     try:
-                        self.all_time += db[key][test]
+                        self.all_time += db[name][test]
                     except KeyError:
                         LOG.info("You must update the database time tests. "
                                  "There is no time for %s", test)
@@ -163,64 +160,64 @@ class Consoler(object):
             else:
                 LOG.info(msg, time_str)
 
-        for key in test_plan:
+        for name, tests in test_plan.iteritems():
             if self.ctx.terminate_event.is_set():
                 LOG.info("Catch Keyboard interrupt. "
                          "No more tests will be launched")
                 break
             if CONF.times.update:
-                elapsed_time_by_group[key] = 0
+                elapsed_time_by_group[name] = 0
                 # FIXME(dbogun): rewrite timesdb implementation
                 # We must reload timesdb because plugin (probably) update id
                 with open(TIMES_DB_PATH, 'rt') as fd:
                     db = json.load(fd)
 
-            dispatch_result[key] = {}
+            dispatch_result[name] = {}
             try:
                 spawn_point = os.path.dirname(__file__)
                 path_to_runner = os.path.join(spawn_point, self.plugin_dir,
-                                              key, "runner.py")
-                module = imp.load_source("runner" + key, path_to_runner)
+                                              name, "runner.py")
+                module = imp.load_source("runner" + name, path_to_runner)
             except IOError as e:
-                LOG.debug("Looks like there is no such runner: %s.", key)
-                dispatch_result[key]['major_crash'] = 1
+                LOG.debug("Looks like there is no such runner: %s.", name)
+                dispatch_result[name]['major_crash'] = 1
                 LOG.error("The following exception has been caught: %s", e)
                 LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             except Exception:
-                dispatch_result[key]['major_crash'] = 1
+                dispatch_result[name]['major_crash'] = 1
                 LOG.error("Something went wrong. "
                           "Please check mcvconsoler logs")
                 LOG.debug(traceback.format_exc())
                 self.failure_indicator = CAError.RUNNER_LOAD_ERROR
             else:
-                path = os.path.join(self.results_dir, key)
+                path = os.path.join(self.results_dir, name)
                 os.mkdir(path)
 
-                factory = getattr(module, CONF[key]['runner'])
+                tests_count = len(tests)
+                max_failed_tests = CONF.get(name, {}).get('max_failed_tests')
+                max_failed_tests = max_failed_tests if max_failed_tests > 0 \
+                    else tests_count
+
+                factory = getattr(module, CONF[name]['runner'])
                 runner = factory(context.Context(
                     self.ctx,
+                    max_failed_tests=max_failed_tests,
                     work_dir=utils.WorkDir(
                         path, parent=self.ctx.work_dir_global)))
 
-                batch = test_plan[key]
-                if isinstance(batch, basestring):
-                    batch = [batch]
-
-                LOG.debug("Running {batch} for {key}"
-                          .format(batch=len(batch),
-                                  key=key))
+                LOG.debug("Running {} tests for {}".format(tests_count, name))
 
                 try:
                     run_failures = runner.run_batch(
-                        batch,
+                        tests,
                         compute=1,
                         event=self.ctx.terminate_event,
                         scenario=self.scenario,
-                        tool_name=key,
+                        tool_name=name,
                         db=db,
                         all_time=self.all_time,
-                        elapsed_time=elapsed_time_by_group[key],
+                        elapsed_time=elapsed_time_by_group[name],
                         **kwargs
                     )
 
@@ -242,8 +239,8 @@ class Consoler(object):
                               "Please check mcvconsoler logs")
                     LOG.debug(traceback.format_exc())
                 else:
-                    dispatch_result[key]['results'] = run_failures
-                    dispatch_result[key]['batch'] = batch
+                    dispatch_result[name]['results'] = run_failures
+                    dispatch_result[name]['batch'] = tests
 
         return dispatch_result
 

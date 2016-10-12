@@ -53,8 +53,6 @@ class OSTFRunner(runner.Runner):
 
         self.homedir = '/home/mcv/toolbox/ostf'
 
-        self.max_failed_tests = CONF.ostf.max_failed_tests
-
     def _do_config_extraction(self):
         path = os.path.join(self.homedir, 'conf', self.config_filename)
 
@@ -247,7 +245,6 @@ class OSTFOnDockerRunner(runner.Runner):
         self.homedir = '/home/mcv/toolbox/ostf'
         self.home = '/mcv'
         self.config_filename = 'ostfcfg.conf'
-        self.max_failed_tests = CONF.ostf.max_failed_tests
 
     def _do_config_extraction(self):
         LOG.debug("Checking for existing OSTF configuration file...")

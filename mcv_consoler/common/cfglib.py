@@ -109,7 +109,7 @@ rally_opts = [
                help='Rally vlan amount'),
     cfg.BoolOpt('gre_enabled', default=False,
                 help='Rally gre'),
-    cfg.IntOpt('max_failed_tests', default=10,
+    cfg.IntOpt('max_failed_tests',
                help='Rally max failed tests count'),
     cfg.BoolOpt('existing_users', default=False,
                 help='Rally use pre-configured user')
@@ -162,7 +162,7 @@ tempest = cfg.OptGroup(name='tempest',
 tempest_opts = [
     cfg.StrOpt('runner', default='TempestOnDockerRunner',
                help='Tempest plugin name'),
-    cfg.IntOpt('max_failed_tests', default=100,
+    cfg.IntOpt('max_failed_tests',
                help='Tempest max failed tests count')
 ]
 
@@ -174,7 +174,7 @@ ostf_opts = [
                help='OSTF plugin name'),
     cfg.BoolOpt('reload_config', default=False,
                 help='Reloading OSTF config file for each run'),
-    cfg.IntOpt('max_failed_tests', default=10,
+    cfg.IntOpt('max_failed_tests',
                help='OSTF max failed tests count')
 ]
 
@@ -184,7 +184,7 @@ resources = cfg.OptGroup(name='resources',
 resources_opts = [
     cfg.StrOpt('runner', default='ResourceReportRunner',
                help='Resource plugin name'),
-    cfg.IntOpt('max_failed_tests', default=1,
+    cfg.IntOpt('max_failed_tests',
                help='Resource max failed tests count')
 ]
 
@@ -200,7 +200,7 @@ shaker_opts = [
                help='Shaker timeout'),
     cfg.IntOpt('agents_timeout', default=60,
                help='Shaker agents timeout'),
-    cfg.IntOpt('max_failed_tests', default=1,
+    cfg.IntOpt('max_failed_tests',
                help='Shaker max failed tests count'),
     cfg.StrOpt('image_name', default='shaker-image',
                help='Shaker image name'),
@@ -214,10 +214,7 @@ network_speed = cfg.OptGroup(name='network_speed',
 
 network_speed_opts = [
     cfg.FloatOpt('threshold', default=7.0,
-                 help='Network threshold'),
-    cfg.IntOpt('max_failed_tests', default=10,
-               help='Network speed max failed tests count')
-
+                 help='Network threshold')
 ]
 
 speed = cfg.OptGroup(name='speed',
@@ -239,7 +236,7 @@ speed_opts = [
                help='Speed volume size'),
     cfg.FloatOpt('threshold', default=50.0,
                  help='Speed threshold'),
-    cfg.IntOpt('max_failed_tests', default=10,
+    cfg.IntOpt('max_failed_tests',
                help='Speed max failed tests count'),
     # compute_nodes_limit is optional, default value is None
     cfg.IntOpt('compute_nodes_limit',
