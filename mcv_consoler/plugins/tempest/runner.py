@@ -238,21 +238,30 @@ class TempestOnDockerRunner(rrunner.RallyOnDockerRunner):
     def _run_tempest_on_docker(self, task, *args, **kwargs):
 
         LOG.debug("Starting verification")
+        if CONF.rally.existing_users:
+            concurr = 1
+        else:
+            concurr = 0
         run_by_name = kwargs.get('run_by_name')
+
         if run_by_name:
             cmd = ("docker exec -t {cid} rally "
                    "--log-file {home}/log/tempest.log --rally-debug"
                    " verify start --system-wide "
-                   "--regex {_set}").format(cid=self.container_id,
-                                            home=self.home,
-                                            _set=task)
+                   "--regex {_set} --concurrency {con}").format(
+                cid=self.container_id,
+                home=self.home,
+                _set=task,
+                con=concurr)
         else:
             cmd = ("docker exec -t {cid} rally "
                    "--log-file {home}/log/tempest.log --rally-debug"
                    " verify start --system-wide "
-                   "--set {_set}").format(cid=self.container_id,
-                                          home=self.home,
-                                          _set=task)
+                   "--set {_set} --concurrency {con}").format(
+                cid=self.container_id,
+                home=self.home,
+                _set=task,
+                con=concurr)
         utils.run_cmd(cmd, quiet=True)
 
         cmd = "docker exec -t {cid} rally verify list".format(
